@@ -9,12 +9,10 @@ import ItemCategoryPage from "src/features/items/item-category/ItemCategoryPage"
 export default function AppRoutes() {
     return (
         <Routes>
-            {/* Routes rendered inside the main application layout */}
             <Route element={<AppLayout />}>
                 <Route index element={<DashboardPage />} />
                 <Route path="item-category" element={<ItemCategoryPage />} />
 
-                {/* Example placeholders for future features */}
                 {/* <Route path="party">
           <Route path="customer" element={<CustomerPage />} />
           <Route path="vendor" element={<VendorPage />} />

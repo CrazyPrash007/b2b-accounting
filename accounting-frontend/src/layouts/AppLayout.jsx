@@ -12,6 +12,9 @@ export default function AppLayout({ children }) {
             <Sidebar />
 
             <div className="flex-1 flex flex-col">
+                {/* Topbar */}
+
+
                 {/* Main */}
                 <main className="p-6">
                     {content}
