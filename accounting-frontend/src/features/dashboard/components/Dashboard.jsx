@@ -1,3 +1,4 @@
+// src/features/dashboard/components/Dashboard.jsx
 import React from "react";
 import BusinessOperations from "./BusinessOperations";
 import RevenueProjections from "./RevenueProjections";
