@@ -1,0 +1,137 @@
+/* === keep working tailwind import === */
+@import "tailwindcss";
+
+/* === global baseline (safe) === */
+html,
+body,
+#root {
+    height: 100%;
+    margin: 0;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    color: #111827;
+    background-color: #f8fafc;
+}
+
+/* === small, safe reusable card (consistent) === */
+.card {
+    background: #fff;
+    border: 1px solid #e6eaf0;
+    border-radius: 8px;
+    /* default padding here is small; components can add p-4 when needed */
+}
+
+/* === helpers for the small stat tiles (compact) === */
+.stat-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.stat-tile-compact {
+    display: inline-flex;
+    gap: 12px;
+    align-items: center;
+    padding: 12px;
+    border: 1px solid #e6eaf0;
+    border-radius: 8px;
+    background: #fff;
+    min-height: 72px;
+    /* compact height that matches reference */
+    box-sizing: border-box;
+}
+
+.stat-tile-compact .icon {
+    width: 44px;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+}
+
+/* stacked full-width stat tiles on right column */
+.stat-vertical {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.stat-vertical .stat-row {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    padding: 12px;
+    border-radius: 8px;
+    border: 1px solid #e6eaf0;
+    background: #fff;
+    min-height: 64px;
+}
+
+/* big income box */
+.income-large {
+    background: #ecfdf3;
+    border: 1px solid #d1f3da;
+    border-radius: 8px;
+    padding: 12px;
+    min-height: 82px;
+}
+
+/* small icon bg variations */
+.bg-blue-50 {
+    background: #eff6ff;
+}
+
+.bg-indigo-50 {
+    background: #eef2ff;
+}
+
+.bg-orange-50 {
+    background: #fff7ed;
+}
+
+.bg-pink-50 {
+    background: #fff1f2;
+}
+
+.bg-green-50 {
+    background: #ecfdf5;
+}
+
+.bg-yellow-50 {
+    background: #fffbeb;
+}
+
+/* quick access grid style */
+.quick-grid {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.quick-card {
+    border: 1px solid #e6eaf0;
+    border-radius: 8px;
+    padding: 16px;
+    background: #fff;
+    text-align: center;
+}
+
+/* analytics + lowstock equal heights wrapper */
+.equal-height-row {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 16px;
+}
+
+/* responsiveness */
+@media (max-width: 1100px) {
+    .quick-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .equal-height-row {
+        grid-template-columns: 1fr;
+    }
+}
