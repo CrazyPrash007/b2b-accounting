@@ -1,0 +1,37 @@
+import React from "react";
+import { Routes, Route, Navigate } from "react-router-dom";
+import AppLayout from "src/layouts/AppLayout";
+
+// Feature pages (use relative imports to avoid bundler alias issues)
+import DashboardPage from "src/features/dashboard/DashboardPage";
+import ItemCategoryPage from "src/features/items/item-category/ItemCategoryPage";
+
+// TODO: import other feature pages as you add them, e.g.
+// import CustomerPage from "./features/party/customer/CustomerPage";
+
+export default function AppRoutes() {
+    return (
+        <Routes>
+            {/* Routes rendered inside the main application layout */}
+            <Route element={<AppLayout />}>
+                <Route index element={<DashboardPage />} />
+                <Route path="item-category" element={<ItemCategoryPage />} />
+
+                {/* Example placeholders for future features */}
+                {/* <Route path="party">
+          <Route path="customer" element={<CustomerPage />} />
+          <Route path="vendor" element={<VendorPage />} />
+        </Route> */}
+
+                {/* Catch-all / 404 fallback route inside layout */}
+                <Route path="*" element={<div className="p-6">Page not found</div>} />
+            </Route>
+
+            {/* Legacy / separate routes (if you need auth or public pages you can add them here) */}
+            {/* <Route path="/login" element={<LoginPage />} /> */}
+
+            {/* Redirect old root to dashboard (optional) */}
+            <Route path="/" element={<Navigate to="/" replace />} />
+        </Routes>
+    );
+}
