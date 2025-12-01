@@ -39,7 +39,7 @@ export default function ItemCategoryPage() {
     };
 
     return (
-        <AppLayout>
+        <>
             <div className="flex items-center justify-between mb-4">
                 <h2 className="text-xl font-semibold">Item Category</h2>
                 <div>
@@ -98,6 +98,6 @@ export default function ItemCategoryPage() {
                 onClose={handleClose}
                 onSave={handleSave}
             />
-        </AppLayout>
+        </>
     );
 }
