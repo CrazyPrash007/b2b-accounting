@@ -3,13 +3,14 @@ import React, { useRef, useEffect, useState } from "react";
 
 /**
  * ItemTable - Table for displaying items with matching category table style
+ * Excel-like interactions: row hover highlighting, cell selection with border
  * @param {Array} items - List of item objects
  * @param {Function} onEdit - Callback when edit is clicked
- * @param {Function} onDelete - Callback when delete is clicked
  */
-export default function ItemTable({ items, onEdit, onDelete }) {
+export default function ItemTable({ items, onEdit }) {
     const tableContainerRef = useRef(null);
     const [visibleRows, setVisibleRows] = useState(15);
+    const [selectedCell, setSelectedCell] = useState(null); // { rowIndex, colIndex }
 
     // Calculate how many rows can fit in the available space
     useEffect(() => {
@@ -37,6 +38,31 @@ export default function ItemTable({ items, onEdit, onDelete }) {
     const totalRecords = items.length;
     const startRecord = totalRecords > 0 ? 1 : 0;
     const endRecord = totalRecords;
+
+    const handleCellClick = (rowIndex, colIndex) => {
+        setSelectedCell({ rowIndex, colIndex });
+    };
+
+    // Clear selection when clicking outside table
+    const handleTableContainerClick = (e) => {
+        if (e.target === e.currentTarget) {
+            setSelectedCell(null);
+        }
+    };
+
+    // Helper to determine if a cell is selected
+    const isCellSelected = (rowIndex, colIndex) => {
+        return selectedCell?.rowIndex === rowIndex && selectedCell?.colIndex === colIndex;
+    };
+
+    // Cell classes with Excel-like selection border
+    const getCellClasses = (rowIndex, colIndex) => {
+        const baseClasses = "h-8 px-4 border-r border-gray-200 cursor-cell";
+        const selectedClasses = isCellSelected(rowIndex, colIndex) 
+            ? "outline outline-2 outline-blue-500 outline-offset-[-2px] bg-blue-50" 
+            : "";
+        return `${baseClasses} ${selectedClasses}`;
+    };
 
     return (
         <>
@@ -72,7 +98,11 @@ export default function ItemTable({ items, onEdit, onDelete }) {
             </div>
 
             {/* Table Container - Scrollable */}
-            <div ref={tableContainerRef} className="flex-1 overflow-auto px-4 pb-1">
+            <div 
+                ref={tableContainerRef} 
+                className="flex-1 overflow-auto px-4 pb-1"
+                onClick={handleTableContainerClick}
+            >
                 <div className="border border-gray-200 rounded overflow-hidden h-full">
                 <table className="w-full border-collapse text-sm" style={{ borderSpacing: 0 }}>
                     <thead className="sticky top-0 z-10 bg-white">
@@ -120,18 +150,33 @@ export default function ItemTable({ items, onEdit, onDelete }) {
                     </thead>
                     <tbody>
                         {/* Data rows */}
-                        {items.map((item, index) => (
-                            <tr key={item.id} className={`border-b border-gray-200 ${index % 2 === 0 ? 'bg-blue-50/40' : 'bg-white'}`}>
-                                <td className="h-8 px-4 text-left text-blue-600 border-r border-gray-200 truncate">
+                        {items.map((item, rowIndex) => (
+                            <tr 
+                                key={item.id} 
+                                className={`border-b border-gray-200 hover:bg-blue-100 transition-colors ${rowIndex % 2 === 0 ? 'bg-blue-50/40' : 'bg-white'}`}
+                            >
+                                <td 
+                                    className={getCellClasses(rowIndex, 0) + " text-left text-blue-600 truncate"}
+                                    onClick={() => handleCellClick(rowIndex, 0)}
+                                >
                                     {item.name}
                                 </td>
-                                <td className="h-8 px-4 text-left text-gray-600 border-r border-gray-200 truncate">
+                                <td 
+                                    className={getCellClasses(rowIndex, 1) + " text-left text-gray-600 truncate"}
+                                    onClick={() => handleCellClick(rowIndex, 1)}
+                                >
                                     {item.type}
                                 </td>
-                                <td className="h-8 px-4 text-left text-gray-600 border-r border-gray-200 truncate">
+                                <td 
+                                    className={getCellClasses(rowIndex, 2) + " text-left text-gray-600 truncate"}
+                                    onClick={() => handleCellClick(rowIndex, 2)}
+                                >
                                     {item.category || ""}
                                 </td>
-                                <td className="h-8 px-4 text-left border-r border-gray-200">
+                                <td 
+                                    className={getCellClasses(rowIndex, 3) + " text-left"}
+                                    onClick={() => handleCellClick(rowIndex, 3)}
+                                >
                                     <span className={item.status === "Active" ? "text-green-600" : "text-gray-500"}>
                                         {item.status}
                                     </span>
@@ -158,11 +203,26 @@ export default function ItemTable({ items, onEdit, onDelete }) {
                         {emptyRows.map((_, idx) => {
                             const rowIndex = items.length + idx;
                             return (
-                                <tr key={`empty-${idx}`} className={`border-b border-gray-200 ${rowIndex % 2 === 0 ? 'bg-blue-50/40' : 'bg-white'}`}>
-                                    <td className="h-8 px-4 border-r border-gray-200"></td>
-                                    <td className="h-8 px-4 border-r border-gray-200"></td>
-                                    <td className="h-8 px-4 border-r border-gray-200"></td>
-                                    <td className="h-8 px-4 border-r border-gray-200"></td>
+                                <tr 
+                                    key={`empty-${idx}`} 
+                                    className={`border-b border-gray-200 hover:bg-blue-100 transition-colors ${rowIndex % 2 === 0 ? 'bg-blue-50/40' : 'bg-white'}`}
+                                >
+                                    <td 
+                                        className={getCellClasses(rowIndex, 0)}
+                                        onClick={() => handleCellClick(rowIndex, 0)}
+                                    ></td>
+                                    <td 
+                                        className={getCellClasses(rowIndex, 1)}
+                                        onClick={() => handleCellClick(rowIndex, 1)}
+                                    ></td>
+                                    <td 
+                                        className={getCellClasses(rowIndex, 2)}
+                                        onClick={() => handleCellClick(rowIndex, 2)}
+                                    ></td>
+                                    <td 
+                                        className={getCellClasses(rowIndex, 3)}
+                                        onClick={() => handleCellClick(rowIndex, 3)}
+                                    ></td>
                                     <td className="h-8 px-4"></td>
                                 </tr>
                             );
