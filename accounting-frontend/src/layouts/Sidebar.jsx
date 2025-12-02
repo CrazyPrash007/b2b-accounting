@@ -94,16 +94,7 @@ export default function Sidebar() {
 
     return (
         <aside className="w-[260px] bg-white border-r border-gray-200 h-screen sticky top-0 flex flex-col">
-            {/* Logo */}
-            <div className="px-6 py-6 flex items-center gap-3">
-                <img src="/logo.svg" className="h-10 w-10 logo" alt="logo" />
-                <div>
-                    <div className="font-semibold text-primary">YourApp</div>
-                    <div className="text-xs text-gray-500">Accounting</div>
-                </div>
-            </div>
-
-            <nav className="flex-1 px-4 overflow-y-auto">
+            <nav className="flex-1 px-4 py-4 overflow-y-auto">
                 {/* Dashboard (top-level) */}
                 <div className="mb-4">
                     <div className="text-xs text-gray-400 mb-2 uppercase">Main</div>
