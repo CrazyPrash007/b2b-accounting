@@ -1,13 +1,11 @@
-// ItemCategoryPage.jsx
+// GstPage.jsx
 import React, { useState, useEffect, useRef } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
-import useItemCategories from "./hooks/useItemCategories";
+
 /**
- * CategoryModal - Compact centered modal for creating/editing a category
+ * GstModal - Modal for creating/editing GST rates
  */
-function CategoryModal({ isOpen, onClose, onSave, onDelete, editData }) {
-    const [categoryName, setCategoryName] = useState("");
-    const [subcategories, setSubcategories] = useState([""]);
+function GstModal({ isOpen, onClose, onSave, onDelete, editData }) {
+    const [gstRate, setGstRate] = useState("");
     const [error, setError] = useState("");
 
     const isEditMode = !!editData;
@@ -15,51 +13,32 @@ function CategoryModal({ isOpen, onClose, onSave, onDelete, editData }) {
     useEffect(() => {
         if (isOpen) {
             if (editData) {
-                setCategoryName(editData.name || "");
-                setSubcategories(
-                    editData.subcategories?.length > 0 ? [...editData.subcategories] : [""]
-                );
+                setGstRate(editData.rate || "");
             } else {
-                setCategoryName("");
-                setSubcategories([""]);
+                setGstRate("");
             }
             setError("");
         }
     }, [editData, isOpen]);
 
-    const handleSubcategoryChange = (index, value) => {
-        const updated = [...subcategories];
-        updated[index] = value;
-        setSubcategories(updated);
-    };
-
-    const addSubcategory = () => {
-        setSubcategories([...subcategories, ""]);
-    };
-
-    const removeSubcategory = (index) => {
-        if (subcategories.length <= 1) return;
-        const updated = subcategories.filter((_, i) => i !== index);
-        setSubcategories(updated);
-    };
-
     const handleSave = () => {
-        if (!categoryName.trim()) {
-            setError("Category is required");
+        if (!gstRate.toString().trim()) {
+            setError("GST Rate is required");
             return;
         }
 
-        const filteredSubcategories = subcategories
-            .map((s) => s.trim())
-            .filter((s) => s !== "");
+        const rate = parseFloat(gstRate);
+        if (isNaN(rate) || rate < 0) {
+            setError("Please enter a valid GST rate");
+            return;
+        }
 
-        const categoryData = {
+        const gstData = {
             id: isEditMode ? editData.id : String(Date.now()),
-            name: categoryName.trim(),
-            subcategories: filteredSubcategories,
+            rate: rate,
         };
 
-        onSave(categoryData, isEditMode);
+        onSave(gstData, isEditMode);
     };
 
     const handleBackdropClick = (e) => {
@@ -71,7 +50,7 @@ function CategoryModal({ isOpen, onClose, onSave, onDelete, editData }) {
     if (!isOpen) return null;
 
     return (
-        <div
+        <div 
             className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
             onClick={handleBackdropClick}
         >
@@ -79,7 +58,7 @@ function CategoryModal({ isOpen, onClose, onSave, onDelete, editData }) {
                 {/* Modal Header */}
                 <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
                     <h3 className="text-base font-semibold text-gray-900">
-                        {isEditMode ? "Edit Category" : "New Category"}
+                        {isEditMode ? "Edit GST Rate" : "New GST Rate"}
                     </h3>
                     <button
                         onClick={onClose}
@@ -92,68 +71,26 @@ function CategoryModal({ isOpen, onClose, onSave, onDelete, editData }) {
                 </div>
 
                 {/* Modal Body */}
-                <div className="px-5 py-4 space-y-4">
-                    {/* Category Name */}
+                <div className="px-5 py-4">
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Category<span className="text-red-500">*</span>
+                            GST Rate (%)<span className="text-red-500">*</span>
                         </label>
                         <input
-                            type="text"
-                            value={categoryName}
+                            type="number"
+                            value={gstRate}
                             onChange={(e) => {
-                                setCategoryName(e.target.value);
+                                setGstRate(e.target.value);
                                 if (error) setError("");
                             }}
-                            placeholder="Enter category name"
+                            placeholder="Enter GST rate (e.g., 18)"
                             className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                            min="0"
+                            step="0.01"
                         />
                         {error && (
                             <p className="mt-1 text-xs text-red-500">{error}</p>
                         )}
-                    </div>
-
-                    {/* Subcategories */}
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Sub Categories
-                        </label>
-                        <div className="space-y-2">
-                            {subcategories.map((sub, index) => (
-                                <div key={index} className="flex items-center gap-2">
-                                    <input
-                                        type="text"
-                                        value={sub}
-                                        onChange={(e) =>
-                                            handleSubcategoryChange(index, e.target.value)
-                                        }
-                                        placeholder={`Subcategory ${index + 1}`}
-                                        className="flex-1 border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                                    />
-                                    {subcategories.length > 1 && (
-                                        <button
-                                            type="button"
-                                            onClick={() => removeSubcategory(index)}
-                                            className="text-red-500 hover:text-red-700 p-1"
-                                        >
-                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                            </svg>
-                                        </button>
-                                    )}
-                                </div>
-                            ))}
-                        </div>
-                        <button
-                            type="button"
-                            onClick={addSubcategory}
-                            className="mt-2 text-blue-600 hover:text-blue-800 text-sm font-medium flex items-center gap-1"
-                        >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                            </svg>
-                            Add Subcategory
-                        </button>
                     </div>
                 </div>
 
@@ -193,84 +130,53 @@ function CategoryModal({ isOpen, onClose, onSave, onDelete, editData }) {
 }
 
 /**
- * ItemCategoryPage
- * - Frontend-only category management with subcategories
- * - No backend/API calls, in-memory state only
- * - Excel-like table with row highlighting and cell selection
+ * GstPage - GST Rate management with Excel-like table
  */
-export default function ItemCategoryPage() {
-    const navigate = useNavigate();
-    const location = useLocation();
-
-    const { rows: categories = [], loading, error, reload, create, update, remove } =
-        useItemCategories({ useLocalFallback: true });
-    const [selectedCell, setSelectedCell] = useState(null); // { rowIndex, colIndex }
+export default function GstPage() {
+    const [gstRates, setGstRates] = useState([]);
+    const [selectedCell, setSelectedCell] = useState(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
-    const [editingCategory, setEditingCategory] = useState(null);
-
-    useEffect(() => {
-        if (location.state?.savedCategory || location.state?.deletedCategoryId) {
-            reload();
-            window.history.replaceState({}, document.title);
-        }
-    }, [location.state, reload]);
-
+    const [editingGst, setEditingGst] = useState(null);
 
     const handleOpenCreate = () => {
-        setEditingCategory(null);
+        setEditingGst(null);
         setIsModalOpen(true);
     };
 
-    const handleEditCategory = (category) => {
-        setEditingCategory(category);
+    const handleEditGst = (gst) => {
+        setEditingGst(gst);
         setIsModalOpen(true);
     };
 
     const handleCloseModal = () => {
         setIsModalOpen(false);
-        setEditingCategory(null);
+        setEditingGst(null);
     };
 
-    const handleSaveCategory = async (categoryData, isEdit) => {
-        try {
-            if (isEdit) {
-                await update(categoryData.id, {
-                    name: categoryData.name,
-                    subcategories: categoryData.subcategories || [],
-                });
-            } else {
-                await create({
-                    name: categoryData.name,
-                    subcategories: categoryData.subcategories || [],
-                });
-            }
+    const handleSaveGst = (gstData, isEdit) => {
+        if (isEdit) {
+            setGstRates((prev) =>
+                prev.map((g) => (g.id === gstData.id ? gstData : g))
+            );
+        } else {
+            setGstRates((prev) => [...prev, gstData]);
+        }
+        setIsModalOpen(false);
+        setEditingGst(null);
+    };
+
+    const handleDeleteGst = (id) => {
+        if (window.confirm("Are you sure you want to delete this GST rate?")) {
+            setGstRates((prev) => prev.filter((g) => g.id !== id));
             setIsModalOpen(false);
-            setEditingCategory(null);
-        } catch (err) {
-            console.error("Failed to save category:", err);
-            alert(err?.message || "Failed to save category");
+            setEditingGst(null);
         }
     };
-
-
-    const handleDeleteCategory = async (id) => {
-        if (!window.confirm("Are you sure you want to delete this category?")) return;
-        try {
-            await remove(id);
-            setIsModalOpen(false);
-            setEditingCategory(null);
-        } catch (err) {
-            console.error("Failed to delete category:", err);
-            alert(err?.message || "Failed to delete category");
-        }
-    };
-
 
     const handleCellClick = (rowIndex, colIndex) => {
         setSelectedCell({ rowIndex, colIndex });
     };
 
-    // Clear selection when clicking outside table
     const handleTableContainerClick = (e) => {
         if (e.target === e.currentTarget) {
             setSelectedCell(null);
@@ -281,13 +187,12 @@ export default function ItemCategoryPage() {
     const tableContainerRef = useRef(null);
     const [visibleRows, setVisibleRows] = useState(TOTAL_ROWS);
 
-    // Calculate how many rows can fit in the available space
     useEffect(() => {
         const calculateRows = () => {
             if (tableContainerRef.current) {
                 const containerHeight = tableContainerRef.current.clientHeight;
-                const rowHeight = 32; // h-8 = 32px
-                const headerHeight = 36; // h-9 = 36px
+                const rowHeight = 32;
+                const headerHeight = 36;
                 const availableHeight = containerHeight - headerHeight;
                 const rows = Math.floor(availableHeight / rowHeight);
                 setVisibleRows(Math.max(rows, 1));
@@ -299,24 +204,21 @@ export default function ItemCategoryPage() {
         return () => window.removeEventListener('resize', calculateRows);
     }, []);
 
-    const emptyRowsCount = Math.max(0, visibleRows - categories.length);
+    const emptyRowsCount = Math.max(0, visibleRows - gstRates.length);
     const emptyRows = Array.from({ length: emptyRowsCount }, (_, i) => i);
 
-    // Calculate record display
-    const totalRecords = categories.length;
+    const totalRecords = gstRates.length;
     const startRecord = totalRecords > 0 ? 1 : 0;
     const endRecord = totalRecords;
 
-    // Helper to determine if a cell is selected
     const isCellSelected = (rowIndex, colIndex) => {
         return selectedCell?.rowIndex === rowIndex && selectedCell?.colIndex === colIndex;
     };
 
-    // Cell classes with Excel-like selection border
-    const getCellClasses = (rowIndex, colIndex, isDataRow = true) => {
+    const getCellClasses = (rowIndex, colIndex) => {
         const baseClasses = "h-8 px-4 border-r border-gray-400 cursor-cell";
-        const selectedClasses = isCellSelected(rowIndex, colIndex)
-            ? "outline outline-2 outline-blue-500 outline-offset-[-2px] bg-blue-50"
+        const selectedClasses = isCellSelected(rowIndex, colIndex) 
+            ? "outline outline-2 outline-blue-500 outline-offset-[-2px] bg-blue-50" 
             : "";
         return `${baseClasses} ${selectedClasses}`;
     };
@@ -326,7 +228,7 @@ export default function ItemCategoryPage() {
             {/* Header Row */}
             <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
                 <div className="flex items-center gap-3">
-                    <h2 className="text-lg font-semibold text-gray-900">Item Category</h2>
+                    <h2 className="text-lg font-semibold text-gray-900">GST Rates</h2>
                     <button className="text-gray-400 hover:text-yellow-500">
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
@@ -340,7 +242,7 @@ export default function ItemCategoryPage() {
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                     </svg>
-                    Create Category
+                    Add GST Rate
                 </button>
             </div>
 
@@ -366,81 +268,49 @@ export default function ItemCategoryPage() {
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
                     </svg>
                 </button>
-                <div className="w-px h-5 bg-gray-300 mx-1"></div>
-                <button className="flex items-center gap-2 px-3 py-1.5 text-gray-600 hover:bg-gray-100 rounded text-sm">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
-                    </svg>
-                    More Filter
-                </button>
             </div>
 
-            {/* Table Container - Scrollable */}
-            <div
-                ref={tableContainerRef}
+            {/* Table Container */}
+            <div 
+                ref={tableContainerRef} 
                 className="flex-1 overflow-auto px-4 pb-1"
                 onClick={handleTableContainerClick}
             >
-                <div className="border border-gray-200 rounded overflow-hidden h-full">
+                <div className="border border-gray-400 rounded overflow-hidden h-full">
                     <table className="w-full border-collapse text-sm" style={{ borderSpacing: 0 }}>
                         <thead className="sticky top-0 z-10 bg-white">
-                            <tr className="border-b border-gray-300">
-                                <th className="w-[35%] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-200">
+                            <tr className="border-b border-gray-400">
+                                <th className="w-[70%] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
                                     <div className="flex items-center gap-2">
                                         <span className="text-gray-400 cursor-grab">⋮⋮</span>
-                                        <span>Category</span>
+                                        <span>GST Rate (%)</span>
                                         <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
                                         </svg>
                                     </div>
                                 </th>
-                                <th className="w-[50%] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-200">
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-gray-400 cursor-grab">⋮⋮</span>
-                                        <span>Sub Category</span>
-                                        <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
-                                        </svg>
-                                    </div>
-                                </th>
-                                <th className="w-[15%] h-9 px-4 text-left text-sm font-medium text-gray-700">
+                                <th className="w-[30%] h-9 px-4 text-left text-sm font-medium text-gray-700">
                                     Actions
                                 </th>
                             </tr>
                         </thead>
                         <tbody>
                             {/* Data rows */}
-                            {categories.map((category, rowIndex) => (
-                                <tr
-                                    key={category.id || category._id || rowIndex}
-                                    className={`border-b border-gray-200 hover:bg-blue-100 transition-colors ${rowIndex % 2 === 0 ? 'bg-blue-50/40' : 'bg-white'}`}
+                            {gstRates.map((gst, rowIndex) => (
+                                <tr 
+                                    key={gst.id} 
+                                    className={`border-b border-gray-400 hover:bg-blue-100 transition-colors ${rowIndex % 2 === 0 ? 'bg-blue-50/40' : 'bg-white'}`}
                                 >
-                                    <td
-                                        className={getCellClasses(rowIndex, 0) + " text-left text-blue-600"}
+                                    <td 
+                                        className={getCellClasses(rowIndex, 0) + " text-left text-gray-900"}
                                         onClick={() => handleCellClick(rowIndex, 0)}
                                     >
-                                        {category.name}
-                                    </td>
-                                    <td
-                                        className={getCellClasses(rowIndex, 1) + " text-left text-gray-600"}
-                                        onClick={() => handleCellClick(rowIndex, 1)}
-                                    >
-                                        {category.subcategories.length > 0 ? (
-                                            <div className="flex flex-wrap gap-1">
-                                                {category.subcategories.map((sub, idx) => (
-                                                    <span key={idx} className="inline-flex items-center px-2 py-0.5 rounded bg-gray-100 text-gray-700 text-xs">
-                                                        {sub}
-                                                    </span>
-                                                ))}
-                                            </div>
-                                        ) : (
-                                            ""
-                                        )}
+                                        {gst.rate}%
                                     </td>
                                     <td className="h-8 px-4 text-left">
                                         <div className="flex items-center justify-end gap-2">
                                             <button
-                                                onClick={() => handleEditCategory(category)}
+                                                onClick={() => handleEditGst(gst)}
                                                 className="text-blue-600 hover:underline text-sm"
                                             >
                                                 Edit
@@ -454,21 +324,17 @@ export default function ItemCategoryPage() {
                                     </td>
                                 </tr>
                             ))}
-                            {/* Empty rows to fill the display */}
+                            {/* Empty rows */}
                             {emptyRows.map((_, idx) => {
-                                const rowIndex = categories.length + idx;
+                                const rowIndex = gstRates.length + idx;
                                 return (
-                                    <tr
-                                        key={`empty-${idx}`}
-                                        className={`border-b border-gray-200 hover:bg-blue-100 transition-colors ${rowIndex % 2 === 0 ? 'bg-blue-50/40' : 'bg-white'}`}
+                                    <tr 
+                                        key={`empty-${idx}`} 
+                                        className={`border-b border-gray-400 hover:bg-blue-100 transition-colors ${rowIndex % 2 === 0 ? 'bg-blue-50/40' : 'bg-white'}`}
                                     >
-                                        <td
+                                        <td 
                                             className={getCellClasses(rowIndex, 0)}
                                             onClick={() => handleCellClick(rowIndex, 0)}
-                                        ></td>
-                                        <td
-                                            className={getCellClasses(rowIndex, 1)}
-                                            onClick={() => handleCellClick(rowIndex, 1)}
                                         ></td>
                                         <td className="h-8 px-4"></td>
                                     </tr>
@@ -479,18 +345,18 @@ export default function ItemCategoryPage() {
                 </div>
             </div>
 
-            {/* Footer - Fixed at bottom */}
+            {/* Footer */}
             <div className="px-4 py-2 border-t border-gray-200 text-sm text-blue-600 bg-white">
                 {totalRecords > 0 ? `${startRecord}-${endRecord} of ${totalRecords} Records` : '0 Records'}
             </div>
 
-            {/* Category Modal */}
-            <CategoryModal
+            {/* GST Modal */}
+            <GstModal
                 isOpen={isModalOpen}
                 onClose={handleCloseModal}
-                onSave={handleSaveCategory}
-                onDelete={handleDeleteCategory}
-                editData={editingCategory}
+                onSave={handleSaveGst}
+                onDelete={handleDeleteGst}
+                editData={editingGst}
             />
         </div>
     );
