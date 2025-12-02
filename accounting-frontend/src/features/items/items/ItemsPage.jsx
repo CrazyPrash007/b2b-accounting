@@ -5,84 +5,64 @@ import ItemTable from "./ItemTable";
 
 /**
  * ItemModal - Compact centered modal for creating/editing an item
- * Shows different fields based on type: Goods vs Service/Additional Service
+ * Fields: Item Name, Description, Category, Sub-Category, Brand Name, GST Rate, HSN No, 
+ *         Item Type, Unit, Buy Price, Sell Price, Opening Stock, Min Stock, Opening Date
  */
 function ItemModal({ isOpen, onClose, onSave, onDelete, editData }) {
-    // Common fields
-    const [type, setType] = useState("Goods");
-    const [name, setName] = useState("");
+    // Form fields
+    const [itemName, setItemName] = useState("");
     const [description, setDescription] = useState("");
-    const [unit, setUnit] = useState("");
-    const [showInPurchase, setShowInPurchase] = useState(true);
-    const [showInSales, setShowInSales] = useState(true);
-    const [purchasePrice, setPurchasePrice] = useState("");
-    const [salesPrice, setSalesPrice] = useState("");
-    const [status, setStatus] = useState("Active");
-
-    // Goods-only fields
-    const [group, setGroup] = useState("");
     const [category, setCategory] = useState("");
-    const [negativeQtyAllowed, setNegativeQtyAllowed] = useState(true);
-    const [newMRP, setNewMRP] = useState("");
-    const [oldMRP, setOldMRP] = useState("");
-    const [manageStock, setManageStock] = useState("Normal");
-    const [skuCode, setSkuCode] = useState("");
-    const [openingStockQty, setOpeningStockQty] = useState("");
-    const [openingStockRate, setOpeningStockRate] = useState("");
-    const [openingStockValue, setOpeningStockValue] = useState("");
-    const [cessEnable, setCessEnable] = useState(false);
+    const [subCategory, setSubCategory] = useState("");
+    const [brandName, setBrandName] = useState("");
+    const [gstRate, setGstRate] = useState("");
+    const [hsnNo, setHsnNo] = useState("");
+    const [itemType, setItemType] = useState("Goods");
+    const [unit, setUnit] = useState("");
+    const [buyPrice, setBuyPrice] = useState("");
+    const [sellPrice, setSellPrice] = useState("");
+    const [openingStock, setOpeningStock] = useState("");
+    const [minStock, setMinStock] = useState("");
+    const [openingDate, setOpeningDate] = useState("");
 
     // Validation errors
     const [errorName, setErrorName] = useState("");
 
     const isEditMode = !!editData;
-    const isServiceType = type === "Service" || type === "Additional Service";
 
     useEffect(() => {
         if (isOpen) {
             if (editData) {
-                setType(editData.type ?? "Goods");
-                setName(editData.name ?? "");
+                setItemName(editData.itemName ?? editData.name ?? "");
                 setDescription(editData.description ?? "");
-                setUnit(editData.unit ?? "");
-                setShowInPurchase(editData.showInPurchase ?? true);
-                setShowInSales(editData.showInSales ?? true);
-                setPurchasePrice(editData.purchasePrice ?? "");
-                setSalesPrice(editData.salesPrice ?? "");
-                setStatus(editData.status ?? "Active");
-                setGroup(editData.group ?? "");
                 setCategory(editData.category ?? "");
-                setNegativeQtyAllowed(editData.negativeQtyAllowed ?? true);
-                setNewMRP(editData.newMRP ?? "");
-                setOldMRP(editData.oldMRP ?? "");
-                setManageStock(editData.manageStock ?? "Normal");
-                setSkuCode(editData.skuCode ?? "");
-                setOpeningStockQty(editData.openingStockQty ?? "");
-                setOpeningStockRate(editData.openingStockRate ?? "");
-                setOpeningStockValue(editData.openingStockValue ?? "");
-                setCessEnable(editData.cessEnable ?? false);
+                setSubCategory(editData.subCategory ?? "");
+                setBrandName(editData.brandName ?? "");
+                setGstRate(editData.gstRate ?? "");
+                setHsnNo(editData.hsnNo ?? "");
+                setItemType(editData.itemType ?? editData.type ?? "Goods");
+                setUnit(editData.unit ?? "");
+                setBuyPrice(editData.buyPrice ?? "");
+                setSellPrice(editData.sellPrice ?? "");
+                setOpeningStock(editData.openingStock ?? "");
+                setMinStock(editData.minStock ?? "");
+                setOpeningDate(editData.openingDate ?? "");
             } else {
                 // Reset to defaults
-                setType("Goods");
-                setName("");
+                setItemName("");
                 setDescription("");
-                setUnit("");
-                setShowInPurchase(true);
-                setShowInSales(true);
-                setPurchasePrice("");
-                setSalesPrice("");
-                setStatus("Active");
-                setGroup("");
                 setCategory("");
-                setNegativeQtyAllowed(true);
-                setNewMRP("");
-                setOldMRP("");
-                setManageStock("Normal");
-                setSkuCode("");
-                setOpeningStockQty("");
-                setOpeningStockRate("");
-                setOpeningStockValue("");
-                setCessEnable(false);
+                setSubCategory("");
+                setBrandName("");
+                setGstRate("");
+                setHsnNo("");
+                setItemType("Goods");
+                setUnit("");
+                setBuyPrice("");
+                setSellPrice("");
+                setOpeningStock("");
+                setMinStock("");
+                setOpeningDate("");
             }
             setErrorName("");
         }
@@ -93,35 +73,31 @@ function ItemModal({ isOpen, onClose, onSave, onDelete, editData }) {
 
     const handleSave = () => {
         setErrorName("");
-        const trimmedName = name.trim();
+        const trimmedName = itemName.trim();
 
         if (!trimmedName) {
-            setErrorName("Name is required");
+            setErrorName("Item Name is required");
             return;
         }
 
         const payload = {
             id: editData?.id ?? String(Date.now()),
-            type,
-            name: trimmedName,
+            itemName: trimmedName,
+            name: trimmedName, // for table display compatibility
             description: description.trim(),
-            unit: unit.trim(),
-            showInPurchase,
-            showInSales,
-            purchasePrice: purchasePrice || "",
-            salesPrice: salesPrice || "",
-            status,
-            group: group.trim(),
             category: category.trim(),
-            negativeQtyAllowed,
-            newMRP: newMRP || "",
-            oldMRP: oldMRP || "",
-            manageStock,
-            skuCode: skuCode.trim(),
-            openingStockQty: openingStockQty || "",
-            openingStockRate: openingStockRate || "",
-            openingStockValue: openingStockValue || "",
-            cessEnable,
+            subCategory: subCategory.trim(),
+            brandName: brandName.trim(),
+            gstRate: gstRate || "",
+            hsnNo: hsnNo.trim(),
+            itemType,
+            type: itemType, // for table display compatibility
+            unit: unit.trim(),
+            buyPrice: buyPrice || "",
+            sellPrice: sellPrice || "",
+            openingStock: openingStock || "",
+            minStock: minStock || "",
+            openingDate: openingDate || "",
         };
 
         onSave(payload, isEditMode);
@@ -140,9 +116,9 @@ function ItemModal({ isOpen, onClose, onSave, onDelete, editData }) {
             className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
             onClick={handleBackdropClick}
         >
-            <div className="bg-white rounded-lg shadow-xl w-full max-w-lg mx-4 max-h-[90vh] flex flex-col">
+            <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl mx-4 flex flex-col">
                 {/* Modal Header */}
-                <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
+                <div className="flex items-center justify-between px-5 py-3 border-b border-gray-200">
                     <h3 className="text-base font-semibold text-gray-900">
                         {isEditMode ? "Edit Item" : "New Item"}
                     </h3>
@@ -156,233 +132,179 @@ function ItemModal({ isOpen, onClose, onSave, onDelete, editData }) {
                     </button>
                 </div>
 
-                {/* Modal Body - Scrollable */}
-                <div className="px-5 py-4 space-y-4 overflow-y-auto flex-1">
-                    {/* TYPE SWITCH */}
-                    <div>
-                        <p className="text-sm font-medium text-gray-700 mb-2">Type</p>
-                        <div className="flex gap-2">
-                            {["Goods", "Service", "Additional Service"].map((option) => {
-                                const active = type === option;
-                                return (
-                                    <button
-                                        key={option}
-                                        type="button"
-                                        onClick={() => setType(option)}
-                                        className={
-                                            "flex-1 rounded border px-2 py-1.5 text-xs font-medium transition-colors " +
-                                            (active
-                                                ? "border-blue-600 bg-blue-600 text-white"
-                                                : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50")
-                                        }
-                                    >
-                                        {option}
-                                    </button>
-                                );
-                            })}
-                        </div>
-                    </div>
-
-                    {/* NAME */}
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Name<span className="text-red-500">*</span>
-                        </label>
-                        <input
-                            type="text"
-                            value={name}
-                            onChange={(e) => {
-                                setName(e.target.value);
-                                if (errorName) setErrorName("");
-                            }}
-                            className={baseInput + (errorName ? " border-red-500" : "")}
-                            placeholder="Enter Name"
-                        />
-                        {errorName && <p className="mt-1 text-xs text-red-500">{errorName}</p>}
-                    </div>
-
-                    {/* DESCRIPTION */}
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-                        <textarea
-                            value={description}
-                            onChange={(e) => setDescription(e.target.value)}
-                            rows={2}
-                            className={baseInput + " resize-none"}
-                            placeholder="Enter Description"
-                            maxLength={3000}
-                        />
-                    </div>
-
-                    {/* GOODS-ONLY: Group & Category */}
-                    {!isServiceType && (
-                        <div className="grid grid-cols-2 gap-3">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Group</label>
-                                <input
-                                    type="text"
-                                    value={group}
-                                    onChange={(e) => setGroup(e.target.value)}
-                                    className={baseInput}
-                                    placeholder="None"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
-                                <input
-                                    type="text"
-                                    value={category}
-                                    onChange={(e) => setCategory(e.target.value)}
-                                    className={baseInput}
-                                    placeholder="None"
-                                />
-                            </div>
-                        </div>
-                    )}
-
-                    {/* UNIT */}
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Unit</label>
-                        <input
-                            type="text"
-                            value={unit}
-                            onChange={(e) => setUnit(e.target.value)}
-                            className={baseInput}
-                            placeholder={isServiceType ? "Enter unit" : "Multi Unit"}
-                        />
-                    </div>
-
-                    {/* GOODS-ONLY: Negative Qty Allowed */}
-                    {!isServiceType && (
-                        <div>
-                            <p className="text-sm font-medium text-gray-700 mb-1">Negative Qty Allowed</p>
-                            <div className="flex items-center gap-4 text-sm">
-                                <label className="inline-flex items-center gap-2">
-                                    <input type="radio" className="h-4 w-4" checked={negativeQtyAllowed === true} onChange={() => setNegativeQtyAllowed(true)} />
-                                    <span>Yes</span>
-                                </label>
-                                <label className="inline-flex items-center gap-2">
-                                    <input type="radio" className="h-4 w-4" checked={negativeQtyAllowed === false} onChange={() => setNegativeQtyAllowed(false)} />
-                                    <span>No</span>
-                                </label>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Show Item In Purchase / Sales */}
-                    <div className="flex flex-col gap-2">
-                        <label className="inline-flex items-center gap-2 text-sm">
-                            <input type="checkbox" className="h-4 w-4" checked={showInPurchase} onChange={(e) => setShowInPurchase(e.target.checked)} />
-                            <span>Show Item In Purchase</span>
-                        </label>
-                        <label className="inline-flex items-center gap-2 text-sm">
-                            <input type="checkbox" className="h-4 w-4" checked={showInSales} onChange={(e) => setShowInSales(e.target.checked)} />
-                            <span>Show Item In Sales</span>
-                        </label>
-                    </div>
-
-                    {/* GOODS-ONLY: New MRP & Old MRP */}
-                    {!isServiceType && (
-                        <div className="grid grid-cols-2 gap-3">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">New MRP</label>
-                                <input type="number" value={newMRP} onChange={(e) => setNewMRP(e.target.value)} className={baseInput} placeholder="0.00" />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Old MRP</label>
-                                <input type="number" value={oldMRP} onChange={(e) => setOldMRP(e.target.value)} className={baseInput} placeholder="0.00" />
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Purchase Price & Sales Price */}
-                    <div className="grid grid-cols-2 gap-3">
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Purchase Price</label>
-                            <input type="number" value={purchasePrice} onChange={(e) => setPurchasePrice(e.target.value)} className={baseInput} placeholder="0.00" />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Sales Price</label>
-                            <input type="number" value={salesPrice} onChange={(e) => setSalesPrice(e.target.value)} className={baseInput} placeholder="0.00" />
-                        </div>
-                    </div>
-
-                    {/* GOODS-ONLY: Manage stock */}
-                    {!isServiceType && (
-                        <div>
-                            <p className="text-sm font-medium text-gray-700 mb-1">Manage stock</p>
-                            <div className="flex items-center gap-4 text-sm">
-                                {["Normal", "Batch wise", "Lot wise"].map((option) => (
-                                    <label key={option} className="inline-flex items-center gap-2">
-                                        <input type="radio" className="h-4 w-4" checked={manageStock === option} onChange={() => setManageStock(option)} />
-                                        <span>{option}</span>
-                                    </label>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-
-                    {/* GOODS-ONLY: SKU / Goods Code */}
-                    {!isServiceType && (
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">SKU / Goods Code</label>
-                            <input type="text" value={skuCode} onChange={(e) => setSkuCode(e.target.value)} className={baseInput} placeholder="Enter SKU" />
-                        </div>
-                    )}
-
-                    {/* GOODS-ONLY: Opening Stock fields */}
-                    {!isServiceType && (
-                        <div className="grid grid-cols-3 gap-3">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Opening Qty</label>
-                                <input type="number" value={openingStockQty} onChange={(e) => setOpeningStockQty(e.target.value)} className={baseInput} placeholder="0.00" />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Opening Rate</label>
-                                <input type="number" value={openingStockRate} onChange={(e) => setOpeningStockRate(e.target.value)} className={baseInput} placeholder="0.00" />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Opening Value</label>
-                                <input type="number" value={openingStockValue} onChange={(e) => setOpeningStockValue(e.target.value)} className={baseInput} placeholder="0.00" />
-                            </div>
-                        </div>
-                    )}
-
-                    {/* GOODS-ONLY: Cess Enable */}
-                    {!isServiceType && (
-                        <div>
-                            <p className="text-sm font-medium text-gray-700 mb-1">Cess Enable</p>
-                            <div className="flex items-center gap-4 text-sm">
-                                <label className="inline-flex items-center gap-2">
-                                    <input type="radio" className="h-4 w-4" checked={cessEnable === true} onChange={() => setCessEnable(true)} />
-                                    <span>Yes</span>
-                                </label>
-                                <label className="inline-flex items-center gap-2">
-                                    <input type="radio" className="h-4 w-4" checked={cessEnable === false} onChange={() => setCessEnable(false)} />
-                                    <span>No</span>
-                                </label>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* STATUS */}
-                    <div>
-                        <p className="text-sm font-medium text-gray-700 mb-1">Status</p>
-                        <div className="flex items-center gap-4 text-sm">
-                            <label className="inline-flex items-center gap-2">
-                                <input type="radio" className="h-4 w-4" checked={status === "Active"} onChange={() => setStatus("Active")} />
-                                <span>Active</span>
+                {/* Modal Body */}
+                <div className="px-5 py-4">
+                    {/* Row 1: Item Name (wide) and Description (wide) */}
+                    <div className="grid grid-cols-4 gap-3 mb-3">
+                        <div className="col-span-2">
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                Item Name<span className="text-red-500">*</span>
                             </label>
-                            <label className="inline-flex items-center gap-2">
-                                <input type="radio" className="h-4 w-4" checked={status === "Inactive"} onChange={() => setStatus("Inactive")} />
-                                <span>Inactive</span>
-                            </label>
+                            <input
+                                type="text"
+                                value={itemName}
+                                onChange={(e) => {
+                                    setItemName(e.target.value);
+                                    if (errorName) setErrorName("");
+                                }}
+                                className={baseInput + (errorName ? " border-red-500" : "")}
+                                placeholder="Enter Item Name"
+                            />
+                            {errorName && <p className="mt-1 text-xs text-red-500">{errorName}</p>}
+                        </div>
+                        <div className="col-span-2">
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                            <input
+                                type="text"
+                                value={description}
+                                onChange={(e) => setDescription(e.target.value)}
+                                className={baseInput}
+                                placeholder="Enter Description"
+                                maxLength={500}
+                            />
+                        </div>
+                    </div>
+
+                    {/* Row 2: Item Type, Unit, Category, Sub-Category */}
+                    <div className="grid grid-cols-4 gap-3 mb-3">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Item Type</label>
+                            <select
+                                value={itemType}
+                                onChange={(e) => setItemType(e.target.value)}
+                                className={baseInput}
+                            >
+                                <option value="Goods">Goods</option>
+                                <option value="Service">Service</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Unit</label>
+                            <input
+                                type="text"
+                                value={unit}
+                                onChange={(e) => setUnit(e.target.value)}
+                                className={baseInput}
+                                placeholder="e.g., pcs, kg, ltr"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                            <input
+                                type="text"
+                                value={category}
+                                onChange={(e) => setCategory(e.target.value)}
+                                className={baseInput}
+                                placeholder="Select Category"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Sub-Category</label>
+                            <input
+                                type="text"
+                                value={subCategory}
+                                onChange={(e) => setSubCategory(e.target.value)}
+                                className={baseInput}
+                                placeholder="Select Sub-Category"
+                            />
+                        </div>
+                    </div>
+
+                    {/* Row 3: Brand Name, HSN No, GST Rate, Buy Price */}
+                    <div className="grid grid-cols-4 gap-3 mb-3">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Brand Name</label>
+                            <input
+                                type="text"
+                                value={brandName}
+                                onChange={(e) => setBrandName(e.target.value)}
+                                className={baseInput}
+                                placeholder="Enter Brand"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">HSN No</label>
+                            <input
+                                type="text"
+                                value={hsnNo}
+                                onChange={(e) => setHsnNo(e.target.value)}
+                                className={baseInput}
+                                placeholder="Enter HSN Code"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">GST Rate (%)</label>
+                            <select
+                                value={gstRate}
+                                onChange={(e) => setGstRate(e.target.value)}
+                                className={baseInput}
+                            >
+                                <option value="">Select GST Rate</option>
+                                <option value="0">0%</option>
+                                <option value="5">5%</option>
+                                <option value="12">12%</option>
+                                <option value="18">18%</option>
+                                <option value="28">28%</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Buy Price</label>
+                            <input
+                                type="number"
+                                value={buyPrice}
+                                onChange={(e) => setBuyPrice(e.target.value)}
+                                className={baseInput}
+                                placeholder="0.00"
+                            />
+                        </div>
+                    </div>
+
+                    {/* Row 4: Sell Price, Opening Stock, Min Stock, Opening Date */}
+                    <div className="grid grid-cols-4 gap-3 mb-3">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Sell Price</label>
+                            <input
+                                type="number"
+                                value={sellPrice}
+                                onChange={(e) => setSellPrice(e.target.value)}
+                                className={baseInput}
+                                placeholder="0.00"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Opening Stock</label>
+                            <input
+                                type="number"
+                                value={openingStock}
+                                onChange={(e) => setOpeningStock(e.target.value)}
+                                className={baseInput}
+                                placeholder="0"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Min Stock</label>
+                            <input
+                                type="number"
+                                value={minStock}
+                                onChange={(e) => setMinStock(e.target.value)}
+                                className={baseInput}
+                                placeholder="0"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Opening Date</label>
+                            <input
+                                type="date"
+                                value={openingDate}
+                                onChange={(e) => setOpeningDate(e.target.value)}
+                                className={baseInput}
+                            />
                         </div>
                     </div>
                 </div>
 
                 {/* Modal Footer */}
-                <div className="flex items-center justify-between px-5 py-4 border-t border-gray-200 bg-gray-50 rounded-b-lg">
+                <div className="flex items-center justify-between px-5 py-3 border-t border-gray-200 bg-gray-50 rounded-b-lg">
                     {isEditMode ? (
                         <button
                             type="button"
