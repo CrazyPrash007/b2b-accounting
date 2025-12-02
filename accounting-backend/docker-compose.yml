@@ -1,0 +1,24 @@
+# docker-compose.yml
+version: '3.8'
+services:
+  mongo:
+    image: mongo:6.0
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_DATABASE: accounting_dev
+    volumes:
+      - mongo-data:/data/db
+    ports:
+      - "27017:27017"
+
+  accounting:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "4000:4000"
+    depends_on:
+      - mongo
+
+volumes:
+  mongo-data:
