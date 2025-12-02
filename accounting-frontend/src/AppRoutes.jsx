@@ -4,6 +4,7 @@ import AppLayout from "src/layouts/AppLayout";
 
 import DashboardPage from "src/features/dashboard/DashboardPage";
 import ItemCategoryPage from "src/features/items/item-category/ItemCategoryPage";
+import ItemsPage from "src/features/items/items/ItemsPage";
 
 
 export default function AppRoutes() {
@@ -12,6 +13,7 @@ export default function AppRoutes() {
             <Route element={<AppLayout />}>
                 <Route index element={<DashboardPage />} />
                 <Route path="item-category" element={<ItemCategoryPage />} />
+                <Route path="items" element={<ItemsPage />} />
 
                 {/* <Route path="party">
           <Route path="customer" element={<CustomerPage />} />
