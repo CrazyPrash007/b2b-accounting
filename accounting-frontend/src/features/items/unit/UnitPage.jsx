@@ -1,9 +1,9 @@
 // UnitPage.jsx
 import React, { useState, useEffect, useRef } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
+import useUnit from "./hooks/useUnit";
 
-/**
- * UnitModal - Modal for creating/editing units
- */
+
 function UnitModal({ isOpen, onClose, onSave, onDelete, editData }) {
     const [fullName, setFullName] = useState("");
     const [aliasName, setAliasName] = useState("");
@@ -48,7 +48,7 @@ function UnitModal({ isOpen, onClose, onSave, onDelete, editData }) {
     if (!isOpen) return null;
 
     return (
-        <div 
+        <div
             className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
             onClick={handleBackdropClick}
         >
@@ -144,10 +144,25 @@ function UnitModal({ isOpen, onClose, onSave, onDelete, editData }) {
  * UnitPage - Unit management with Excel-like table
  */
 export default function UnitPage() {
-    const [units, setUnits] = useState([]);
+    const navigate = useNavigate();
+    const location = useLocation();
+
+    const { rows: units = [], loading, error, reload, create, update, remove } =
+        useUnit({ useLocalFallback: true });
+
     const [selectedCell, setSelectedCell] = useState(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingUnit, setEditingUnit] = useState(null);
+
+    useEffect(() => {
+        if (location.state?.savedUnit || location.state?.deletedUnitId) {
+            // server is source of truth now — reload list
+            reload();
+            // Clear the state
+            window.history.replaceState({}, document.title);
+        }
+    }, [location.state, reload]);
+
 
     const handleOpenCreate = () => {
         setEditingUnit(null);
@@ -164,25 +179,40 @@ export default function UnitPage() {
         setEditingUnit(null);
     };
 
-    const handleSaveUnit = (unitData, isEdit) => {
-        if (isEdit) {
-            setUnits((prev) =>
-                prev.map((u) => (u.id === unitData.id ? unitData : u))
-            );
-        } else {
-            setUnits((prev) => [...prev, unitData]);
-        }
-        setIsModalOpen(false);
-        setEditingUnit(null);
-    };
-
-    const handleDeleteUnit = (id) => {
-        if (window.confirm("Are you sure you want to delete this unit?")) {
-            setUnits((prev) => prev.filter((u) => u.id !== id));
+    const handleSaveUnit = async (unitData, isEdit) => {
+        try {
+            if (isEdit) {
+                await update(unitData.id, {
+                    fullName: unitData.fullName,
+                    aliasName: unitData.aliasName || "",
+                });
+            } else {
+                await create({
+                    fullName: unitData.fullName,
+                    aliasName: unitData.aliasName || "",
+                });
+            }
             setIsModalOpen(false);
             setEditingUnit(null);
+        } catch (err) {
+            console.error("Failed to save unit:", err);
+            alert(err?.message || "Failed to save unit");
         }
     };
+
+
+    const handleDeleteUnit = async (id) => {
+        if (!window.confirm("Are you sure you want to delete this unit?")) return;
+        try {
+            await remove(id);
+            setIsModalOpen(false);
+            setEditingUnit(null);
+        } catch (err) {
+            console.error("Failed to delete unit:", err);
+            alert(err?.message || "Failed to delete unit");
+        }
+    };
+
 
     const handleCellClick = (rowIndex, colIndex) => {
         setSelectedCell({ rowIndex, colIndex });
@@ -228,8 +258,8 @@ export default function UnitPage() {
 
     const getCellClasses = (rowIndex, colIndex) => {
         const baseClasses = "h-8 px-4 border-r border-gray-400 cursor-cell";
-        const selectedClasses = isCellSelected(rowIndex, colIndex) 
-            ? "outline outline-2 outline-blue-500 outline-offset-[-2px] bg-blue-50" 
+        const selectedClasses = isCellSelected(rowIndex, colIndex)
+            ? "outline outline-2 outline-blue-500 outline-offset-[-2px] bg-blue-50"
             : "";
         return `${baseClasses} ${selectedClasses}`;
     };
@@ -282,8 +312,8 @@ export default function UnitPage() {
             </div>
 
             {/* Table Container */}
-            <div 
-                ref={tableContainerRef} 
+            <div
+                ref={tableContainerRef}
                 className="flex-1 overflow-auto px-4 pb-1"
                 onClick={handleTableContainerClick}
             >
@@ -317,17 +347,17 @@ export default function UnitPage() {
                         <tbody>
                             {/* Data rows */}
                             {units.map((unit, rowIndex) => (
-                                <tr 
-                                    key={unit.id} 
+                                <tr
+                                    key={unit.id || unit._id || rowIndex}
                                     className={`border-b border-gray-400 hover:bg-blue-100 transition-colors ${rowIndex % 2 === 0 ? 'bg-blue-50/40' : 'bg-white'}`}
                                 >
-                                    <td 
+                                    <td
                                         className={getCellClasses(rowIndex, 0) + " text-left text-gray-900"}
                                         onClick={() => handleCellClick(rowIndex, 0)}
                                     >
                                         {unit.fullName}
                                     </td>
-                                    <td 
+                                    <td
                                         className={getCellClasses(rowIndex, 1) + " text-left text-gray-600"}
                                         onClick={() => handleCellClick(rowIndex, 1)}
                                     >
@@ -354,15 +384,15 @@ export default function UnitPage() {
                             {emptyRows.map((_, idx) => {
                                 const rowIndex = units.length + idx;
                                 return (
-                                    <tr 
-                                        key={`empty-${idx}`} 
+                                    <tr
+                                        key={`empty-${idx}`}
                                         className={`border-b border-gray-400 hover:bg-blue-100 transition-colors ${rowIndex % 2 === 0 ? 'bg-blue-50/40' : 'bg-white'}`}
                                     >
-                                        <td 
+                                        <td
                                             className={getCellClasses(rowIndex, 0)}
                                             onClick={() => handleCellClick(rowIndex, 0)}
                                         ></td>
-                                        <td 
+                                        <td
                                             className={getCellClasses(rowIndex, 1)}
                                             onClick={() => handleCellClick(rowIndex, 1)}
                                         ></td>

@@ -1,10 +1,10 @@
-// src/models/ItemCategory.js
+// src/models/Unit.js
 const mongoose = require('mongoose');
 
-const ItemCategorySchema = new mongoose.Schema({
+const UnitSchema = new mongoose.Schema({
     ownerId: { type: mongoose.Schema.Types.ObjectId, required: true, index: true }, // main-app user id
-    name: { type: String, required: true, trim: true },
-    subcategories: { type: [String], default: [] },
+    fullName: { type: String, required: true, trim: true },   // e.g., Kilogram
+    aliasName: { type: String, trim: true, default: '' },     // e.g., kg
 
     isActive: { type: Boolean, default: true },
     isDeleted: { type: Boolean, default: false },
@@ -12,10 +12,10 @@ const ItemCategorySchema = new mongoose.Schema({
     updatedBy: { type: mongoose.Schema.Types.ObjectId },
 }, { timestamps: true });
 
-// Unique per owner (ignore deleted)
-ItemCategorySchema.index(
-    { ownerId: 1, name: 1 },
+// Unique per owner (ignore deleted) on fullName
+UnitSchema.index(
+    { ownerId: 1, fullName: 1 },
     { unique: true, partialFilterExpression: { isDeleted: false } }
 );
 
-module.exports = mongoose.model('ItemCategory', ItemCategorySchema);
+module.exports = mongoose.model('Unit', UnitSchema);

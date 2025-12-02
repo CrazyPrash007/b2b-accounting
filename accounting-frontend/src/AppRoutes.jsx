@@ -21,9 +21,9 @@ export default function AppRoutes() {
                 <Route path="items" element={<ItemsPage />} />
                 <Route path="gst" element={<GstPage />} />
                 <Route path="unit" element={<UnitPage />} />
-                <Route path="party/customer" element={<CustomerPage />} />
-                <Route path="party/vendor" element={<VendorPage />} />
-                <Route path="account/bank" element={<BankPage />} />
+                <Route path="customer" element={<CustomerPage />} />
+                <Route path="vendor" element={<VendorPage />} />
+                <Route path="bank" element={<BankPage />} />
 
                 <Route path="*" element={<div className="p-6">Page not found</div>} />
             </Route>

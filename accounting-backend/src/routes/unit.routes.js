@@ -1,10 +1,10 @@
-// src/routes/itemCategory.routes.js
+// src/routes/unit.routes.js
 const express = require('express');
 const router = express.Router();
-const controller = require('../controllers/itemCategory.controller');
+const controller = require('../controllers/unit.controller');
 const auth = require('../middlewares/auth');
 const validate = require('../middlewares/validate');
-const { create: createSchema, update: updateSchema } = require('../validators/itemCategory.validator');
+const { create: createSchema, update: updateSchema } = require('../validators/unit.validator');
 
 // All routes require owner context for now
 router.use(auth);
