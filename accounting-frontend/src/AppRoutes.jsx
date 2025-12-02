@@ -14,12 +14,6 @@ export default function AppRoutes() {
                 <Route index element={<DashboardPage />} />
                 <Route path="item-category" element={<ItemCategoryPage />} />
                 <Route path="items" element={<ItemsPage />} />
-
-                {/* <Route path="party">
-          <Route path="customer" element={<CustomerPage />} />
-          <Route path="vendor" element={<VendorPage />} />
-        </Route> */}
-
                 <Route path="*" element={<div className="p-6">Page not found</div>} />
             </Route>
 

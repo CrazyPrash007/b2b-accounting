@@ -64,6 +64,7 @@ export default function useItemCategories({ useLocalFallback = true } = {}) {
                 return created;
             } catch (err) {
                 // rollback optimistic
+                console.error("createItemCategory error details:", err);
                 setRows((s) => s.filter((r) => r.id !== tempId));
                 throw err;
             }
