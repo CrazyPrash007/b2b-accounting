@@ -107,6 +107,7 @@ export default function Sidebar() {
 
                     <Parent title="Account Master" icon={<FiUsers />} openKey="masterAccount">
                         <SubItem title="Category" to="/account/category" />
+                        <SubItem title="Bank" to="/account/bank" />
                     </Parent>
 
                     <Parent title="Party Master" icon={<FiUsers />} openKey="masterParty">
