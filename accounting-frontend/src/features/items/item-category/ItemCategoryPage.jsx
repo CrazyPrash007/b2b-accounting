@@ -2,9 +2,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import useItemCategories from "./hooks/useItemCategories";
-/**
- * CategoryModal - Compact centered modal for creating/editing a category
- */
+
 function CategoryModal({ isOpen, onClose, onSave, onDelete, editData }) {
     const [categoryName, setCategoryName] = useState("");
     const [subcategories, setSubcategories] = useState([""]);
