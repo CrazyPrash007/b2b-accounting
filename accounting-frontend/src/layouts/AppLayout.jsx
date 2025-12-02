@@ -5,7 +5,6 @@ import { Outlet } from "react-router-dom";
 
 
 export default function AppLayout({ children }) {
-    // if children is provided, render it; otherwise render <Outlet/> for nested routes
     const content = children ?? <Outlet />;
 
     return (

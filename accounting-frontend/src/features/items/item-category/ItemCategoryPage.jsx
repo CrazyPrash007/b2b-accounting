@@ -1,7 +1,7 @@
 // ItemCategoryPage.jsx
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-
+import useItemCategories from "./hooks/useItemCategories";
 /**
  * CategoryModal - Compact centered modal for creating/editing a category
  */
@@ -71,7 +71,7 @@ function CategoryModal({ isOpen, onClose, onSave, onDelete, editData }) {
     if (!isOpen) return null;
 
     return (
-        <div 
+        <div
             className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
             onClick={handleBackdropClick}
         >
@@ -201,38 +201,20 @@ function CategoryModal({ isOpen, onClose, onSave, onDelete, editData }) {
 export default function ItemCategoryPage() {
     const navigate = useNavigate();
     const location = useLocation();
-    
-    const [categories, setCategories] = useState([]);
+
+    const { rows: categories = [], loading, error, reload, create, update, remove } =
+        useItemCategories({ useLocalFallback: true });
     const [selectedCell, setSelectedCell] = useState(null); // { rowIndex, colIndex }
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingCategory, setEditingCategory] = useState(null);
 
-    // Handle saved/deleted data from form page (for backwards compatibility)
     useEffect(() => {
-        if (location.state?.savedCategory) {
-            const savedCategory = location.state.savedCategory;
-            const isEdit = location.state.isEdit;
-            
-            if (isEdit) {
-                setCategories((prev) =>
-                    prev.map((cat) =>
-                        cat.id === savedCategory.id ? savedCategory : cat
-                    )
-                );
-            } else {
-                setCategories((prev) => [...prev, savedCategory]);
-            }
-            // Clear the state
+        if (location.state?.savedCategory || location.state?.deletedCategoryId) {
+            reload();
             window.history.replaceState({}, document.title);
         }
-        
-        if (location.state?.deletedCategoryId) {
-            setCategories((prev) => 
-                prev.filter((cat) => cat.id !== location.state.deletedCategoryId)
-            );
-            window.history.replaceState({}, document.title);
-        }
-    }, [location.state]);
+    }, [location.state, reload]);
+
 
     const handleOpenCreate = () => {
         setEditingCategory(null);
@@ -249,27 +231,40 @@ export default function ItemCategoryPage() {
         setEditingCategory(null);
     };
 
-    const handleSaveCategory = (categoryData, isEdit) => {
-        if (isEdit) {
-            setCategories((prev) =>
-                prev.map((cat) =>
-                    cat.id === categoryData.id ? categoryData : cat
-                )
-            );
-        } else {
-            setCategories((prev) => [...prev, categoryData]);
-        }
-        setIsModalOpen(false);
-        setEditingCategory(null);
-    };
-
-    const handleDeleteCategory = (id) => {
-        if (window.confirm("Are you sure you want to delete this category?")) {
-            setCategories((prev) => prev.filter((cat) => cat.id !== id));
+    const handleSaveCategory = async (categoryData, isEdit) => {
+        try {
+            if (isEdit) {
+                await update(categoryData.id, {
+                    name: categoryData.name,
+                    subcategories: categoryData.subcategories || [],
+                });
+            } else {
+                await create({
+                    name: categoryData.name,
+                    subcategories: categoryData.subcategories || [],
+                });
+            }
             setIsModalOpen(false);
             setEditingCategory(null);
+        } catch (err) {
+            console.error("Failed to save category:", err);
+            alert(err?.message || "Failed to save category");
         }
     };
+
+
+    const handleDeleteCategory = async (id) => {
+        if (!window.confirm("Are you sure you want to delete this category?")) return;
+        try {
+            await remove(id);
+            setIsModalOpen(false);
+            setEditingCategory(null);
+        } catch (err) {
+            console.error("Failed to delete category:", err);
+            alert(err?.message || "Failed to delete category");
+        }
+    };
+
 
     const handleCellClick = (rowIndex, colIndex) => {
         setSelectedCell({ rowIndex, colIndex });
@@ -381,11 +376,31 @@ export default function ItemCategoryPage() {
             </div>
 
             {/* Table Container - Scrollable */}
-            <div 
-                ref={tableContainerRef} 
+            <div
+                ref={tableContainerRef}
                 className="flex-1 overflow-auto px-4 pb-1"
                 onClick={handleTableContainerClick}
             >
+                <div className="border border-gray-200 rounded overflow-hidden h-full">
+                    <table className="w-full border-collapse text-sm" style={{ borderSpacing: 0 }}>
+                        <thead className="sticky top-0 z-10 bg-white">
+                            <tr className="border-b border-gray-300">
+                                <th className="w-[35%] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-200">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-gray-400 cursor-grab">⋮⋮</span>
+                                        <span>Category</span>
+                                        <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
+                                        </svg>
+                                    </div>
+                                </th>
+                                <th className="w-[50%] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-200">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-gray-400 cursor-grab">⋮⋮</span>
+                                        <span>Sub Category</span>
+                                        <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
+                                        </svg>
                 <div className="border border-gray-400 rounded overflow-hidden h-full">
                 <table className="w-full border-collapse text-sm" style={{ borderSpacing: 0 }}>
                     <thead className="sticky top-0 z-10 bg-white">
@@ -456,8 +471,18 @@ export default function ItemCategoryPage() {
                                             </svg>
                                         </button>
                                     </div>
-                                </td>
+                                </th>
+                                <th className="w-[15%] h-9 px-4 text-left text-sm font-medium text-gray-700">
+                                    Actions
+                                </th>
                             </tr>
+                        </thead>
+                        <tbody>
+                            {/* Data rows */}
+                            {categories.map((category, rowIndex) => (
+                                <tr
+                                    key={category.id || category._id || rowIndex}
+                                    className={`border-b border-gray-200 hover:bg-blue-100 transition-colors ${rowIndex % 2 === 0 ? 'bg-blue-50/40' : 'bg-white'}`}
                         ))}
                         {/* Empty rows to fill the display */}
                         {emptyRows.map((_, idx) => {
@@ -467,20 +492,67 @@ export default function ItemCategoryPage() {
                                     key={`empty-${idx}`} 
                                     className={`border-b border-gray-400 hover:bg-blue-100 transition-colors ${rowIndex % 2 === 0 ? 'bg-blue-50/40' : 'bg-white'}`}
                                 >
-                                    <td 
-                                        className={getCellClasses(rowIndex, 0)}
+                                    <td
+                                        className={getCellClasses(rowIndex, 0) + " text-left text-blue-600"}
                                         onClick={() => handleCellClick(rowIndex, 0)}
-                                    ></td>
-                                    <td 
-                                        className={getCellClasses(rowIndex, 1)}
+                                    >
+                                        {category.name}
+                                    </td>
+                                    <td
+                                        className={getCellClasses(rowIndex, 1) + " text-left text-gray-600"}
                                         onClick={() => handleCellClick(rowIndex, 1)}
-                                    ></td>
-                                    <td className="h-8 px-4"></td>
+                                    >
+                                        {category.subcategories.length > 0 ? (
+                                            <div className="flex flex-wrap gap-1">
+                                                {category.subcategories.map((sub, idx) => (
+                                                    <span key={idx} className="inline-flex items-center px-2 py-0.5 rounded bg-gray-100 text-gray-700 text-xs">
+                                                        {sub}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        ) : (
+                                            ""
+                                        )}
+                                    </td>
+                                    <td className="h-8 px-4 text-left">
+                                        <div className="flex items-center justify-end gap-2">
+                                            <button
+                                                onClick={() => handleEditCategory(category)}
+                                                className="text-blue-600 hover:underline text-sm"
+                                            >
+                                                Edit
+                                            </button>
+                                            <button className="text-gray-400 hover:text-gray-600">
+                                                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                                                    <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z" />
+                                                </svg>
+                                            </button>
+                                        </div>
+                                    </td>
                                 </tr>
-                            );
-                        })}
-                    </tbody>
-                </table>
+                            ))}
+                            {/* Empty rows to fill the display */}
+                            {emptyRows.map((_, idx) => {
+                                const rowIndex = categories.length + idx;
+                                return (
+                                    <tr
+                                        key={`empty-${idx}`}
+                                        className={`border-b border-gray-200 hover:bg-blue-100 transition-colors ${rowIndex % 2 === 0 ? 'bg-blue-50/40' : 'bg-white'}`}
+                                    >
+                                        <td
+                                            className={getCellClasses(rowIndex, 0)}
+                                            onClick={() => handleCellClick(rowIndex, 0)}
+                                        ></td>
+                                        <td
+                                            className={getCellClasses(rowIndex, 1)}
+                                            onClick={() => handleCellClick(rowIndex, 1)}
+                                        ></td>
+                                        <td className="h-8 px-4"></td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
                 </div>
             </div>
 
