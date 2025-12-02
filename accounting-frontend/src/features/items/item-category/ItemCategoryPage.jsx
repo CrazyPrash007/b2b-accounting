@@ -190,12 +190,7 @@ function CategoryModal({ isOpen, onClose, onSave, onDelete, editData }) {
     );
 }
 
-/**
- * ItemCategoryPage
- * - Frontend-only category management with subcategories
- * - No backend/API calls, in-memory state only
- * - Excel-like table with row highlighting and cell selection
- */
+
 export default function ItemCategoryPage() {
     const navigate = useNavigate();
     const location = useLocation();
