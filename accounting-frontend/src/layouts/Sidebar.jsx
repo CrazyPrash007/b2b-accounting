@@ -117,7 +117,8 @@ export default function Sidebar() {
                     <Parent title="Item Master" icon={<FiBox />} openKey="masterItem">
                         <SubItem title="Item" to="/items" />
                         <SubItem title="Item Category" to="/item-category" />
-                        <SubItem title="Unit" to="/items/unit" />
+                        <SubItem title="GST Rates" to="/gst" />
+                        <SubItem title="Unit" to="/unit" />
                     </Parent>
                 </div>
 
