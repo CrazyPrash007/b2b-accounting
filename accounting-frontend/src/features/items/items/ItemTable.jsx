@@ -57,7 +57,7 @@ export default function ItemTable({ items, onEdit }) {
 
     // Cell classes with Excel-like selection border
     const getCellClasses = (rowIndex, colIndex) => {
-        const baseClasses = "h-8 px-4 border-r border-gray-200 cursor-cell";
+        const baseClasses = "h-8 px-4 border-r border-gray-400 cursor-cell";
         const selectedClasses = isCellSelected(rowIndex, colIndex) 
             ? "outline outline-2 outline-blue-500 outline-offset-[-2px] bg-blue-50" 
             : "";
@@ -103,11 +103,11 @@ export default function ItemTable({ items, onEdit }) {
                 className="flex-1 overflow-auto px-4 pb-1"
                 onClick={handleTableContainerClick}
             >
-                <div className="border border-gray-200 rounded overflow-hidden h-full">
+                <div className="border border-gray-400 rounded overflow-hidden h-full">
                 <table className="w-full border-collapse text-sm" style={{ borderSpacing: 0 }}>
                     <thead className="sticky top-0 z-10 bg-white">
-                        <tr className="border-b border-gray-300">
-                            <th className="w-[30%] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-200">
+                        <tr className="border-b border-gray-400">
+                            <th className="w-[30%] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
                                 <div className="flex items-center gap-2">
                                     <span className="text-gray-400 cursor-grab">⋮⋮</span>
                                     <span>Name</span>
@@ -116,7 +116,7 @@ export default function ItemTable({ items, onEdit }) {
                                     </svg>
                                 </div>
                             </th>
-                            <th className="w-[15%] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-200">
+                            <th className="w-[15%] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
                                 <div className="flex items-center gap-2">
                                     <span className="text-gray-400 cursor-grab">⋮⋮</span>
                                     <span>Type</span>
@@ -125,7 +125,7 @@ export default function ItemTable({ items, onEdit }) {
                                     </svg>
                                 </div>
                             </th>
-                            <th className="w-[20%] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-200">
+                            <th className="w-[20%] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
                                 <div className="flex items-center gap-2">
                                     <span className="text-gray-400 cursor-grab">⋮⋮</span>
                                     <span>Category</span>
@@ -134,7 +134,7 @@ export default function ItemTable({ items, onEdit }) {
                                     </svg>
                                 </div>
                             </th>
-                            <th className="w-[15%] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-200">
+                            <th className="w-[15%] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
                                 <div className="flex items-center gap-2">
                                     <span className="text-gray-400 cursor-grab">⋮⋮</span>
                                     <span>Status</span>
@@ -153,7 +153,7 @@ export default function ItemTable({ items, onEdit }) {
                         {items.map((item, rowIndex) => (
                             <tr 
                                 key={item.id} 
-                                className={`border-b border-gray-200 hover:bg-blue-100 transition-colors ${rowIndex % 2 === 0 ? 'bg-blue-50/40' : 'bg-white'}`}
+                                className={`border-b border-gray-400 hover:bg-blue-100 transition-colors ${rowIndex % 2 === 0 ? 'bg-blue-50/40' : 'bg-white'}`}
                             >
                                 <td 
                                     className={getCellClasses(rowIndex, 0) + " text-left text-blue-600 truncate"}
@@ -205,7 +205,7 @@ export default function ItemTable({ items, onEdit }) {
                             return (
                                 <tr 
                                     key={`empty-${idx}`} 
-                                    className={`border-b border-gray-200 hover:bg-blue-100 transition-colors ${rowIndex % 2 === 0 ? 'bg-blue-50/40' : 'bg-white'}`}
+                                    className={`border-b border-gray-400 hover:bg-blue-100 transition-colors ${rowIndex % 2 === 0 ? 'bg-blue-50/40' : 'bg-white'}`}
                                 >
                                     <td 
                                         className={getCellClasses(rowIndex, 0)}
