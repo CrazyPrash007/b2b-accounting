@@ -1,0 +1,37 @@
+// src/index.js
+require('dotenv').config();
+const express = require('express');
+const cors = require('cors');
+const { connect } = require('./db/mongo');
+const itemCategoryRoutes = require('./routes/itemCategory.routes');
+const unitRoutes = require('./routes/unit.routes');
+const errorHandler = require('./middlewares/errorHandler');
+
+const PORT = process.env.PORT || 4000;
+
+async function start() {
+    await connect(process.env.MONGO_URI);
+    const app = express();
+
+    app.use(cors());
+    app.use(express.json());
+
+    // Health
+    app.get('/health', (req, res) => res.json({ ok: true, env: process.env.NODE_ENV || 'development' }));
+
+    // API routes
+    app.use('/api/item-categories', itemCategoryRoutes);
+    app.use('/api/unit', unitRoutes);
+
+    // Global error handler
+    app.use(errorHandler);
+
+    app.listen(PORT, () => {
+        console.log(`Accounting service listening on port ${PORT}`);
+    });
+}
+
+start().catch((err) => {
+    console.error('Failed to start', err);
+    process.exit(1);
+});

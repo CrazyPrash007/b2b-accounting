@@ -106,13 +106,13 @@ export default function Sidebar() {
                     <div className="text-xs text-gray-400 mt-4 mb-2 uppercase">MASTER</div>
 
                     <Parent title="Account Master" icon={<FiUsers />} openKey="masterAccount">
-                        <SubItem title="Category" to="/account/category" />
-                        <SubItem title="Bank" to="/account/bank" />
+                        <SubItem title="Category" to="/account-category" />
+                        <SubItem title="Bank" to="/bank" />
                     </Parent>
 
                     <Parent title="Party Master" icon={<FiUsers />} openKey="masterParty">
-                        <SubItem title="Customer" to="/party/customer" />
-                        <SubItem title="Vendor" to="/party/vendor" />
+                        <SubItem title="Customer" to="/customer" />
+                        <SubItem title="Vendor" to="/vendor" />
                     </Parent>
 
                     <Parent title="Item Master" icon={<FiBox />} openKey="masterItem">
