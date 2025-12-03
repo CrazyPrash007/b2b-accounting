@@ -1,5 +1,7 @@
 // BankPage.jsx
 import React, { useState, useEffect, useRef } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
+import useBank from "./hooks/useBank";
 
 /**
  * BankModal - Compact centered modal for creating/editing a bank account
@@ -349,10 +351,22 @@ function BankModal({ isOpen, onClose, onSave, onDelete, editData }) {
  * - Excel-like table with row highlighting and cell selection
  */
 export default function BankPage() {
-    const [bankAccounts, setBankAccounts] = useState([]);
+    const navigate = useNavigate();
+    const location = useLocation();
+
+    const { rows: bankAccounts = [], loading, error, reload, create, update, remove } =
+        useBank({ useLocalFallback: true });
+
     const [selectedCell, setSelectedCell] = useState(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingAccount, setEditingAccount] = useState(null);
+
+    useEffect(() => {
+        if (location?.state?.savedBank || location?.state?.deletedBankId) {
+            reload();
+            window.history.replaceState({}, document.title);
+        }
+    }, [location?.state, reload]);
 
     const handleOpenCreate = () => {
         setEditingAccount(null);
@@ -369,27 +383,61 @@ export default function BankPage() {
         setEditingAccount(null);
     };
 
-    const handleSaveAccount = (accountData, isEdit) => {
-        if (isEdit) {
-            setBankAccounts((prev) =>
-                prev.map((acc) =>
-                    acc.id === accountData.id ? accountData : acc
-                )
-            );
-        } else {
-            setBankAccounts((prev) => [...prev, accountData]);
-        }
-        setIsModalOpen(false);
-        setEditingAccount(null);
-    };
-
-    const handleDeleteAccount = (id) => {
-        if (window.confirm("Are you sure you want to delete this bank account?")) {
-            setBankAccounts((prev) => prev.filter((acc) => acc.id !== id));
+    const handleSaveAccount = async (accountData, isEdit) => {
+        try {
+            if (isEdit) {
+                await update(accountData.id, {
+                    accountDisplayName: accountData.accountDisplayName,
+                    shortAliasName: accountData.shortAliasName,
+                    emailAddress: accountData.emailAddress,
+                    phoneNo: accountData.phoneNo,
+                    accountHolderName: accountData.accountHolderName,
+                    accountNumber: accountData.accountNumber,
+                    ifscCode: accountData.ifscCode,
+                    bankName: accountData.bankName,
+                    openingBalance: accountData.openingBalance,
+                    openingBalanceType: accountData.openingBalanceType,
+                    status: accountData.status,
+                });
+            } else {
+                await create({
+                    accountDisplayName: accountData.accountDisplayName,
+                    shortAliasName: accountData.shortAliasName,
+                    emailAddress: accountData.emailAddress,
+                    phoneNo: accountData.phoneNo,
+                    accountHolderName: accountData.accountHolderName,
+                    accountNumber: accountData.accountNumber,
+                    ifscCode: accountData.ifscCode,
+                    bankName: accountData.bankName,
+                    openingBalance: accountData.openingBalance,
+                    openingBalanceType: accountData.openingBalanceType,
+                    status: accountData.status,
+                });
+            }
+            // refresh the list from backend (keeps ordering/ids consistent)
+            await reload();
             setIsModalOpen(false);
             setEditingAccount(null);
+        } catch (err) {
+            console.error("Failed to save account:", err);
+            alert(err?.message || "Failed to save bank account");
         }
     };
+
+
+    const handleDeleteAccount = async (id) => {
+        if (!window.confirm("Are you sure you want to delete this bank account?")) return;
+        try {
+            await remove(id);
+            await reload();
+            setIsModalOpen(false);
+            setEditingAccount(null);
+        } catch (err) {
+            console.error("Failed to delete account:", err);
+            alert(err?.message || "Failed to delete bank account");
+        }
+    };
+
 
     const handleCellClick = (rowIndex, colIndex) => {
         setSelectedCell({ rowIndex, colIndex });
@@ -568,7 +616,7 @@ export default function BankPage() {
                             {/* Data rows */}
                             {bankAccounts.map((account, rowIndex) => (
                                 <tr
-                                    key={account.id}
+                                    key={account.id || account._id || rowIndex}
                                     className={`border-b border-gray-400 hover:bg-blue-100 transition-colors ${rowIndex % 2 === 0 ? 'bg-blue-50/40' : 'bg-white'}`}
                                 >
                                     <td

@@ -1,5 +1,7 @@
 // CustomerPage.jsx
 import React, { useState, useEffect, useRef } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
+import useCustomer from "./hooks/useCustomer";
 
 /**
  * CustomerModal - Modal for creating/editing customers
@@ -151,7 +153,7 @@ function CustomerModal({ isOpen, onClose, onSave, onDelete, editData }) {
     if (!isOpen) return null;
 
     return (
-        <div 
+        <div
             className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
             onClick={handleBackdropClick}
         >
@@ -496,10 +498,26 @@ function CustomerModal({ isOpen, onClose, onSave, onDelete, editData }) {
  * CustomerPage - Customer management with Excel-like table
  */
 export default function CustomerPage() {
-    const [customers, setCustomers] = useState([]);
+    const navigate = useNavigate();
+    const location = useLocation();
+
+    const { rows: customers = [], loading, error, reload, create, update, remove } =
+        useCustomer({ useLocalFallback: true });
+
     const [selectedCell, setSelectedCell] = useState(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingCustomer, setEditingCustomer] = useState(null);
+
+    useEffect(() => {
+        if (location.state?.savedCustomer || location.state?.deletedCustomerId) {
+            // server is source of truth now — reload list
+            reload();
+            // Clear the navigation state
+            window.history.replaceState({}, document.title);
+        }
+    }, [location.state, reload]);
+
+
 
     const handleOpenCreate = () => {
         setEditingCustomer(null);
@@ -516,25 +534,82 @@ export default function CustomerPage() {
         setEditingCustomer(null);
     };
 
-    const handleSaveCustomer = (customerData, isEdit) => {
-        if (isEdit) {
-            setCustomers((prev) =>
-                prev.map((c) => (c.id === customerData.id ? customerData : c))
-            );
-        } else {
-            setCustomers((prev) => [...prev, customerData]);
-        }
-        setIsModalOpen(false);
-        setEditingCustomer(null);
-    };
-
-    const handleDeleteCustomer = (id) => {
-        if (window.confirm("Are you sure you want to delete this customer?")) {
-            setCustomers((prev) => prev.filter((c) => c.id !== id));
+    const handleSaveCustomer = async (customerData, isEdit) => {
+        try {
+            if (isEdit) {
+                await update(customerData.id, {
+                    customerName: customerData.customerName,
+                    mobileNumber: customerData.mobileNumber || "",
+                    emailAddress: customerData.emailAddress || "",
+                    websiteLink: customerData.websiteLink || "",
+                    companyName: customerData.companyName || "",
+                    gstType: customerData.gstType || "Unregistered",
+                    billingAddress: customerData.billingAddress || "",
+                    billingPinCode: customerData.billingPinCode || "",
+                    billingVillage: customerData.billingVillage || "",
+                    billingTehsil: customerData.billingTehsil || "",
+                    billingDistrict: customerData.billingDistrict || "",
+                    billingState: customerData.billingState || "",
+                    billingCountry: customerData.billingCountry || "India",
+                    sameAsBilling: customerData.sameAsBilling ?? true,
+                    shippingAddress: customerData.shippingAddress || "",
+                    shippingPinCode: customerData.shippingPinCode || "",
+                    shippingVillage: customerData.shippingVillage || "",
+                    shippingTehsil: customerData.shippingTehsil || "",
+                    shippingDistrict: customerData.shippingDistrict || "",
+                    shippingState: customerData.shippingState || "",
+                    shippingCountry: customerData.shippingCountry || "India",
+                    openingBalanceType: customerData.openingBalanceType || "Credit",
+                    openingBalanceAmount: customerData.openingBalanceAmount || 0,
+                });
+            } else {
+                await create({
+                    customerName: customerData.customerName,
+                    name: customerData.name || customerData.customerName,
+                    mobileNumber: customerData.mobileNumber || "",
+                    emailAddress: customerData.emailAddress || "",
+                    websiteLink: customerData.websiteLink || "",
+                    companyName: customerData.companyName || "",
+                    gstType: customerData.gstType || "Unregistered",
+                    billingAddress: customerData.billingAddress || "",
+                    billingPinCode: customerData.billingPinCode || "",
+                    billingVillage: customerData.billingVillage || "",
+                    billingTehsil: customerData.billingTehsil || "",
+                    billingDistrict: customerData.billingDistrict || "",
+                    billingState: customerData.billingState || "",
+                    billingCountry: customerData.billingCountry || "India",
+                    sameAsBilling: customerData.sameAsBilling ?? true,
+                    shippingAddress: customerData.shippingAddress || "",
+                    shippingPinCode: customerData.shippingPinCode || "",
+                    shippingVillage: customerData.shippingVillage || "",
+                    shippingTehsil: customerData.shippingTehsil || "",
+                    shippingDistrict: customerData.shippingDistrict || "",
+                    shippingState: customerData.shippingState || "",
+                    shippingCountry: customerData.shippingCountry || "India",
+                    openingBalanceType: customerData.openingBalanceType || "Credit",
+                    openingBalanceAmount: customerData.openingBalanceAmount || 0,
+                });
+            }
             setIsModalOpen(false);
             setEditingCustomer(null);
+        } catch (err) {
+            console.error("Failed to save customer:", err);
+            alert(err?.message || "Failed to save customer");
         }
     };
+
+    const handleDeleteCustomer = async (id) => {
+        if (!window.confirm("Are you sure you want to delete this customer?")) return;
+        try {
+            await remove(id);
+            setIsModalOpen(false);
+            setEditingCustomer(null);
+        } catch (err) {
+            console.error("Failed to delete customer:", err);
+            alert(err?.message || "Failed to delete customer");
+        }
+    };
+
 
     const handleCellClick = (rowIndex, colIndex) => {
         setSelectedCell({ rowIndex, colIndex });
@@ -580,8 +655,8 @@ export default function CustomerPage() {
 
     const getCellClasses = (rowIndex, colIndex) => {
         const baseClasses = "h-8 px-4 border-r border-gray-400 cursor-cell";
-        const selectedClasses = isCellSelected(rowIndex, colIndex) 
-            ? "outline outline-2 outline-blue-500 outline-offset-[-2px] bg-blue-50" 
+        const selectedClasses = isCellSelected(rowIndex, colIndex)
+            ? "outline outline-2 outline-blue-500 outline-offset-[-2px] bg-blue-50"
             : "";
         return `${baseClasses} ${selectedClasses}`;
     };
@@ -634,8 +709,8 @@ export default function CustomerPage() {
             </div>
 
             {/* Table Container */}
-            <div 
-                ref={tableContainerRef} 
+            <div
+                ref={tableContainerRef}
                 className="flex-1 overflow-auto px-4 pb-1"
                 onClick={handleTableContainerClick}
             >
@@ -681,35 +756,35 @@ export default function CustomerPage() {
                         <tbody>
                             {/* Data rows */}
                             {customers.map((customer, rowIndex) => (
-                                <tr 
-                                    key={customer.id} 
+                                <tr
+                                    key={customer.id || customer._id || rowIndex}
                                     className={`border-b border-gray-400 hover:bg-blue-100 transition-colors ${rowIndex % 2 === 0 ? 'bg-blue-50/40' : 'bg-white'}`}
                                 >
-                                    <td 
+                                    <td
                                         className={getCellClasses(rowIndex, 0) + " text-left text-blue-600"}
                                         onClick={() => handleCellClick(rowIndex, 0)}
                                     >
                                         {customer.customerName}
                                     </td>
-                                    <td 
+                                    <td
                                         className={getCellClasses(rowIndex, 1) + " text-left text-gray-600"}
                                         onClick={() => handleCellClick(rowIndex, 1)}
                                     >
                                         {customer.mobileNumber}
                                     </td>
-                                    <td 
+                                    <td
                                         className={getCellClasses(rowIndex, 2) + " text-left text-gray-600"}
                                         onClick={() => handleCellClick(rowIndex, 2)}
                                     >
                                         {customer.companyName}
                                     </td>
-                                    <td 
+                                    <td
                                         className={getCellClasses(rowIndex, 3) + " text-left text-gray-600"}
                                         onClick={() => handleCellClick(rowIndex, 3)}
                                     >
                                         {customer.gstType}
                                     </td>
-                                    <td 
+                                    <td
                                         className={getCellClasses(rowIndex, 4) + " text-left text-gray-600"}
                                         onClick={() => handleCellClick(rowIndex, 4)}
                                     >
@@ -736,8 +811,8 @@ export default function CustomerPage() {
                             {emptyRows.map((_, idx) => {
                                 const rowIndex = customers.length + idx;
                                 return (
-                                    <tr 
-                                        key={`empty-${idx}`} 
+                                    <tr
+                                        key={`empty-${idx}`}
                                         className={`border-b border-gray-400 hover:bg-blue-100 transition-colors ${rowIndex % 2 === 0 ? 'bg-blue-50/40' : 'bg-white'}`}
                                     >
                                         <td className={getCellClasses(rowIndex, 0)} onClick={() => handleCellClick(rowIndex, 0)}></td>

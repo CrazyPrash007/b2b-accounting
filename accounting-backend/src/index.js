@@ -5,6 +5,10 @@ const cors = require('cors');
 const { connect } = require('./db/mongo');
 const itemCategoryRoutes = require('./routes/itemCategory.routes');
 const unitRoutes = require('./routes/unit.routes');
+const customerRoutes = require('./routes/customer.routes');
+const vendorRoutes = require('./routes/vendor.routes');
+const bankRoutes = require('./routes/bank.routes');
+const gstRoutes = require('./routes/gst.routes');
 const errorHandler = require('./middlewares/errorHandler');
 
 const PORT = process.env.PORT || 4000;
@@ -22,6 +26,10 @@ async function start() {
     // API routes
     app.use('/api/item-categories', itemCategoryRoutes);
     app.use('/api/unit', unitRoutes);
+    app.use('/api/customers', customerRoutes);
+    app.use('/api/vendors', vendorRoutes);
+    app.use('/api/bank', bankRoutes);
+    app.use('/api/gst', gstRoutes);
 
     // Global error handler
     app.use(errorHandler);
