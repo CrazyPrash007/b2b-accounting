@@ -1,22 +1,36 @@
-// SalesPage.jsx
+// PurchasePage.jsx
 import React, { useState, useEffect, useRef } from "react";
 
 /**
- * SalesInvoiceModal - Modal for creating/editing sales invoices
+ * PurchaseInvoiceModal - Modal for creating/editing purchase invoices
  * Supports both With GST and Without GST modes
  */
-function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGst = true, bankAccounts = [], gstRates = [] }) {
+function PurchaseInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGst = true, bankAccounts = [], gstRates = [] }) {
+    // Additional charges state
+    const [additionalCharges, setAdditionalCharges] = useState([]);
+    const [showAddCharge, setShowAddCharge] = useState(false);
+    const [chargeName, setChargeName] = useState("");
+    const [chargeAmount, setChargeAmount] = useState("");
+
+    // Payment splits state
+    const [payments, setPayments] = useState([]);
+    const [showAddPayment, setShowAddPayment] = useState(false);
+    const [paymentMode, setPaymentMode] = useState("");
+    const [paymentAmount, setPaymentAmount] = useState("");
+
     const [formData, setFormData] = useState({
-        customer: "",
-        invoicePrefix: "INV",
+        supplier: "",
+        invoicePrefix: "PUR",
         invoiceNumber: "0001",
         invoiceSuffix: "",
         invoiceDate: new Date().toISOString().split('T')[0],
+        supplierInvoiceNumber: "",
+        supplierInvoiceDate: "",
         items: [{ id: 1, goodsService: "", qty: "", rate: "", gstPercent: "", gstType: "Excluded", amount: "" }],
-        isPaymentReceived: true,
+        isPaymentMade: true,
         paymentMode: "Cash",
         refNo: "",
-        depositTo: "Cash-in-Hand",
+        paidFrom: "Cash-in-Hand",
         paymentAmount: "0",
         payFull: false,
         discount: "",
@@ -24,17 +38,6 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
         description: "",
     });
     const [error, setError] = useState("");
-
-    // Additional charges state
-    const [additionalCharges, setAdditionalCharges] = useState([]);
-    const [showAddCharge, setShowAddCharge] = useState(false);
-    const [chargeName, setChargeName] = useState("");
-    const [chargeAmount, setChargeAmount] = useState("");
-    // Payment splits state
-    const [payments, setPayments] = useState([]);
-    const [showAddPayment, setShowAddPayment] = useState(false);
-    const [paymentMode, setPaymentMode] = useState("");
-    const [paymentAmount, setPaymentAmount] = useState("");
 
     const isEditMode = !!editData;
 
@@ -47,46 +50,54 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
     const bankAccountOptions = bankAccounts.map(acc => acc.accountDisplayName || acc.bankName);
     const paymentModes = [...defaultPaymentModes, ...bankAccountOptions];
     
-    const depositOptions = ["Cash-in-Hand", ...bankAccountOptions, "Petty Cash"];
+    const paidFromOptions = ["Cash-in-Hand", ...bankAccountOptions, "Petty Cash"];
 
     useEffect(() => {
         if (isOpen) {
             if (editData) {
                 setFormData({
-                    customer: editData.customer || "",
-                    invoicePrefix: editData.invoicePrefix || "INV",
+                    supplier: editData.supplier || "",
+                    invoicePrefix: editData.invoicePrefix || "PUR",
                     invoiceNumber: editData.invoiceNumber || "0001",
                     invoiceSuffix: editData.invoiceSuffix || "",
                     invoiceDate: editData.invoiceDate || new Date().toISOString().split('T')[0],
+                    supplierInvoiceNumber: editData.supplierInvoiceNumber || "",
+                    supplierInvoiceDate: editData.supplierInvoiceDate || "",
                     items: editData.items || [{ id: 1, goodsService: "", qty: "", rate: "", gstPercent: "", gstType: "Excluded", amount: "" }],
-                    isPaymentReceived: editData.isPaymentReceived ?? true,
+                    isPaymentMade: editData.isPaymentMade ?? true,
                     paymentMode: editData.paymentMode || "Cash",
                     refNo: editData.refNo || "",
-                    depositTo: editData.depositTo || "Cash-in-Hand",
+                    paidFrom: editData.paidFrom || "Cash-in-Hand",
                     paymentAmount: editData.paymentAmount || "0",
                     payFull: editData.payFull || false,
                     discount: editData.discount || "",
                     autoRoundOff: editData.autoRoundOff ?? true,
                     description: editData.description || "",
                 });
+                setAdditionalCharges(editData.additionalCharges || []);
+                setPayments(editData.payments || []);
             } else {
                 setFormData({
-                    customer: "",
-                    invoicePrefix: "INV",
+                    supplier: "",
+                    invoicePrefix: "PUR",
                     invoiceNumber: "0001",
                     invoiceSuffix: "",
                     invoiceDate: new Date().toISOString().split('T')[0],
+                    supplierInvoiceNumber: "",
+                    supplierInvoiceDate: "",
                     items: [{ id: 1, goodsService: "", qty: "", rate: "", gstPercent: "", gstType: "Excluded", amount: "" }],
-                    isPaymentReceived: true,
+                    isPaymentMade: true,
                     paymentMode: "Cash",
                     refNo: "",
-                    depositTo: "Cash-in-Hand",
+                    paidFrom: "Cash-in-Hand",
                     paymentAmount: "0",
                     payFull: false,
                     discount: "",
                     autoRoundOff: true,
                     description: "",
                 });
+                setAdditionalCharges([]);
+                setPayments([]);
             }
             setError("");
         }
@@ -121,7 +132,6 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
             // If it's the last row, add a new row
             if (index === formData.items.length - 1) {
                 addRow();
-                // Focus the first input of the new row after a small delay
                 setTimeout(() => {
                     const nextRow = document.querySelector(`tr[data-item-row="${index + 1}"]`);
                     if (nextRow) {
@@ -154,9 +164,7 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
             const inputs = Array.from(row.querySelectorAll('input, select'));
             const currentIdx = inputs.indexOf(e.target);
             
-            // If we're at the last editable field in the row
             if (isLastField || currentIdx >= inputs.length - 1) {
-                // If it's the last row, add a new row
                 if (index === formData.items.length - 1) {
                     addRow();
                     setTimeout(() => {
@@ -167,7 +175,6 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
                         }
                     }, 50);
                 } else {
-                    // Move to first input of next row
                     const rows = Array.from(document.querySelectorAll('[data-items-table] tbody tr'));
                     const currentRowIdx = rows.indexOf(row);
                     if (currentRowIdx < rows.length - 1) {
@@ -186,7 +193,6 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
     const handleFormKeyDown = (e) => {
         if (e.key === 'Enter' && !e.shiftKey) {
             const target = e.target;
-            // Skip if we're in the items table (handled separately)
             if (target.closest('[data-items-table]')) return;
             
             e.preventDefault();
@@ -248,11 +254,12 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
     const totals = calculateTotals();
 
     const handleSave = () => {
-        if (!formData.customer.trim()) {
-            setError("Customer is required");
+        if (!formData.supplier.trim()) {
+            setError("Supplier is required");
             return;
         }
-        const salesData = {
+
+        const purchaseData = {
             id: isEditMode ? editData.id : String(Date.now()),
             ...formData,
             withGst,
@@ -262,7 +269,8 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
             additionalCharges,
             payments,
         };
-        onSave(salesData, isEditMode);
+
+        onSave(purchaseData, isEditMode);
     };
 
     const handleBackdropClick = (e) => {
@@ -280,37 +288,37 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
         >
             <div className="bg-white rounded-lg shadow-xl w-full max-w-5xl mx-4 h-[90vh] flex flex-col">
                 {/* Modal Header */}
-                <div className="px-6 py-3 text-white rounded-t-lg flex-shrink-0" style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
-                    <h3 className="text-lg font-semibold">
-                        Create New Sales Invoice {withGst ? "" : "(Without GST)"}
+                <div className="px-6 py-3 rounded-t-lg shrink-0" style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
+                    <h3 className="text-lg font-semibold text-white">
+                        Create New Purchase Invoice {withGst ? "" : "(Without GST)"}
                     </h3>
                 </div>
 
                 {/* Modal Body */}
                 <div className="p-4 space-y-3 flex-1 flex flex-col overflow-y-auto" data-form-container onKeyDown={handleFormKeyDown}>
-                    {/* Top Section - Customer & Invoice Details */}
-                    <div className="grid grid-cols-2 gap-4 flex-shrink-0">
-                        {/* Customer Selection */}
+                    {/* Top Section - Supplier & Invoice Details */}
+                    <div className="grid grid-cols-2 gap-4 shrink-0">
+                        {/* Supplier Selection */}
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">
-                                Select Customer <span className="text-red-500">*</span>
+                                Select Supplier <span className="text-red-500">*</span>
                             </label>
                             <div className="flex gap-2">
                                 <input
                                     type="text"
-                                    value={formData.customer}
-                                    onChange={(e) => handleChange("customer", e.target.value)}
-                                    placeholder="Search customer or vendor"
+                                    value={formData.supplier}
+                                    onChange={(e) => handleChange("supplier", e.target.value)}
+                                    placeholder="Search supplier or vendor"
                                     className="flex-1 border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
                                 />
                                 <button className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm whitespace-nowrap">
-                                    + End Customer
+                                    + Add Supplier
                                 </button>
                             </div>
                         </div>
 
                         {/* Invoice Number & Date */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2 md:gap-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2 md:gap-4">
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">
                                     Invoice Number <span className="text-red-500">*</span>
@@ -320,20 +328,20 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
                                         type="text"
                                         value={formData.invoicePrefix}
                                         onChange={(e) => handleChange("invoicePrefix", e.target.value)}
-                                        className="w-14 min-w-[48px] border border-gray-300 rounded px-2 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                        className="w-14 min-w-12 border border-gray-300 rounded px-2 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
                                     />
                                     <input
                                         type="text"
                                         value={formData.invoiceNumber}
                                         onChange={(e) => handleChange("invoiceNumber", e.target.value)}
-                                        className="w-16 min-w-[64px] border border-gray-300 rounded px-2 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                        className="w-16 min-w-16 border border-gray-300 rounded px-2 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
                                     />
                                     <input
                                         type="text"
                                         value={formData.invoiceSuffix}
                                         onChange={(e) => handleChange("invoiceSuffix", e.target.value)}
                                         placeholder="Suffix"
-                                        className="flex-1 min-w-[64px] border border-gray-300 rounded px-2 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                        className="flex-1 min-w-16 border border-gray-300 rounded px-2 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
                                     />
                                 </div>
                             </div>
@@ -351,8 +359,35 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
                         </div>
                     </div>
 
+                    {/* Supplier Invoice Details Row */}
+                    <div className="grid grid-cols-2 gap-4 shrink-0">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                Supplier Invoice Number
+                            </label>
+                            <input
+                                type="text"
+                                value={formData.supplierInvoiceNumber}
+                                onChange={(e) => handleChange("supplierInvoiceNumber", e.target.value)}
+                                placeholder="Enter supplier invoice number"
+                                className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                                Supplier Invoice Date
+                            </label>
+                            <input
+                                type="date"
+                                value={formData.supplierInvoiceDate}
+                                onChange={(e) => handleChange("supplierInvoiceDate", e.target.value)}
+                                className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                            />
+                        </div>
+                    </div>
+
                     {/* Items Table */}
-                    <div className="border border-gray-300 rounded-lg overflow-hidden flex-shrink-0 max-h-[250px] overflow-y-auto" data-items-table>
+                    <div className="border border-gray-300 rounded-lg overflow-hidden shrink-0 max-h-[250px] overflow-y-auto" data-items-table>
                         <table className="w-full text-sm">
                             <thead className="bg-gray-50 border-b border-gray-300 sticky top-0">
                                 <tr>
@@ -460,20 +495,20 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
                     </div>
 
                     {/* Bottom Section - Payment & Summary */}
-                    <div className="grid grid-cols-2 gap-6 flex-shrink-0">
+                    <div className="grid grid-cols-2 gap-6 shrink-0">
                         {/* Payment Section */}
                         <div className="space-y-2">
                             <label className="flex items-center gap-2">
                                 <input
                                     type="checkbox"
-                                    checked={formData.isPaymentReceived}
-                                    onChange={(e) => handleChange("isPaymentReceived", e.target.checked)}
+                                    checked={formData.isPaymentMade}
+                                    onChange={(e) => handleChange("isPaymentMade", e.target.checked)}
                                     className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                                 />
-                                <span className="text-sm font-medium text-blue-600">Is Payment Received?</span>
+                                <span className="text-sm font-medium text-blue-600">Is Payment Made?</span>
                             </label>
 
-                            {formData.isPaymentReceived && (
+                            {formData.isPaymentMade && (
                                 <div className="space-y-2 pl-6">
                                     <div className="grid grid-cols-2 gap-3">
                                         <div>
@@ -498,13 +533,13 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
                                     </div>
                                     <div className="grid grid-cols-2 gap-3">
                                         <div>
-                                            <label className="block text-xs text-gray-600 mb-0.5">Deposit to</label>
+                                            <label className="block text-xs text-gray-600 mb-0.5">Paid From</label>
                                             <select
-                                                value={formData.depositTo}
-                                                onChange={(e) => handleChange("depositTo", e.target.value)}
+                                                value={formData.paidFrom}
+                                                onChange={(e) => handleChange("paidFrom", e.target.value)}
                                                 className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
                                             >
-                                                {depositOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                                                {paidFromOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                                             </select>
                                         </div>
                                         <div>
@@ -568,7 +603,6 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
                                 <span className="text-gray-600">Taxable Amt.</span>
                                 <span>₹{totals.taxableAmt.toFixed(2)}</span>
                             </div>
-                            {/* Removed Add service charge with tax button */}
                             <div className="flex justify-between text-sm">
                                 <span className="text-gray-600">Sub Total</span>
                                 <span>₹{totals.subTotal.toFixed(2)}</span>
@@ -627,12 +661,12 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
                     </div>
 
                     {error && (
-                        <p className="text-sm text-red-500 flex-shrink-0">{error}</p>
+                        <p className="text-sm text-red-500 shrink-0">{error}</p>
                     )}
                 </div>
 
                 {/* Modal Footer */}
-                <div className="flex items-center justify-between px-6 py-3 border-t border-gray-200 bg-gray-50 rounded-b-lg flex-shrink-0">
+                <div className="flex items-center justify-between px-6 py-3 border-t border-gray-200 bg-gray-50 rounded-b-lg shrink-0">
                     {isEditMode ? (
                         <button
                             type="button"
@@ -655,7 +689,7 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
                         <button
                             type="button"
                             onClick={handleSave}
-                            className={`px-4 py-2 text-sm text-white rounded transition-colors flex items-center gap-2 ${withGst ? 'bg-green-600 hover:bg-green-700' : 'bg-gray-600 hover:bg-gray-700'}`}
+                            className="px-4 py-2 text-sm text-white rounded transition-colors flex items-center gap-2 bg-blue-600 hover:bg-blue-700"
                         >
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
@@ -670,12 +704,12 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
 }
 
 /**
- * SalesPage
- * - Frontend-only sales invoice management
+ * PurchasePage
+ * - Frontend-only purchase invoice management
  * - Supports both With GST and Without GST invoices
  * - Excel-like table with row highlighting and cell selection
  */
-export default function SalesPage() {
+export default function PurchasePage() {
     const [invoices, setInvoices] = useState([]);
     const [selectedCell, setSelectedCell] = useState(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -823,7 +857,7 @@ export default function SalesPage() {
             {/* Header Row */}
             <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
                 <div className="flex items-center gap-3">
-                    <h2 className="text-lg font-semibold text-gray-900">Sales</h2>
+                    <h2 className="text-lg font-semibold text-gray-900">Purchase</h2>
                     <button className="text-gray-400 hover:text-yellow-500">
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
@@ -930,7 +964,7 @@ export default function SalesPage() {
                                 <th className="w-[18%] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
                                     <div className="flex items-center gap-2">
                                         <span className="text-gray-400 cursor-grab">⋮⋮</span>
-                                        <span>Customer</span>
+                                        <span>Supplier</span>
                                     </div>
                                 </th>
                                 <th className="w-[12%] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
@@ -985,7 +1019,7 @@ export default function SalesPage() {
                                         className={getCellClasses(rowIndex, 2) + " text-left text-gray-600"}
                                         onClick={() => handleCellClick(rowIndex, 2)}
                                     >
-                                        {invoice.customer}
+                                        {invoice.supplier}
                                     </td>
                                     <td
                                         className={getCellClasses(rowIndex, 3) + " text-left text-gray-600 font-medium"}
@@ -1011,8 +1045,8 @@ export default function SalesPage() {
                                         className={getCellClasses(rowIndex, 6) + " text-left text-gray-600"}
                                         onClick={() => handleCellClick(rowIndex, 6)}
                                     >
-                                        {invoice.isPaymentReceived ? (
-                                            <span className="text-green-600 text-xs">✓ Received</span>
+                                        {invoice.isPaymentMade ? (
+                                            <span className="text-green-600 text-xs">✓ Paid</span>
                                         ) : (
                                             <span className="text-yellow-600 text-xs">Pending</span>
                                         )}
@@ -1063,8 +1097,8 @@ export default function SalesPage() {
                 {totalRecords > 0 ? `${startRecord}-${endRecord} of ${totalRecords} Records` : '0 Records'}
             </div>
 
-            {/* Sales Invoice Modal */}
-            <SalesInvoiceModal
+            {/* Purchase Invoice Modal */}
+            <PurchaseInvoiceModal
                 isOpen={isModalOpen}
                 onClose={handleCloseModal}
                 onSave={handleSaveInvoice}

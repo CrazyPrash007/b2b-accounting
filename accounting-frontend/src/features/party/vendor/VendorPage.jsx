@@ -149,6 +149,22 @@ function VendorModal({ isOpen, onClose, onSave, onDelete, editData }) {
         }
     };
 
+    // Handle Enter key to move to next input
+    const handleKeyDown = (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            const form = e.target.closest('[data-form-container]');
+            if (!form) return;
+            
+            const inputs = Array.from(form.querySelectorAll('input, select, textarea'));
+            const currentIndex = inputs.indexOf(e.target);
+            
+            if (currentIndex !== -1 && currentIndex < inputs.length - 1) {
+                inputs[currentIndex + 1].focus();
+            }
+        }
+    };
+
     if (!isOpen) return null;
 
     return (
@@ -158,13 +174,13 @@ function VendorModal({ isOpen, onClose, onSave, onDelete, editData }) {
         >
             <div className="bg-white rounded-lg shadow-xl w-full max-w-5xl mx-4 flex flex-col max-h-[90vh]">
                 {/* Modal Header */}
-                <div className="flex items-center justify-between px-5 py-3 border-b border-gray-200">
-                    <h3 className="text-base font-semibold text-gray-900">
+                <div className="flex items-center justify-between px-5 py-3 rounded-t-lg" style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
+                    <h3 className="text-base font-semibold text-white">
                         {isEditMode ? "Edit Vendor" : "New Vendor"}
                     </h3>
                     <button
                         onClick={onClose}
-                        className="text-gray-400 hover:text-gray-600 transition-colors"
+                        className="text-white/80 hover:text-white transition-colors"
                     >
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -173,7 +189,7 @@ function VendorModal({ isOpen, onClose, onSave, onDelete, editData }) {
                 </div>
 
                 {/* Modal Body - Scrollable */}
-                <div className="px-5 py-4 overflow-y-auto flex-1">
+                <div className="px-5 py-4 overflow-y-auto flex-1" data-form-container onKeyDown={handleKeyDown}>
                     {/* Basic Details Section */}
                     <div className="mb-4">
                         <h4 className="text-sm font-semibold text-gray-800 mb-2 pb-1 border-b border-gray-200">Basic Details</h4>
@@ -191,6 +207,7 @@ function VendorModal({ isOpen, onClose, onSave, onDelete, editData }) {
                                     }}
                                     className={baseInput + (errorName ? " border-red-500" : "")}
                                     placeholder="Enter Vendor Name"
+                                    autoFocus
                                 />
                                 {errorName && <p className="mt-1 text-xs text-red-500">{errorName}</p>}
                             </div>

@@ -100,6 +100,37 @@ function BankModal({ isOpen, onClose, onSave, onDelete, editData }) {
         }
     };
 
+    // Handle Enter key to move to next field
+    const handleKeyDown = (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            const container = e.target.closest('[data-form-container]');
+            if (!container) return;
+            
+            const focusable = Array.from(container.querySelectorAll('input:not([type="radio"]), select, textarea'));
+            const idx = focusable.indexOf(e.target);
+            if (idx >= 0 && idx < focusable.length - 1) {
+                focusable[idx + 1].focus();
+            } else if (idx === focusable.length - 1) {
+                // Last field - trigger save
+                handleSave();
+            }
+        }
+    };
+
+    // Focus first input when modal opens
+    useEffect(() => {
+        if (isOpen) {
+            setTimeout(() => {
+                const container = document.querySelector('[data-form-container]');
+                if (container) {
+                    const firstInput = container.querySelector('input');
+                    firstInput?.focus();
+                }
+            }, 100);
+        }
+    }, [isOpen]);
+
     if (!isOpen) return null;
 
     return (
@@ -109,13 +140,13 @@ function BankModal({ isOpen, onClose, onSave, onDelete, editData }) {
         >
             <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
                 {/* Modal Header */}
-                <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200 sticky top-0 bg-white">
-                    <h3 className="text-base font-semibold text-gray-900">
+                <div className="flex items-center justify-between px-5 py-4 rounded-t-lg sticky top-0" style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
+                    <h3 className="text-base font-semibold text-white">
                         {isEditMode ? "Edit Bank Account" : "Create Bank Account"}
                     </h3>
                     <button
                         onClick={onClose}
-                        className="text-gray-400 hover:text-gray-600 transition-colors"
+                        className="text-white/80 hover:text-white transition-colors"
                     >
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -124,7 +155,7 @@ function BankModal({ isOpen, onClose, onSave, onDelete, editData }) {
                 </div>
 
                 {/* Modal Body */}
-                <div className="px-5 py-4 space-y-5">
+                <div className="px-5 py-4 space-y-5" data-form-container>
                     {/* Under Group - Bank Account Section */}
                     <div>
                         <h4 className="text-sm font-medium text-gray-800 mb-3 pb-2 border-b border-gray-200">
@@ -139,6 +170,7 @@ function BankModal({ isOpen, onClose, onSave, onDelete, editData }) {
                                     type="text"
                                     value={formData.accountDisplayName}
                                     onChange={(e) => handleChange("accountDisplayName", e.target.value)}
+                                    onKeyDown={handleKeyDown}
                                     placeholder="Enter account display name"
                                     className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                                 />
@@ -151,6 +183,7 @@ function BankModal({ isOpen, onClose, onSave, onDelete, editData }) {
                                     type="text"
                                     value={formData.shortAliasName}
                                     onChange={(e) => handleChange("shortAliasName", e.target.value)}
+                                    onKeyDown={handleKeyDown}
                                     placeholder="Enter short/alias name"
                                     className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                                 />
@@ -163,6 +196,7 @@ function BankModal({ isOpen, onClose, onSave, onDelete, editData }) {
                                     type="email"
                                     value={formData.emailAddress}
                                     onChange={(e) => handleChange("emailAddress", e.target.value)}
+                                    onKeyDown={handleKeyDown}
                                     placeholder="Enter email address"
                                     className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                                 />
@@ -175,6 +209,7 @@ function BankModal({ isOpen, onClose, onSave, onDelete, editData }) {
                                     type="tel"
                                     value={formData.phoneNo}
                                     onChange={(e) => handleChange("phoneNo", e.target.value)}
+                                    onKeyDown={handleKeyDown}
                                     placeholder="Enter phone number"
                                     className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                                 />
@@ -196,6 +231,7 @@ function BankModal({ isOpen, onClose, onSave, onDelete, editData }) {
                                     type="text"
                                     value={formData.accountHolderName}
                                     onChange={(e) => handleChange("accountHolderName", e.target.value)}
+                                    onKeyDown={handleKeyDown}
                                     placeholder="Enter account holder's name"
                                     className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                                 />
@@ -208,6 +244,7 @@ function BankModal({ isOpen, onClose, onSave, onDelete, editData }) {
                                     type="text"
                                     value={formData.accountNumber}
                                     onChange={(e) => handleChange("accountNumber", e.target.value)}
+                                    onKeyDown={handleKeyDown}
                                     placeholder="Enter account number"
                                     className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                                 />
@@ -220,6 +257,7 @@ function BankModal({ isOpen, onClose, onSave, onDelete, editData }) {
                                     type="text"
                                     value={formData.ifscCode}
                                     onChange={(e) => handleChange("ifscCode", e.target.value)}
+                                    onKeyDown={handleKeyDown}
                                     placeholder="Enter IFSC code"
                                     className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                                 />
@@ -232,6 +270,7 @@ function BankModal({ isOpen, onClose, onSave, onDelete, editData }) {
                                     type="text"
                                     value={formData.bankName}
                                     onChange={(e) => handleChange("bankName", e.target.value)}
+                                    onKeyDown={handleKeyDown}
                                     placeholder="Enter bank name"
                                     className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                                 />
@@ -253,6 +292,7 @@ function BankModal({ isOpen, onClose, onSave, onDelete, editData }) {
                                     type="number"
                                     value={formData.openingBalance}
                                     onChange={(e) => handleChange("openingBalance", e.target.value)}
+                                    onKeyDown={handleKeyDown}
                                     placeholder="Enter opening balance"
                                     className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                                 />
@@ -264,6 +304,7 @@ function BankModal({ isOpen, onClose, onSave, onDelete, editData }) {
                                 <select
                                     value={formData.openingBalanceType}
                                     onChange={(e) => handleChange("openingBalanceType", e.target.value)}
+                                    onKeyDown={handleKeyDown}
                                     className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                                 >
                                     <option value="Credit">Credit</option>

@@ -1,37 +1,41 @@
-// ExpensePage.jsx
+// PaymentPage.jsx - Payment Out
 import React, { useState, useEffect, useRef } from "react";
 
 /**
- * ExpenseModal - Modal for creating/editing expenses
+ * PaymentModal - Modal for creating/editing payment out entries
  */
-function ExpenseModal({ isOpen, onClose, onSave, onDelete, editData }) {
+function PaymentModal({ isOpen, onClose, onSave, onDelete, editData }) {
     const [formData, setFormData] = useState({
         date: new Date().toISOString().split('T')[0],
-        billName: "",
-        expenseAmount: "",
-        paymentMethod: "",
-        category: "",
-        uploadBill: null,
-        uploadBillName: "",
-        notes: "",
+        party: "",
+        partyId: "",
+        amount: "",
+        paymentMethod: "Cash",
+        invoice: "",
+        invoiceId: "",
+        referenceNumber: "",
+        description: "",
     });
     const [error, setError] = useState("");
-    const fileInputRef = useRef(null);
+    const [fieldErrors, setFieldErrors] = useState({});
 
     const isEditMode = !!editData;
 
-    const categories = [
-        "Office Supplies",
-        "Travel",
-        "Utilities",
-        "Rent",
-        "Salaries",
-        "Marketing",
-        "Insurance",
-        "Maintenance",
-        "Professional Services",
-        "Other"
-    ];
+    // Mock parties data - in real app, this would come from API
+    const [parties] = useState([
+        { id: "1", name: "ABC Suppliers" },
+        { id: "2", name: "XYZ Trading Co." },
+        { id: "3", name: "Global Trading Corporation" },
+        { id: "4", name: "Tech Solutions Ltd" },
+        { id: "5", name: "Office Supplies Inc" },
+    ]);
+
+    // Mock invoices data - would be filtered based on selected party
+    const [invoices] = useState([
+        { id: "INV-001", number: "INV-001", amount: 15000, dueAmount: 15000 },
+        { id: "INV-002", number: "INV-002", amount: 25000, dueAmount: 10000 },
+        { id: "INV-003", number: "INV-003", amount: 8500, dueAmount: 8500 },
+    ]);
 
     const paymentMethods = [
         "Cash",
@@ -48,74 +52,92 @@ function ExpenseModal({ isOpen, onClose, onSave, onDelete, editData }) {
             if (editData) {
                 setFormData({
                     date: editData.date || new Date().toISOString().split('T')[0],
-                    billName: editData.billName || "",
-                    expenseAmount: editData.expenseAmount || "",
-                    paymentMethod: editData.paymentMethod || "",
-                    category: editData.category || "",
-                    uploadBill: editData.uploadBill || null,
-                    uploadBillName: editData.uploadBillName || "",
-                    notes: editData.notes || "",
+                    party: editData.party || "",
+                    partyId: editData.partyId || "",
+                    amount: editData.amount || "",
+                    paymentMethod: editData.paymentMethod || "Cash",
+                    invoice: editData.invoice || "",
+                    invoiceId: editData.invoiceId || "",
+                    referenceNumber: editData.referenceNumber || "",
+                    description: editData.description || "",
                 });
             } else {
                 setFormData({
                     date: new Date().toISOString().split('T')[0],
-                    billName: "",
-                    expenseAmount: "",
-                    paymentMethod: "",
-                    category: "",
-                    uploadBill: null,
-                    uploadBillName: "",
-                    notes: "",
+                    party: "",
+                    partyId: "",
+                    amount: "",
+                    paymentMethod: "Cash",
+                    invoice: "",
+                    invoiceId: "",
+                    referenceNumber: "",
+                    description: "",
                 });
             }
             setError("");
+            setFieldErrors({});
         }
     }, [editData, isOpen]);
 
     const handleChange = (field, value) => {
         setFormData((prev) => ({ ...prev, [field]: value }));
         if (error) setError("");
+        if (fieldErrors[field]) {
+            setFieldErrors((prev) => ({ ...prev, [field]: "" }));
+        }
     };
 
-    const handleFileUpload = (e) => {
-        const file = e.target.files[0];
-        if (file) {
-            const allowedTypes = ['image/jpeg', 'image/png', 'application/pdf', 'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'];
-            if (allowedTypes.includes(file.type)) {
-                setFormData((prev) => ({
-                    ...prev,
-                    uploadBill: file,
-                    uploadBillName: file.name,
-                }));
-            } else {
-                setError("Please upload JPG, PNG, PDF or Excel files only");
-            }
+    const handlePartyChange = (partyId) => {
+        const selectedParty = parties.find(p => p.id === partyId);
+        setFormData((prev) => ({
+            ...prev,
+            partyId,
+            party: selectedParty?.name || "",
+            invoice: "",
+            invoiceId: "",
+        }));
+        if (fieldErrors.party) {
+            setFieldErrors((prev) => ({ ...prev, party: "" }));
         }
+    };
+
+    const handleInvoiceChange = (invoiceId) => {
+        const selectedInvoice = invoices.find(i => i.id === invoiceId);
+        setFormData((prev) => ({
+            ...prev,
+            invoiceId,
+            invoice: selectedInvoice?.number || "",
+            amount: selectedInvoice?.dueAmount?.toString() || prev.amount,
+        }));
     };
 
     const handleSave = () => {
-        if (!formData.billName.trim()) {
-            setError("Bill Name is required");
-            return;
+        const errors = {};
+        
+        if (!formData.partyId) {
+            errors.party = "Party is required";
         }
-        if (!formData.expenseAmount || parseFloat(formData.expenseAmount) <= 0) {
-            setError("Valid Expense Amount is required");
-            return;
+        if (!formData.amount || parseFloat(formData.amount) <= 0) {
+            errors.amount = "Valid amount is required";
         }
-        if (!formData.category) {
-            setError("Category is required");
+        if (!formData.paymentMethod) {
+            errors.paymentMethod = "Payment method is required";
+        }
+
+        if (Object.keys(errors).length > 0) {
+            setFieldErrors(errors);
             return;
         }
 
-        const expenseData = {
+        const paymentData = {
             id: isEditMode ? editData.id : String(Date.now()),
             ...formData,
-            billName: formData.billName.trim(),
-            expenseAmount: parseFloat(formData.expenseAmount),
-            notes: formData.notes.trim(),
+            amount: parseFloat(formData.amount),
+            description: formData.description.trim(),
+            referenceNumber: formData.referenceNumber.trim(),
         };
 
-        onSave(expenseData, isEditMode);
+        onSave(paymentData, isEditMode);
     };
 
     const handleBackdropClick = (e) => {
@@ -126,13 +148,9 @@ function ExpenseModal({ isOpen, onClose, onSave, onDelete, editData }) {
 
     // Handle Enter key to move to next input
     const handleKeyDown = (e) => {
-        if (e.key === 'Enter' && e.ctrlKey) {
-            handleSave();
-            return;
-        }
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
-            const form = e.target.closest('[data-form-container]');
+            const form = e.target.closest('form') || e.target.closest('[data-form-container]');
             if (!form) return;
             
             const inputs = Array.from(form.querySelectorAll('input, select, textarea'));
@@ -144,174 +162,180 @@ function ExpenseModal({ isOpen, onClose, onSave, onDelete, editData }) {
         }
     };
 
-    const formatDate = (dateString) => {
-        const date = new Date(dateString);
-        return date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
-    };
-
     if (!isOpen) return null;
+
+    const baseInput = "w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500";
 
     return (
         <div
             className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
             onClick={handleBackdropClick}
         >
-            <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl mx-4 max-h-[90vh] flex flex-col">
+            <div className="bg-white rounded-lg shadow-xl w-full max-w-3xl mx-4 flex flex-col max-h-[90vh]">
                 {/* Modal Header */}
-                <div className="flex items-center justify-between px-6 py-4 rounded-t-lg shrink-0" style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
-                    <h3 className="text-lg font-semibold text-white">
-                        {isEditMode ? "Edit Expense" : "New Expense"}
+                <div className="flex items-center justify-between px-5 py-3 rounded-t-lg" style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
+                    <h3 className="text-base font-semibold text-white">
+                        {isEditMode ? "Edit Payment Out" : "New Payment Out"}
                     </h3>
-                    <div className="flex items-center gap-3">
-                        <span className="text-sm text-white/80">Date</span>
-                        <input
-                            type="date"
-                            value={formData.date}
-                            onChange={(e) => handleChange("date", e.target.value)}
-                            className="border border-white/30 bg-white/20 text-white rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-white/50"
-                        />
-                    </div>
+                    <button
+                        onClick={onClose}
+                        className="text-white/80 hover:text-white transition-colors"
+                    >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
                 </div>
 
-                {/* Modal Body */}
-                <div className="px-6 py-5 space-y-5 overflow-y-auto flex-1" data-form-container onKeyDown={handleKeyDown}>
-                    {/* Bill Name */}
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1.5 uppercase tracking-wide">
-                            Bill Name <span className="text-red-500">*</span>
-                        </label>
-                        <input
-                            type="text"
-                            value={formData.billName}
-                            onChange={(e) => handleChange("billName", e.target.value)}
-                            placeholder="Enter bill or expense name"
-                            className="w-full border border-gray-300 rounded px-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                            autoFocus
-                        />
-                    </div>
-
-                    {/* Expense Amount & Payment Done */}
-                    <div className="grid grid-cols-2 gap-6">
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1.5 uppercase tracking-wide">
-                                Expense Amount <span className="text-red-500">*</span>
-                            </label>
-                            <div className="relative">
-                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-blue-500 font-medium">₹</span>
+                {/* Modal Body - Scrollable */}
+                <div className="px-5 py-4 overflow-y-auto flex-1" data-form-container>
+                    {/* Payment Details Section */}
+                    <div className="mb-4">
+                        <h4 className="text-sm font-semibold text-gray-800 mb-2 pb-1 border-b border-gray-200">Payment Details</h4>
+                        <div className="grid grid-cols-2 gap-3">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    Date<span className="text-red-500">*</span>
+                                </label>
+                                <input
+                                    type="date"
+                                    value={formData.date}
+                                    onChange={(e) => handleChange("date", e.target.value)}
+                                    onKeyDown={handleKeyDown}
+                                    className={baseInput}
+                                    autoFocus
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    Select Party<span className="text-red-500">*</span>
+                                </label>
+                                <select
+                                    value={formData.partyId}
+                                    onChange={(e) => handlePartyChange(e.target.value)}
+                                    onKeyDown={handleKeyDown}
+                                    className={`${baseInput} bg-white ${fieldErrors.party ? "border-red-500" : ""}`}
+                                >
+                                    <option value="">Search and select party...</option>
+                                    {parties.map((party) => (
+                                        <option key={party.id} value={party.id}>{party.name}</option>
+                                    ))}
+                                </select>
+                                {fieldErrors.party && <p className="mt-1 text-xs text-red-500">{fieldErrors.party}</p>}
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    Amount<span className="text-red-500">*</span>
+                                </label>
                                 <input
                                     type="number"
-                                    value={formData.expenseAmount}
-                                    onChange={(e) => handleChange("expenseAmount", e.target.value)}
-                                    placeholder="0.00"
-                                    className="w-full border border-gray-300 rounded pl-8 pr-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                                    value={formData.amount}
+                                    onChange={(e) => handleChange("amount", e.target.value)}
+                                    onKeyDown={handleKeyDown}
+                                    placeholder="Enter amount"
+                                    className={`${baseInput} ${fieldErrors.amount ? "border-red-500" : ""}`}
                                 />
+                                {fieldErrors.amount && <p className="mt-1 text-xs text-red-500">{fieldErrors.amount}</p>}
                             </div>
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1.5 uppercase tracking-wide">
-                                Payment Done
-                            </label>
-                            <select
-                                value={formData.paymentMethod}
-                                onChange={(e) => handleChange("paymentMethod", e.target.value)}
-                                className="w-full border border-gray-300 rounded px-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 bg-white"
-                            >
-                                <option value="">Select Payment Method</option>
-                                {paymentMethods.map((method) => (
-                                    <option key={method} value={method}>{method}</option>
-                                ))}
-                            </select>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    Payment Method<span className="text-red-500">*</span>
+                                </label>
+                                <select
+                                    value={formData.paymentMethod}
+                                    onChange={(e) => handleChange("paymentMethod", e.target.value)}
+                                    onKeyDown={handleKeyDown}
+                                    className={`${baseInput} bg-white`}
+                                >
+                                    {paymentMethods.map((method) => (
+                                        <option key={method} value={method}>{method}</option>
+                                    ))}
+                                </select>
+                            </div>
                         </div>
                     </div>
 
-                    {/* Category & Upload Bill */}
-                    <div className="grid grid-cols-2 gap-6">
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1.5 uppercase tracking-wide">
-                                Category <span className="text-red-500">*</span>
-                            </label>
-                            <input
-                                type="text"
-                                value={formData.category}
-                                onChange={(e) => handleChange("category", e.target.value)}
-                                placeholder="Enter category"
-                                className="w-full border border-gray-300 rounded px-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1.5 uppercase tracking-wide">
-                                Upload Bill
-                            </label>
-                            <div 
-                                onClick={() => fileInputRef.current?.click()}
-                                className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center cursor-pointer hover:border-blue-400 hover:bg-blue-50/30 transition-colors"
-                            >
+                    {/* Invoice & Reference Section */}
+                    <div className="mb-4">
+                        <h4 className="text-sm font-semibold text-gray-800 mb-2 pb-1 border-b border-gray-200">Additional Details</h4>
+                        <div className="grid grid-cols-2 gap-3">
+                            <div className="col-span-2">
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    Select Invoice (Optional)
+                                </label>
+                                <select
+                                    value={formData.invoiceId}
+                                    onChange={(e) => handleInvoiceChange(e.target.value)}
+                                    onKeyDown={handleKeyDown}
+                                    disabled={!formData.partyId}
+                                    className={`${baseInput} bg-white disabled:bg-gray-100 disabled:cursor-not-allowed`}
+                                >
+                                    <option value="">Select a party first to see their invoices...</option>
+                                    {formData.partyId && invoices.map((invoice) => (
+                                        <option key={invoice.id} value={invoice.id}>
+                                            {invoice.number} - Due: ₹{invoice.dueAmount.toLocaleString('en-IN')}
+                                        </option>
+                                    ))}
+                                </select>
+                                <p className="mt-1 text-xs text-gray-500">Select an invoice to automatically fill the amount with the due amount</p>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    Reference Number
+                                </label>
                                 <input
-                                    ref={fileInputRef}
-                                    type="file"
-                                    onChange={handleFileUpload}
-                                    accept=".jpg,.jpeg,.png,.pdf,.xls,.xlsx"
-                                    className="hidden"
+                                    type="text"
+                                    value={formData.referenceNumber}
+                                    onChange={(e) => handleChange("referenceNumber", e.target.value)}
+                                    onKeyDown={handleKeyDown}
+                                    placeholder="Enter reference number (optional)"
+                                    className={baseInput}
                                 />
-                                {formData.uploadBillName ? (
-                                    <div className="text-sm text-blue-600">{formData.uploadBillName}</div>
-                                ) : (
-                                    <>
-                                        <div className="text-yellow-500 text-2xl mb-1">📁</div>
-                                        <div className="text-xs font-medium text-gray-600">CLICK TO UPLOAD BILL OR RECEIPT</div>
-                                        <div className="text-xs text-gray-400 mt-1">SUPPORTS: JPG, PNG, PDF, EXCEL FILES</div>
-                                    </>
-                                )}
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    Description
+                                </label>
+                                <input
+                                    type="text"
+                                    value={formData.description}
+                                    onChange={(e) => handleChange("description", e.target.value)}
+                                    onKeyDown={handleKeyDown}
+                                    placeholder="Payment description (optional)"
+                                    className={baseInput}
+                                />
                             </div>
                         </div>
                     </div>
-
-                    {/* Notes */}
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1.5 uppercase tracking-wide">
-                            Notes
-                        </label>
-                        <textarea
-                            value={formData.notes}
-                            onChange={(e) => handleChange("notes", e.target.value)}
-                            placeholder="Add notes about this expense... (Ctrl+Enter to submit)"
-                            rows={3}
-                            className="w-full border border-gray-300 rounded px-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 resize-none"
-                        />
-                    </div>
-
-                    {error && (
-                        <p className="text-sm text-red-500">{error}</p>
-                    )}
                 </div>
 
                 {/* Modal Footer */}
-                <div className="flex items-center justify-between px-6 py-4 border-t border-gray-200 bg-gray-50 rounded-b-lg sticky bottom-0">
+                <div className="flex items-center justify-between px-5 py-4 border-t border-gray-200 bg-gray-50 rounded-b-lg">
                     {isEditMode ? (
                         <button
                             type="button"
                             onClick={() => onDelete && onDelete(editData.id)}
-                            className="px-4 py-2 text-sm text-red-600 hover:text-red-800 border border-red-300 rounded hover:bg-red-50 transition-colors"
+                            className="px-3 py-1.5 text-sm text-red-600 hover:text-red-800 border border-red-300 rounded hover:bg-red-50 transition-colors"
                         >
                             Delete
                         </button>
                     ) : (
                         <div></div>
                     )}
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2">
                         <button
                             type="button"
                             onClick={onClose}
-                            className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 border border-gray-300 rounded hover:bg-gray-100 transition-colors"
+                            className="px-3 py-1.5 text-sm text-gray-600 hover:text-gray-800 border border-gray-300 rounded hover:bg-gray-100 transition-colors"
                         >
                             Cancel
                         </button>
                         <button
                             type="button"
                             onClick={handleSave}
-                            className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                            className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
                         >
-                            {isEditMode ? "Update" : "Save Expense"}
+                            {isEditMode ? "Update" : "Save"}
                         </button>
                     </div>
                 </div>
@@ -321,50 +345,50 @@ function ExpenseModal({ isOpen, onClose, onSave, onDelete, editData }) {
 }
 
 /**
- * ExpensePage
- * - Frontend-only expense management
+ * PaymentPage - Payment Out Management
+ * - Frontend-only payment management
  * - Excel-like table with row highlighting and cell selection
  */
-export default function ExpensePage() {
-    const [expenses, setExpenses] = useState([]);
+export default function PaymentPage() {
+    const [payments, setPayments] = useState([]);
     const [selectedCell, setSelectedCell] = useState(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
-    const [editingExpense, setEditingExpense] = useState(null);
+    const [editingPayment, setEditingPayment] = useState(null);
 
     const handleOpenCreate = () => {
-        setEditingExpense(null);
+        setEditingPayment(null);
         setIsModalOpen(true);
     };
 
-    const handleEditExpense = (expense) => {
-        setEditingExpense(expense);
+    const handleEditPayment = (payment) => {
+        setEditingPayment(payment);
         setIsModalOpen(true);
     };
 
     const handleCloseModal = () => {
         setIsModalOpen(false);
-        setEditingExpense(null);
+        setEditingPayment(null);
     };
 
-    const handleSaveExpense = (expenseData, isEdit) => {
+    const handleSavePayment = (paymentData, isEdit) => {
         if (isEdit) {
-            setExpenses((prev) =>
-                prev.map((exp) =>
-                    exp.id === expenseData.id ? expenseData : exp
+            setPayments((prev) =>
+                prev.map((pay) =>
+                    pay.id === paymentData.id ? paymentData : pay
                 )
             );
         } else {
-            setExpenses((prev) => [...prev, expenseData]);
+            setPayments((prev) => [...prev, paymentData]);
         }
         setIsModalOpen(false);
-        setEditingExpense(null);
+        setEditingPayment(null);
     };
 
-    const handleDeleteExpense = (id) => {
-        if (window.confirm("Are you sure you want to delete this expense?")) {
-            setExpenses((prev) => prev.filter((exp) => exp.id !== id));
+    const handleDeletePayment = (id) => {
+        if (window.confirm("Are you sure you want to delete this payment?")) {
+            setPayments((prev) => prev.filter((pay) => pay.id !== id));
             setIsModalOpen(false);
-            setEditingExpense(null);
+            setEditingPayment(null);
         }
     };
 
@@ -399,10 +423,10 @@ export default function ExpensePage() {
         return () => window.removeEventListener('resize', calculateRows);
     }, []);
 
-    const emptyRowsCount = Math.max(0, visibleRows - expenses.length);
+    const emptyRowsCount = Math.max(0, visibleRows - payments.length);
     const emptyRows = Array.from({ length: emptyRowsCount }, (_, i) => i);
 
-    const totalRecords = expenses.length;
+    const totalRecords = payments.length;
     const startRecord = totalRecords > 0 ? 1 : 0;
     const endRecord = totalRecords;
 
@@ -436,7 +460,7 @@ export default function ExpensePage() {
             {/* Header Row */}
             <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
                 <div className="flex items-center gap-3">
-                    <h2 className="text-lg font-semibold text-gray-900">Expenses</h2>
+                    <h2 className="text-lg font-semibold text-gray-900">Payment Out</h2>
                     <button className="text-gray-400 hover:text-yellow-500">
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
@@ -450,7 +474,7 @@ export default function ExpensePage() {
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                     </svg>
-                    Add Expense
+                    Add Payment Out
                 </button>
             </div>
 
@@ -501,10 +525,10 @@ export default function ExpensePage() {
                                         <span>Date</span>
                                     </div>
                                 </th>
-                                <th className="w-[22%] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                <th className="w-[20%] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
                                     <div className="flex items-center gap-2">
                                         <span className="text-gray-400 cursor-grab">⋮⋮</span>
-                                        <span>Bill Name</span>
+                                        <span>Party</span>
                                     </div>
                                 </th>
                                 <th className="w-[15%] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
@@ -516,19 +540,19 @@ export default function ExpensePage() {
                                 <th className="w-[15%] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
                                     <div className="flex items-center gap-2">
                                         <span className="text-gray-400 cursor-grab">⋮⋮</span>
-                                        <span>Category</span>
+                                        <span>Payment Method</span>
+                                    </div>
+                                </th>
+                                <th className="w-[13%] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-gray-400 cursor-grab">⋮⋮</span>
+                                        <span>Invoice</span>
                                     </div>
                                 </th>
                                 <th className="w-[15%] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
                                     <div className="flex items-center gap-2">
                                         <span className="text-gray-400 cursor-grab">⋮⋮</span>
-                                        <span>Payment Method</span>
-                                    </div>
-                                </th>
-                                <th className="w-[11%] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-gray-400 cursor-grab">⋮⋮</span>
-                                        <span>Bill</span>
+                                        <span>Reference</span>
                                     </div>
                                 </th>
                                 <th className="w-[10%] h-9 px-4 text-left text-sm font-medium text-gray-700">
@@ -538,57 +562,53 @@ export default function ExpensePage() {
                         </thead>
                         <tbody>
                             {/* Data rows */}
-                            {expenses.map((expense, rowIndex) => (
+                            {payments.map((payment, rowIndex) => (
                                 <tr
-                                    key={expense.id}
+                                    key={payment.id}
                                     className={`border-b border-gray-400 hover:bg-blue-100 transition-colors ${rowIndex % 2 === 0 ? 'bg-blue-50/40' : 'bg-white'}`}
                                 >
                                     <td
                                         className={getCellClasses(rowIndex, 0) + " text-left text-gray-600"}
                                         onClick={() => handleCellClick(rowIndex, 0)}
                                     >
-                                        {formatDate(expense.date)}
+                                        {formatDate(payment.date)}
                                     </td>
                                     <td
                                         className={getCellClasses(rowIndex, 1) + " text-left text-blue-600"}
                                         onClick={() => handleCellClick(rowIndex, 1)}
                                     >
-                                        {expense.billName}
+                                        {payment.party}
                                     </td>
                                     <td
-                                        className={getCellClasses(rowIndex, 2) + " text-left text-gray-600"}
+                                        className={getCellClasses(rowIndex, 2) + " text-left text-red-600 font-medium"}
                                         onClick={() => handleCellClick(rowIndex, 2)}
                                     >
-                                        {formatCurrency(expense.expenseAmount)}
+                                        {formatCurrency(payment.amount)}
                                     </td>
                                     <td
                                         className={getCellClasses(rowIndex, 3) + " text-left text-gray-600"}
                                         onClick={() => handleCellClick(rowIndex, 3)}
                                     >
                                         <span className="inline-flex items-center px-2 py-0.5 rounded bg-gray-100 text-gray-700 text-xs">
-                                            {expense.category}
+                                            {payment.paymentMethod}
                                         </span>
                                     </td>
                                     <td
                                         className={getCellClasses(rowIndex, 4) + " text-left text-gray-600"}
                                         onClick={() => handleCellClick(rowIndex, 4)}
                                     >
-                                        {expense.paymentMethod || "-"}
+                                        {payment.invoice || "-"}
                                     </td>
                                     <td
-                                        className={getCellClasses(rowIndex, 5) + " text-left"}
+                                        className={getCellClasses(rowIndex, 5) + " text-left text-gray-600"}
                                         onClick={() => handleCellClick(rowIndex, 5)}
                                     >
-                                        {expense.uploadBillName ? (
-                                            <span className="text-blue-600 text-xs">📄 Attached</span>
-                                        ) : (
-                                            <span className="text-gray-400 text-xs">-</span>
-                                        )}
+                                        {payment.referenceNumber || "-"}
                                     </td>
                                     <td className="h-8 px-4 text-left">
                                         <div className="flex items-center justify-end gap-2">
                                             <button
-                                                onClick={() => handleEditExpense(expense)}
+                                                onClick={() => handleEditPayment(payment)}
                                                 className="text-blue-600 hover:underline text-sm"
                                             >
                                                 Edit
@@ -604,7 +624,7 @@ export default function ExpensePage() {
                             ))}
                             {/* Empty rows to fill the display */}
                             {emptyRows.map((_, idx) => {
-                                const rowIndex = expenses.length + idx;
+                                const rowIndex = payments.length + idx;
                                 return (
                                     <tr
                                         key={`empty-${idx}`}
@@ -630,13 +650,13 @@ export default function ExpensePage() {
                 {totalRecords > 0 ? `${startRecord}-${endRecord} of ${totalRecords} Records` : '0 Records'}
             </div>
 
-            {/* Expense Modal */}
-            <ExpenseModal
+            {/* Payment Modal */}
+            <PaymentModal
                 isOpen={isModalOpen}
                 onClose={handleCloseModal}
-                onSave={handleSaveExpense}
-                onDelete={handleDeleteExpense}
-                editData={editingExpense}
+                onSave={handleSavePayment}
+                onDelete={handleDeletePayment}
+                editData={editingPayment}
             />
         </div>
     );
