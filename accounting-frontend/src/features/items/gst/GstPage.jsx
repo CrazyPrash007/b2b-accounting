@@ -137,6 +137,27 @@ export default function GstPage() {
     const [selectedCell, setSelectedCell] = useState(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingGst, setEditingGst] = useState(null);
+    const [isInitialized, setIsInitialized] = useState(false);
+
+    // Load GST rates from localStorage on mount
+    useEffect(() => {
+        const savedRates = localStorage.getItem("gstRates");
+        if (savedRates) {
+            try {
+                setGstRates(JSON.parse(savedRates));
+            } catch (e) {
+                console.error("Error loading GST rates:", e);
+            }
+        }
+        setIsInitialized(true);
+    }, []);
+
+    // Save GST rates to localStorage whenever they change (only after initialization)
+    useEffect(() => {
+        if (isInitialized) {
+            localStorage.setItem("gstRates", JSON.stringify(gstRates));
+        }
+    }, [gstRates, isInitialized]);
 
     const handleOpenCreate = () => {
         setEditingGst(null);

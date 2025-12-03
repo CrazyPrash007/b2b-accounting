@@ -353,6 +353,27 @@ export default function BankPage() {
     const [selectedCell, setSelectedCell] = useState(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingAccount, setEditingAccount] = useState(null);
+    const [isInitialized, setIsInitialized] = useState(false);
+
+    // Load bank accounts from localStorage on mount
+    useEffect(() => {
+        const savedAccounts = localStorage.getItem("bankAccounts");
+        if (savedAccounts) {
+            try {
+                setBankAccounts(JSON.parse(savedAccounts));
+            } catch (e) {
+                console.error("Error loading bank accounts:", e);
+            }
+        }
+        setIsInitialized(true);
+    }, []);
+
+    // Save bank accounts to localStorage whenever they change (only after initialization)
+    useEffect(() => {
+        if (isInitialized) {
+            localStorage.setItem("bankAccounts", JSON.stringify(bankAccounts));
+        }
+    }, [bankAccounts, isInitialized]);
 
     const handleOpenCreate = () => {
         setEditingAccount(null);
