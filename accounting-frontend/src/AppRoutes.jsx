@@ -13,6 +13,9 @@ import BankPage from "src/features/account/bank/BankPage";
 import ExpensePage from "src/features/transactions/expense/ExpensePage";
 import IncomePage from "src/features/transactions/income/IncomePage";
 import SalesPage from "src/features/transactions/sales/SalesPage";
+import PurchasePage from "src/features/transactions/purchase/PurchasePage";
+import PaymentPage from "src/features/transactions/payment/PaymentPage";
+import ReceiptPage from "src/features/transactions/receipt/ReceiptPage";
 
 
 export default function AppRoutes() {
@@ -30,6 +33,9 @@ export default function AppRoutes() {
                 <Route path="expenses" element={<ExpensePage />} />
                 <Route path="income" element={<IncomePage />} />
                 <Route path="sales" element={<SalesPage />} />
+                <Route path="purchase" element={<PurchasePage />} />
+                <Route path="payment" element={<PaymentPage />} />
+                <Route path="receipt" element={<ReceiptPage />} />
 
                 <Route path="*" element={<div className="p-6">Page not found</div>} />
             </Route>
