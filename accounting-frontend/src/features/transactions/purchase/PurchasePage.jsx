@@ -133,9 +133,23 @@ function PurchaseInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, wit
             if (index === formData.items.length - 1) {
                 addRow();
                 setTimeout(() => {
-                    const newRowInput = document.querySelector(`[data-item-row="${formData.items.length}"] input`);
-                    if (newRowInput) newRowInput.focus();
+                    const nextRow = document.querySelector(`tr[data-item-row="${index + 1}"]`);
+                    if (nextRow) {
+                        const firstInput = nextRow.querySelector('input');
+                        if (firstInput) firstInput.focus();
+                    }
                 }, 50);
+            } else {
+                // Move to first input of next row
+                const row = e.target.closest('tr');
+                if (!row) return;
+                const rows = Array.from(document.querySelectorAll('[data-items-table] tbody tr'));
+                const currentRowIdx = rows.indexOf(row);
+                if (currentRowIdx < rows.length - 1) {
+                    const nextRow = rows[currentRowIdx + 1];
+                    const firstInput = nextRow.querySelector('input');
+                    if (firstInput) firstInput.focus();
+                }
             }
         }
     };
@@ -455,11 +469,11 @@ function PurchaseInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, wit
                                         )}
                                         <td className="px-1 py-1">
                                             <input
-                                                type="text"
+                                                type="number"
                                                 value={item.amount}
-                                                readOnly
+                                                onChange={(e) => handleItemChange(index, "amount", e.target.value)}
                                                 onKeyDown={(e) => handleAmountKeyDown(e, index)}
-                                                className="w-full border border-gray-200 bg-gray-50 rounded px-2 py-1 text-sm"
+                                                className="w-full border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
                                             />
                                         </td>
                                         <td className="px-1 pr-2 py-1 text-center">
