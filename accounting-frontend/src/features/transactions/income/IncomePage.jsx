@@ -123,9 +123,23 @@ function IncomeModal({ isOpen, onClose, onSave, onDelete, editData }) {
         }
     };
 
+    // Handle Enter key to move to next input
     const handleKeyDown = (e) => {
         if (e.key === 'Enter' && e.ctrlKey) {
             handleSave();
+            return;
+        }
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            const form = e.target.closest('[data-form-container]');
+            if (!form) return;
+            
+            const inputs = Array.from(form.querySelectorAll('input, select, textarea'));
+            const currentIndex = inputs.indexOf(e.target);
+            
+            if (currentIndex !== -1 && currentIndex < inputs.length - 1) {
+                inputs[currentIndex + 1].focus();
+            }
         }
     };
 
@@ -136,28 +150,25 @@ function IncomeModal({ isOpen, onClose, onSave, onDelete, editData }) {
             className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
             onClick={handleBackdropClick}
         >
-            <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl mx-4 max-h-[90vh] flex flex-col">
                 {/* Modal Header */}
-                <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 sticky top-0 bg-white">
-                    <div className="flex items-center gap-2">
-                        <div className="w-1 h-6 bg-green-500 rounded"></div>
-                        <h3 className="text-lg font-semibold text-gray-900">
-                            {isEditMode ? "Edit Income" : "Basic Details"}
-                        </h3>
-                    </div>
+                <div className="flex items-center justify-between px-6 py-4 rounded-t-lg shrink-0" style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
+                    <h3 className="text-lg font-semibold text-white">
+                        {isEditMode ? "Edit Income" : "New Income"}
+                    </h3>
                     <div className="flex items-center gap-3">
-                        <span className="text-sm text-gray-500">Date</span>
+                        <span className="text-sm text-white/80">Date</span>
                         <input
                             type="date"
                             value={formData.date}
                             onChange={(e) => handleChange("date", e.target.value)}
-                            className="border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                            className="border border-white/30 bg-white/20 text-white rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-white/50"
                         />
                     </div>
                 </div>
 
                 {/* Modal Body */}
-                <div className="px-6 py-5 space-y-5" onKeyDown={handleKeyDown}>
+                <div className="px-6 py-5 space-y-5 overflow-y-auto flex-1" data-form-container onKeyDown={handleKeyDown}>
                     {/* Bill Name */}
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1.5 uppercase tracking-wide">
@@ -169,6 +180,7 @@ function IncomeModal({ isOpen, onClose, onSave, onDelete, editData }) {
                             onChange={(e) => handleChange("billName", e.target.value)}
                             placeholder="Enter income source or bill name"
                             className="w-full border border-gray-300 rounded px-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                            autoFocus
                         />
                     </div>
 
@@ -430,7 +442,7 @@ export default function IncomePage() {
                 </div>
                 <button
                     onClick={handleOpenCreate}
-                    className="flex items-center gap-1 bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition-colors text-sm font-medium"
+                    className="flex items-center gap-1 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition-colors text-sm font-medium"
                 >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
