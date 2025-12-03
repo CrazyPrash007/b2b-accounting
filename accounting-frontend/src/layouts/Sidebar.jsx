@@ -128,6 +128,7 @@ export default function Sidebar() {
                     <div className="text-xs text-gray-400 mt-6 mb-2 uppercase">TRANSACTIONS</div>
                     <Item title="Sales" icon={<FiShoppingBag />} to="/sales" />
                     <Item title="Purchase" icon={<FiShoppingBag />} to="/purchase" />
+                    <Item title="Income" icon={<FiFileText />} to="/income" />
                     <Item title="Expenses" icon={<FiFileText />} to="/expenses" />
                 </div>
 
