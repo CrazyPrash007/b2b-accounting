@@ -1,6 +1,7 @@
 // VendorPage.jsx
 import React, { useState, useEffect, useRef } from "react";
-
+import { useNavigate, useLocation } from "react-router-dom";
+import useVendor from "./hooks/useVendor";
 /**
  * VendorModal - Modal for creating/editing vendors
  */
@@ -151,7 +152,7 @@ function VendorModal({ isOpen, onClose, onSave, onDelete, editData }) {
     if (!isOpen) return null;
 
     return (
-        <div 
+        <div
             className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
             onClick={handleBackdropClick}
         >
@@ -496,10 +497,24 @@ function VendorModal({ isOpen, onClose, onSave, onDelete, editData }) {
  * VendorPage - Vendor management with Excel-like table
  */
 export default function VendorPage() {
-    const [vendors, setVendors] = useState([]);
+    const navigate = useNavigate();
+    const location = useLocation();
+
+    const { rows: vendors = [], loading, error, reload, create, update, remove } =
+        useVendor({ useLocalFallback: true });
+
     const [selectedCell, setSelectedCell] = useState(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingVendor, setEditingVendor] = useState(null);
+
+    useEffect(() => {
+        if (location.state?.savedVendor || location.state?.deletedVendorId) {
+            // server is source of truth now — reload list
+            reload();
+            window.history.replaceState({}, document.title);
+        }
+    }, [location.state, reload]);
+
 
     const handleOpenCreate = () => {
         setEditingVendor(null);
@@ -516,25 +531,62 @@ export default function VendorPage() {
         setEditingVendor(null);
     };
 
-    const handleSaveVendor = (vendorData, isEdit) => {
-        if (isEdit) {
-            setVendors((prev) =>
-                prev.map((v) => (v.id === vendorData.id ? vendorData : v))
-            );
-        } else {
-            setVendors((prev) => [...prev, vendorData]);
-        }
-        setIsModalOpen(false);
-        setEditingVendor(null);
-    };
+    const handleSaveVendor = async (vendorData, isEdit) => {
+        try {
+            const payloadCommon = {
+                vendorName: vendorData.vendorName,
+                name: vendorData.name || vendorData.vendorName,
+                mobileNumber: vendorData.mobileNumber || "",
+                emailAddress: vendorData.emailAddress || "",
+                websiteLink: vendorData.websiteLink || "",
+                companyName: vendorData.companyName || "",
+                gstType: vendorData.gstType || "Unregistered",
+                billingAddress: vendorData.billingAddress || "",
+                billingPinCode: vendorData.billingPinCode || "",
+                billingVillage: vendorData.billingVillage || "",
+                billingTehsil: vendorData.billingTehsil || "",
+                billingDistrict: vendorData.billingDistrict || "",
+                billingState: vendorData.billingState || "",
+                billingCountry: vendorData.billingCountry || "India",
+                sameAsBilling: vendorData.sameAsBilling ?? true,
+                shippingAddress: vendorData.shippingAddress || "",
+                shippingPinCode: vendorData.shippingPinCode || "",
+                shippingVillage: vendorData.shippingVillage || "",
+                shippingTehsil: vendorData.shippingTehsil || "",
+                shippingDistrict: vendorData.shippingDistrict || "",
+                shippingState: vendorData.shippingState || "",
+                shippingCountry: vendorData.shippingCountry || "India",
+                openingBalanceType: vendorData.openingBalanceType || "Credit",
+                openingBalanceAmount: vendorData.openingBalanceAmount || 0,
+            };
 
-    const handleDeleteVendor = (id) => {
-        if (window.confirm("Are you sure you want to delete this vendor?")) {
-            setVendors((prev) => prev.filter((v) => v.id !== id));
+            if (isEdit) {
+                await update(vendorData.id, payloadCommon);
+            } else {
+                await create(payloadCommon);
+            }
+
             setIsModalOpen(false);
             setEditingVendor(null);
+        } catch (err) {
+            console.error("Failed to save vendor:", err);
+            alert(err?.message || "Failed to save vendor");
         }
     };
+
+
+    const handleDeleteVendor = async (id) => {
+        if (!window.confirm("Are you sure you want to delete this vendor?")) return;
+        try {
+            await remove(id);
+            setIsModalOpen(false);
+            setEditingVendor(null);
+        } catch (err) {
+            console.error("Failed to delete vendor:", err);
+            alert(err?.message || "Failed to delete vendor");
+        }
+    };
+
 
     const handleCellClick = (rowIndex, colIndex) => {
         setSelectedCell({ rowIndex, colIndex });
@@ -580,8 +632,8 @@ export default function VendorPage() {
 
     const getCellClasses = (rowIndex, colIndex) => {
         const baseClasses = "h-8 px-4 border-r border-gray-400 cursor-cell";
-        const selectedClasses = isCellSelected(rowIndex, colIndex) 
-            ? "outline outline-2 outline-blue-500 outline-offset-[-2px] bg-blue-50" 
+        const selectedClasses = isCellSelected(rowIndex, colIndex)
+            ? "outline outline-2 outline-blue-500 outline-offset-[-2px] bg-blue-50"
             : "";
         return `${baseClasses} ${selectedClasses}`;
     };
@@ -634,8 +686,8 @@ export default function VendorPage() {
             </div>
 
             {/* Table Container */}
-            <div 
-                ref={tableContainerRef} 
+            <div
+                ref={tableContainerRef}
                 className="flex-1 overflow-auto px-4 pb-1"
                 onClick={handleTableContainerClick}
             >
@@ -681,35 +733,35 @@ export default function VendorPage() {
                         <tbody>
                             {/* Data rows */}
                             {vendors.map((vendor, rowIndex) => (
-                                <tr 
-                                    key={vendor.id} 
+                                <tr
+                                    key={vendor.id || vendor._id || rowIndex}
                                     className={`border-b border-gray-400 hover:bg-blue-100 transition-colors ${rowIndex % 2 === 0 ? 'bg-blue-50/40' : 'bg-white'}`}
                                 >
-                                    <td 
+                                    <td
                                         className={getCellClasses(rowIndex, 0) + " text-left text-blue-600"}
                                         onClick={() => handleCellClick(rowIndex, 0)}
                                     >
                                         {vendor.vendorName}
                                     </td>
-                                    <td 
+                                    <td
                                         className={getCellClasses(rowIndex, 1) + " text-left text-gray-600"}
                                         onClick={() => handleCellClick(rowIndex, 1)}
                                     >
                                         {vendor.mobileNumber}
                                     </td>
-                                    <td 
+                                    <td
                                         className={getCellClasses(rowIndex, 2) + " text-left text-gray-600"}
                                         onClick={() => handleCellClick(rowIndex, 2)}
                                     >
                                         {vendor.companyName}
                                     </td>
-                                    <td 
+                                    <td
                                         className={getCellClasses(rowIndex, 3) + " text-left text-gray-600"}
                                         onClick={() => handleCellClick(rowIndex, 3)}
                                     >
                                         {vendor.gstType}
                                     </td>
-                                    <td 
+                                    <td
                                         className={getCellClasses(rowIndex, 4) + " text-left text-gray-600"}
                                         onClick={() => handleCellClick(rowIndex, 4)}
                                     >
@@ -736,8 +788,8 @@ export default function VendorPage() {
                             {emptyRows.map((_, idx) => {
                                 const rowIndex = vendors.length + idx;
                                 return (
-                                    <tr 
-                                        key={`empty-${idx}`} 
+                                    <tr
+                                        key={`empty-${idx}`}
                                         className={`border-b border-gray-400 hover:bg-blue-100 transition-colors ${rowIndex % 2 === 0 ? 'bg-blue-50/40' : 'bg-white'}`}
                                     >
                                         <td className={getCellClasses(rowIndex, 0)} onClick={() => handleCellClick(rowIndex, 0)}></td>
