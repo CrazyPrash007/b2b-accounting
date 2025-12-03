@@ -1,5 +1,7 @@
 // GstPage.jsx
 import React, { useState, useEffect, useRef } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
+import useGst from "./hooks/useGst";
 
 /**
  * GstModal - Modal for creating/editing GST rates
@@ -61,7 +63,7 @@ function GstModal({ isOpen, onClose, onSave, onDelete, editData }) {
     if (!isOpen) return null;
 
     return (
-        <div 
+        <div
             className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
             onClick={handleBackdropClick}
         >
@@ -146,31 +148,17 @@ function GstModal({ isOpen, onClose, onSave, onDelete, editData }) {
  * GstPage - GST Rate management with Excel-like table
  */
 export default function GstPage() {
-    const [gstRates, setGstRates] = useState([]);
+    const navigate = useNavigate();
+    const location = useLocation();
+
+    const { rows: gstRates = [], loading, error, reload, create, update, remove } =
+        useGst({ useLocalFallback: true });
     const [selectedCell, setSelectedCell] = useState(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingGst, setEditingGst] = useState(null);
-    const [isInitialized, setIsInitialized] = useState(false);
 
-    // Load GST rates from localStorage on mount
-    useEffect(() => {
-        const savedRates = localStorage.getItem("gstRates");
-        if (savedRates) {
-            try {
-                setGstRates(JSON.parse(savedRates));
-            } catch (e) {
-                console.error("Error loading GST rates:", e);
-            }
-        }
-        setIsInitialized(true);
-    }, []);
 
-    // Save GST rates to localStorage whenever they change (only after initialization)
-    useEffect(() => {
-        if (isInitialized) {
-            localStorage.setItem("gstRates", JSON.stringify(gstRates));
-        }
-    }, [gstRates, isInitialized]);
+
 
     const handleOpenCreate = () => {
         setEditingGst(null);
@@ -187,25 +175,37 @@ export default function GstPage() {
         setEditingGst(null);
     };
 
-    const handleSaveGst = (gstData, isEdit) => {
-        if (isEdit) {
-            setGstRates((prev) =>
-                prev.map((g) => (g.id === gstData.id ? gstData : g))
-            );
-        } else {
-            setGstRates((prev) => [...prev, gstData]);
-        }
-        setIsModalOpen(false);
-        setEditingGst(null);
-    };
-
-    const handleDeleteGst = (id) => {
-        if (window.confirm("Are you sure you want to delete this GST rate?")) {
-            setGstRates((prev) => prev.filter((g) => g.id !== id));
+    const handleSaveGst = async (gstData, isEdit) => {
+        try {
+            if (isEdit) {
+                await update(gstData.id, { rate: gstData.rate });
+            } else {
+                await create({ rate: gstData.rate });
+            }
+            // refresh list after operation
+            await reload();
             setIsModalOpen(false);
             setEditingGst(null);
+        } catch (err) {
+            console.error("Failed to save GST:", err);
+            alert(err?.message || "Failed to save GST rate");
         }
     };
+
+
+    const handleDeleteGst = async (id) => {
+        if (!window.confirm("Are you sure you want to delete this GST rate?")) return;
+        try {
+            await remove(id);
+            await reload();
+            setIsModalOpen(false);
+            setEditingGst(null);
+        } catch (err) {
+            console.error("Failed to delete GST:", err);
+            alert(err?.message || "Failed to delete GST rate");
+        }
+    };
+
 
     const handleCellClick = (rowIndex, colIndex) => {
         setSelectedCell({ rowIndex, colIndex });
@@ -251,8 +251,8 @@ export default function GstPage() {
 
     const getCellClasses = (rowIndex, colIndex) => {
         const baseClasses = "h-8 px-4 border-r border-gray-400 cursor-cell";
-        const selectedClasses = isCellSelected(rowIndex, colIndex) 
-            ? "outline outline-2 outline-blue-500 outline-offset-[-2px] bg-blue-50" 
+        const selectedClasses = isCellSelected(rowIndex, colIndex)
+            ? "outline outline-2 outline-blue-500 outline-offset-[-2px] bg-blue-50"
             : "";
         return `${baseClasses} ${selectedClasses}`;
     };
@@ -305,8 +305,8 @@ export default function GstPage() {
             </div>
 
             {/* Table Container */}
-            <div 
-                ref={tableContainerRef} 
+            <div
+                ref={tableContainerRef}
                 className="flex-1 overflow-auto px-4 pb-1"
                 onClick={handleTableContainerClick}
             >
@@ -331,11 +331,11 @@ export default function GstPage() {
                         <tbody>
                             {/* Data rows */}
                             {gstRates.map((gst, rowIndex) => (
-                                <tr 
-                                    key={gst.id} 
+                                <tr
+                                    key={gst.id || gst._id || rowIndex}
                                     className={`border-b border-gray-400 hover:bg-blue-100 transition-colors ${rowIndex % 2 === 0 ? 'bg-blue-50/40' : 'bg-white'}`}
                                 >
-                                    <td 
+                                    <td
                                         className={getCellClasses(rowIndex, 0) + " text-left text-gray-900"}
                                         onClick={() => handleCellClick(rowIndex, 0)}
                                     >
@@ -362,11 +362,11 @@ export default function GstPage() {
                             {emptyRows.map((_, idx) => {
                                 const rowIndex = gstRates.length + idx;
                                 return (
-                                    <tr 
-                                        key={`empty-${idx}`} 
+                                    <tr
+                                        key={`empty-${idx}`}
                                         className={`border-b border-gray-400 hover:bg-blue-100 transition-colors ${rowIndex % 2 === 0 ? 'bg-blue-50/40' : 'bg-white'}`}
                                     >
-                                        <td 
+                                        <td
                                             className={getCellClasses(rowIndex, 0)}
                                             onClick={() => handleCellClick(rowIndex, 0)}
                                         ></td>
