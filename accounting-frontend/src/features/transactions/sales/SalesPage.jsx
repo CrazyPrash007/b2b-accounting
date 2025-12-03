@@ -25,6 +25,17 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
     });
     const [error, setError] = useState("");
 
+    // Additional charges state
+    const [additionalCharges, setAdditionalCharges] = useState([]);
+    const [showAddCharge, setShowAddCharge] = useState(false);
+    const [chargeName, setChargeName] = useState("");
+    const [chargeAmount, setChargeAmount] = useState("");
+    // Payment splits state
+    const [payments, setPayments] = useState([]);
+    const [showAddPayment, setShowAddPayment] = useState(false);
+    const [paymentMode, setPaymentMode] = useState("");
+    const [paymentAmount, setPaymentAmount] = useState("");
+
     const isEditMode = !!editData;
 
     // Default GST options if no rates provided from GST table
@@ -107,7 +118,73 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
     const handleAmountKeyDown = (e, index) => {
         if (e.key === 'Enter') {
             e.preventDefault();
-            addRow();
+            // If it's the last row, add a new row
+            if (index === formData.items.length - 1) {
+                addRow();
+                // Focus the first input of the new row after a small delay
+                setTimeout(() => {
+                    const newRowInput = document.querySelector(`[data-item-row="${formData.items.length}"] input`);
+                    if (newRowInput) newRowInput.focus();
+                }, 50);
+            }
+        }
+    };
+
+    // Handle Enter key navigation within item rows
+    const handleItemInputKeyDown = (e, index, fieldIndex, isLastField = false) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            const row = e.target.closest('tr');
+            if (!row) return;
+            
+            const inputs = Array.from(row.querySelectorAll('input, select'));
+            const currentIdx = inputs.indexOf(e.target);
+            
+            // If we're at the last editable field in the row
+            if (isLastField || currentIdx >= inputs.length - 1) {
+                // If it's the last row, add a new row
+                if (index === formData.items.length - 1) {
+                    addRow();
+                    setTimeout(() => {
+                        const nextRow = document.querySelector(`tr[data-item-row="${index + 1}"]`);
+                        if (nextRow) {
+                            const firstInput = nextRow.querySelector('input');
+                            if (firstInput) firstInput.focus();
+                        }
+                    }, 50);
+                } else {
+                    // Move to first input of next row
+                    const rows = Array.from(document.querySelectorAll('[data-items-table] tbody tr'));
+                    const currentRowIdx = rows.indexOf(row);
+                    if (currentRowIdx < rows.length - 1) {
+                        const nextRow = rows[currentRowIdx + 1];
+                        const firstInput = nextRow.querySelector('input');
+                        if (firstInput) firstInput.focus();
+                    }
+                }
+            } else if (currentIdx !== -1 && currentIdx < inputs.length - 1) {
+                inputs[currentIdx + 1].focus();
+            }
+        }
+    };
+
+    // Handle Enter key to move to next input across the form
+    const handleFormKeyDown = (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            const target = e.target;
+            // Skip if we're in the items table (handled separately)
+            if (target.closest('[data-items-table]')) return;
+            
+            e.preventDefault();
+            const form = target.closest('[data-form-container]');
+            if (!form) return;
+            
+            const inputs = Array.from(form.querySelectorAll('input:not([data-items-table] input), select:not([data-items-table] select), textarea:not([data-items-table] textarea)'));
+            const currentIndex = inputs.indexOf(target);
+            
+            if (currentIndex !== -1 && currentIndex < inputs.length - 1) {
+                inputs[currentIndex + 1].focus();
+            }
         }
     };
 
@@ -131,27 +208,26 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
     const calculateTotals = () => {
         let taxableAmt = 0;
         let totalGst = 0;
-        
         formData.items.forEach(item => {
             const qty = parseFloat(item.qty) || 0;
             const rate = parseFloat(item.rate) || 0;
             const baseAmount = qty * rate;
             taxableAmt += baseAmount;
-            
             if (withGst && item.gstPercent) {
                 const gstPercent = parseFloat(item.gstPercent) || 0;
                 totalGst += baseAmount * gstPercent / 100;
             }
         });
-        
         let subTotal = taxableAmt + totalGst;
         const discountAmount = parseFloat(formData.discount) || 0;
         let total = subTotal - discountAmount;
-        
+        // Add additional charges
+        additionalCharges.forEach(c => {
+            total += parseFloat(c.amount) || 0;
+        });
         if (formData.autoRoundOff) {
             total = Math.round(total);
         }
-        
         return { taxableAmt, totalGst, subTotal, total };
     };
 
@@ -162,7 +238,6 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
             setError("Customer is required");
             return;
         }
-
         const salesData = {
             id: isEditMode ? editData.id : String(Date.now()),
             ...formData,
@@ -170,8 +245,9 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
             totalAmount: totals.total,
             taxableAmount: totals.taxableAmt,
             gstAmount: totals.totalGst,
+            additionalCharges,
+            payments,
         };
-
         onSave(salesData, isEditMode);
     };
 
@@ -190,14 +266,14 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
         >
             <div className="bg-white rounded-lg shadow-xl w-full max-w-5xl mx-4 h-[90vh] flex flex-col">
                 {/* Modal Header */}
-                <div className={`px-6 py-3 ${withGst ? 'bg-gradient-to-r from-purple-600 to-purple-400' : 'bg-gradient-to-r from-gray-700 to-gray-500'} text-white rounded-t-lg flex-shrink-0`}>
+                <div className="px-6 py-3 text-white rounded-t-lg flex-shrink-0" style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
                     <h3 className="text-lg font-semibold">
                         Create New Sales Invoice {withGst ? "" : "(Without GST)"}
                     </h3>
                 </div>
 
                 {/* Modal Body */}
-                <div className="p-4 space-y-3 flex-1 flex flex-col">
+                <div className="p-4 space-y-3 flex-1 flex flex-col overflow-y-auto" data-form-container onKeyDown={handleFormKeyDown}>
                     {/* Top Section - Customer & Invoice Details */}
                     <div className="grid grid-cols-2 gap-4 flex-shrink-0">
                         {/* Customer Selection */}
@@ -211,9 +287,9 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
                                     value={formData.customer}
                                     onChange={(e) => handleChange("customer", e.target.value)}
                                     placeholder="Search customer or vendor"
-                                    className="flex-1 border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-purple-500"
+                                    className="flex-1 border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
                                 />
-                                <button className={`px-3 py-2 ${withGst ? 'bg-purple-600 hover:bg-purple-700' : 'bg-gray-600 hover:bg-gray-700'} text-white rounded text-sm whitespace-nowrap`}>
+                                <button className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm whitespace-nowrap">
                                     + End Customer
                                 </button>
                             </div>
@@ -230,20 +306,20 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
                                         type="text"
                                         value={formData.invoicePrefix}
                                         onChange={(e) => handleChange("invoicePrefix", e.target.value)}
-                                        className="w-14 min-w-[48px] border border-gray-300 rounded px-2 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-purple-500"
+                                        className="w-14 min-w-[48px] border border-gray-300 rounded px-2 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
                                     />
                                     <input
                                         type="text"
                                         value={formData.invoiceNumber}
                                         onChange={(e) => handleChange("invoiceNumber", e.target.value)}
-                                        className="w-16 min-w-[64px] border border-gray-300 rounded px-2 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-purple-500"
+                                        className="w-16 min-w-[64px] border border-gray-300 rounded px-2 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
                                     />
                                     <input
                                         type="text"
                                         value={formData.invoiceSuffix}
                                         onChange={(e) => handleChange("invoiceSuffix", e.target.value)}
                                         placeholder="Suffix"
-                                        className="flex-1 min-w-[64px] border border-gray-300 rounded px-2 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-purple-500"
+                                        className="flex-1 min-w-[64px] border border-gray-300 rounded px-2 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
                                     />
                                 </div>
                             </div>
@@ -255,16 +331,16 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
                                     type="date"
                                     value={formData.invoiceDate}
                                     onChange={(e) => handleChange("invoiceDate", e.target.value)}
-                                    className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-purple-500"
+                                    className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
                                 />
                             </div>
                         </div>
                     </div>
 
                     {/* Items Table */}
-                    <div className="border border-gray-300 rounded-lg overflow-hidden flex-shrink-0">
+                    <div className="border border-gray-300 rounded-lg overflow-hidden flex-shrink-0 max-h-[250px] overflow-y-auto" data-items-table>
                         <table className="w-full text-sm">
-                            <thead className="bg-gray-50 border-b border-gray-300">
+                            <thead className="bg-gray-50 border-b border-gray-300 sticky top-0">
                                 <tr>
                                     <th className="pl-2 pr-1 py-1.5 text-left font-medium text-gray-700" style={{width: '36px'}}>SR.</th>
                                     <th className="px-1 py-1.5 text-left font-medium text-gray-700">Goods/Service</th>
@@ -286,15 +362,16 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
                             </thead>
                             <tbody>
                                 {formData.items.map((item, index) => (
-                                    <tr key={item.id} className="border-b border-gray-200">
+                                    <tr key={item.id} className="border-b border-gray-200" data-item-row={index}>
                                         <td className="pl-2 pr-1 py-1 text-gray-600 text-center">{index + 1}</td>
                                         <td className="px-1 py-1">
                                             <input
                                                 type="text"
                                                 value={item.goodsService}
                                                 onChange={(e) => handleItemChange(index, "goodsService", e.target.value)}
+                                                onKeyDown={(e) => handleItemInputKeyDown(e, index, 0)}
                                                 placeholder="Search or select item"
-                                                className="w-full border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-purple-500"
+                                                className="w-full border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
                                             />
                                         </td>
                                         <td className="px-1 py-1">
@@ -302,7 +379,8 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
                                                 type="number"
                                                 value={item.qty}
                                                 onChange={(e) => handleItemChange(index, "qty", e.target.value)}
-                                                className="w-full border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-purple-500"
+                                                onKeyDown={(e) => handleItemInputKeyDown(e, index, 1)}
+                                                className="w-full border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
                                             />
                                         </td>
                                         <td className="px-1 py-1">
@@ -310,7 +388,8 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
                                                 type="number"
                                                 value={item.rate}
                                                 onChange={(e) => handleItemChange(index, "rate", e.target.value)}
-                                                className="w-full border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-purple-500"
+                                                onKeyDown={(e) => handleItemInputKeyDown(e, index, 2, !withGst)}
+                                                className="w-full border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
                                             />
                                         </td>
                                         {withGst && (
@@ -319,7 +398,8 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
                                                     <select
                                                         value={item.gstPercent}
                                                         onChange={(e) => handleItemChange(index, "gstPercent", e.target.value)}
-                                                        className="w-full border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-purple-500"
+                                                        onKeyDown={(e) => handleItemInputKeyDown(e, index, 3)}
+                                                        className="w-full border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
                                                     >
                                                         <option value="">GST</option>
                                                         {gstOptions.map(g => <option key={g} value={g}>{g}%</option>)}
@@ -329,7 +409,8 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
                                                     <select
                                                         value={item.gstType}
                                                         onChange={(e) => handleItemChange(index, "gstType", e.target.value)}
-                                                        className="w-full border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-purple-500"
+                                                        onKeyDown={(e) => handleItemInputKeyDown(e, index, 4, true)}
+                                                        className="w-full border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
                                                     >
                                                         <option value="Excluded">Excluded</option>
                                                         <option value="Included">Included</option>
@@ -386,7 +467,7 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
                                             <select
                                                 value={formData.paymentMode}
                                                 onChange={(e) => handleChange("paymentMode", e.target.value)}
-                                                className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-purple-500"
+                                                className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
                                             >
                                                 {paymentModes.map(mode => <option key={mode} value={mode}>{mode}</option>)}
                                             </select>
@@ -397,7 +478,7 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
                                                 type="text"
                                                 value={formData.refNo}
                                                 onChange={(e) => handleChange("refNo", e.target.value)}
-                                                className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-purple-500"
+                                                className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
                                             />
                                         </div>
                                     </div>
@@ -407,7 +488,7 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
                                             <select
                                                 value={formData.depositTo}
                                                 onChange={(e) => handleChange("depositTo", e.target.value)}
-                                                className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-purple-500"
+                                                className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
                                             >
                                                 {depositOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                                             </select>
@@ -418,7 +499,7 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
                                                 type="number"
                                                 value={formData.paymentAmount}
                                                 onChange={(e) => handleChange("paymentAmount", e.target.value)}
-                                                className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-purple-500"
+                                                className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
                                             />
                                             <label className="flex items-center gap-1 mt-0.5">
                                                 <input
@@ -431,9 +512,37 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
                                             </label>
                                         </div>
                                     </div>
-                                    <button className="text-blue-600 hover:text-blue-800 text-sm font-medium">
+                                    <button type="button" className="text-blue-600 hover:text-blue-800 text-sm font-medium" onClick={() => setShowAddPayment(true)}>
                                         + Add More Payment
                                     </button>
+                                    {showAddPayment && (
+                                        <div className="flex gap-2 mt-2">
+                                            <select value={paymentMode} onChange={e => setPaymentMode(e.target.value)} className="border border-gray-300 rounded px-2 py-1 text-sm">
+                                                <option value="">Mode</option>
+                                                {paymentModes.map(mode => <option key={mode} value={mode}>{mode}</option>)}
+                                            </select>
+                                            <input type="number" value={paymentAmount} onChange={e => setPaymentAmount(e.target.value)} placeholder="Amount" className="border border-gray-300 rounded px-2 py-1 text-sm w-24" />
+                                            <button type="button" className="px-3 py-1 bg-blue-600 text-white rounded text-sm" onClick={() => {
+                                                if (paymentMode && paymentAmount) {
+                                                    setPayments([...payments, { mode: paymentMode, amount: paymentAmount }]);
+                                                    setPaymentMode("");
+                                                    setPaymentAmount("");
+                                                    setShowAddPayment(false);
+                                                }
+                                            }}>Add</button>
+                                            <button type="button" className="px-2 py-1 text-xs text-gray-500" onClick={() => setShowAddPayment(false)}>Cancel</button>
+                                        </div>
+                                    )}
+                                    {payments.length > 0 && (
+                                        <div className="mt-2 space-y-1">
+                                            {payments.map((p, i) => (
+                                                <div key={i} className="flex justify-between text-xs text-gray-700">
+                                                    <span>{p.mode}</span>
+                                                    <span>₹{parseFloat(p.amount).toFixed(2)}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
                                 </div>
                             )}
                         </div>
@@ -445,9 +554,7 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
                                 <span className="text-gray-600">Taxable Amt.</span>
                                 <span>₹{totals.taxableAmt.toFixed(2)}</span>
                             </div>
-                            {withGst && (
-                                <button className="text-blue-600 text-sm">+ Add service charge with tax</button>
-                            )}
+                            {/* Removed Add service charge with tax button */}
                             <div className="flex justify-between text-sm">
                                 <span className="text-gray-600">Sub Total</span>
                                 <span>₹{totals.subTotal.toFixed(2)}</span>
@@ -462,7 +569,32 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
                                     className="w-20 border border-gray-300 rounded px-2 py-1 text-sm text-right"
                                 />
                             </div>
-                            <button className="text-blue-600 text-sm">+ Add another charges</button>
+                            <button type="button" className="text-blue-600 text-sm" onClick={() => setShowAddCharge(true)}>+ Add another charges</button>
+                            {showAddCharge && (
+                                <div className="flex gap-2 mt-2">
+                                    <input type="text" value={chargeName} onChange={e => setChargeName(e.target.value)} placeholder="Charge Name" className="border border-gray-300 rounded px-2 py-1 text-sm" />
+                                    <input type="number" value={chargeAmount} onChange={e => setChargeAmount(e.target.value)} placeholder="Amount" className="border border-gray-300 rounded px-2 py-1 text-sm w-24" />
+                                    <button type="button" className="px-3 py-1 bg-blue-600 text-white rounded text-sm" onClick={() => {
+                                        if (chargeName && chargeAmount) {
+                                            setAdditionalCharges([...additionalCharges, { name: chargeName, amount: chargeAmount }]);
+                                            setChargeName("");
+                                            setChargeAmount("");
+                                            setShowAddCharge(false);
+                                        }
+                                    }}>Add</button>
+                                    <button type="button" className="px-2 py-1 text-xs text-gray-500" onClick={() => setShowAddCharge(false)}>Cancel</button>
+                                </div>
+                            )}
+                            {additionalCharges.length > 0 && (
+                                <div className="mt-2 space-y-1">
+                                    {additionalCharges.map((c, i) => (
+                                        <div key={i} className="flex justify-between text-xs text-gray-700">
+                                            <span>{c.name}</span>
+                                            <span>₹{parseFloat(c.amount).toFixed(2)}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
                             <label className="flex items-center gap-2">
                                 <input
                                     type="checkbox"
@@ -687,7 +819,7 @@ export default function SalesPage() {
                 <div className="flex items-center gap-2">
                     <button
                         onClick={() => handleOpenCreate("withGst")}
-                        className="flex items-center gap-1 bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700 transition-colors text-sm font-medium"
+                        className="flex items-center gap-1 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition-colors text-sm font-medium"
                     >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -716,7 +848,7 @@ export default function SalesPage() {
                 </button>
                 <button
                     onClick={() => setActiveTab("withGst")}
-                    className={`px-3 py-1.5 text-sm font-medium rounded transition-colors ${activeTab === "withGst" ? "bg-purple-100 text-purple-700" : "text-gray-600 hover:bg-gray-100"}`}
+                    className={`px-3 py-1.5 text-sm font-medium rounded transition-colors ${activeTab === "withGst" ? "bg-blue-100 text-blue-700" : "text-gray-600 hover:bg-gray-100"}`}
                 >
                     With GST
                 </button>
@@ -857,7 +989,7 @@ export default function SalesPage() {
                                         className={getCellClasses(rowIndex, 5) + " text-left"}
                                         onClick={() => handleCellClick(rowIndex, 5)}
                                     >
-                                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${invoice.withGst ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-700'}`}>
+                                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${invoice.withGst ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'}`}>
                                             {invoice.withGst ? "With GST" : "Without GST"}
                                         </span>
                                     </td>
@@ -868,7 +1000,7 @@ export default function SalesPage() {
                                         {invoice.isPaymentReceived ? (
                                             <span className="text-green-600 text-xs">✓ Received</span>
                                         ) : (
-                                            <span className="text-orange-600 text-xs">Pending</span>
+                                            <span className="text-yellow-600 text-xs">Pending</span>
                                         )}
                                     </td>
                                     <td className="h-8 px-4 text-left">
