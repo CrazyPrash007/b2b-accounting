@@ -7,6 +7,7 @@ import React, { useState, useEffect, useRef } from "react";
 function GstModal({ isOpen, onClose, onSave, onDelete, editData }) {
     const [gstRate, setGstRate] = useState("");
     const [error, setError] = useState("");
+    const inputRef = useRef(null);
 
     const isEditMode = !!editData;
 
@@ -18,6 +19,8 @@ function GstModal({ isOpen, onClose, onSave, onDelete, editData }) {
                 setGstRate("");
             }
             setError("");
+            // Focus input when modal opens
+            setTimeout(() => inputRef.current?.focus(), 100);
         }
     }, [editData, isOpen]);
 
@@ -47,6 +50,14 @@ function GstModal({ isOpen, onClose, onSave, onDelete, editData }) {
         }
     };
 
+    // Handle Enter key to save
+    const handleKeyDown = (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            handleSave();
+        }
+    };
+
     if (!isOpen) return null;
 
     return (
@@ -56,13 +67,13 @@ function GstModal({ isOpen, onClose, onSave, onDelete, editData }) {
         >
             <div className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4">
                 {/* Modal Header */}
-                <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
-                    <h3 className="text-base font-semibold text-gray-900">
+                <div className="flex items-center justify-between px-5 py-4 rounded-t-lg" style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
+                    <h3 className="text-base font-semibold text-white">
                         {isEditMode ? "Edit GST Rate" : "New GST Rate"}
                     </h3>
                     <button
                         onClick={onClose}
-                        className="text-gray-400 hover:text-gray-600 transition-colors"
+                        className="text-white/80 hover:text-white transition-colors"
                     >
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -77,12 +88,14 @@ function GstModal({ isOpen, onClose, onSave, onDelete, editData }) {
                             GST Rate (%)<span className="text-red-500">*</span>
                         </label>
                         <input
+                            ref={inputRef}
                             type="number"
                             value={gstRate}
                             onChange={(e) => {
                                 setGstRate(e.target.value);
                                 if (error) setError("");
                             }}
+                            onKeyDown={handleKeyDown}
                             placeholder="Enter GST rate (e.g., 18)"
                             className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                             min="0"

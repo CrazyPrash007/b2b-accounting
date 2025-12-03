@@ -8,6 +8,8 @@ function UnitModal({ isOpen, onClose, onSave, onDelete, editData }) {
     const [fullName, setFullName] = useState("");
     const [aliasName, setAliasName] = useState("");
     const [error, setError] = useState("");
+    const fullNameRef = useRef(null);
+    const aliasNameRef = useRef(null);
 
     const isEditMode = !!editData;
 
@@ -21,8 +23,22 @@ function UnitModal({ isOpen, onClose, onSave, onDelete, editData }) {
                 setAliasName("");
             }
             setError("");
+            // Focus first field when modal opens
+            setTimeout(() => fullNameRef.current?.focus(), 100);
         }
     }, [editData, isOpen]);
+
+    // Handle Enter key navigation
+    const handleKeyDown = (e, fieldName) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            if (fieldName === 'fullName') {
+                aliasNameRef.current?.focus();
+            } else if (fieldName === 'aliasName') {
+                handleSave();
+            }
+        }
+    };
 
     const handleSave = () => {
         if (!fullName.trim()) {
@@ -54,13 +70,13 @@ function UnitModal({ isOpen, onClose, onSave, onDelete, editData }) {
         >
             <div className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4">
                 {/* Modal Header */}
-                <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
-                    <h3 className="text-base font-semibold text-gray-900">
+                <div className="flex items-center justify-between px-5 py-4 rounded-t-lg" style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
+                    <h3 className="text-base font-semibold text-white">
                         {isEditMode ? "Edit Unit" : "New Unit"}
                     </h3>
                     <button
                         onClick={onClose}
-                        className="text-gray-400 hover:text-gray-600 transition-colors"
+                        className="text-white/80 hover:text-white transition-colors"
                     >
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -76,12 +92,14 @@ function UnitModal({ isOpen, onClose, onSave, onDelete, editData }) {
                             Unit Full Name<span className="text-red-500">*</span>
                         </label>
                         <input
+                            ref={fullNameRef}
                             type="text"
                             value={fullName}
                             onChange={(e) => {
                                 setFullName(e.target.value);
                                 if (error) setError("");
                             }}
+                            onKeyDown={(e) => handleKeyDown(e, 'fullName')}
                             placeholder="e.g., Kilogram, Piece, Liter"
                             className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                         />
@@ -96,9 +114,11 @@ function UnitModal({ isOpen, onClose, onSave, onDelete, editData }) {
                             Alias Name
                         </label>
                         <input
+                            ref={aliasNameRef}
                             type="text"
                             value={aliasName}
                             onChange={(e) => setAliasName(e.target.value)}
+                            onKeyDown={(e) => handleKeyDown(e, 'aliasName')}
                             placeholder="e.g., kg, pcs, ltr"
                             className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                         />

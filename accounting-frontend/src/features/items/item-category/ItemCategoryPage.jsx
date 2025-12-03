@@ -7,6 +7,8 @@ function CategoryModal({ isOpen, onClose, onSave, onDelete, editData }) {
     const [categoryName, setCategoryName] = useState("");
     const [subcategories, setSubcategories] = useState([""]);
     const [error, setError] = useState("");
+    const categoryNameRef = useRef(null);
+    const subcategoryRefs = useRef([]);
 
     const isEditMode = !!editData;
 
@@ -22,8 +24,32 @@ function CategoryModal({ isOpen, onClose, onSave, onDelete, editData }) {
                 setSubcategories([""]);
             }
             setError("");
+            // Focus category name field when modal opens
+            setTimeout(() => categoryNameRef.current?.focus(), 100);
         }
     }, [editData, isOpen]);
+
+    // Handle Enter key navigation
+    const handleKeyDown = (e, fieldType, index = null) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            if (fieldType === 'categoryName') {
+                // Move to first subcategory
+                subcategoryRefs.current[0]?.focus();
+            } else if (fieldType === 'subcategory') {
+                // If it's the last subcategory field, add a new one and focus it
+                if (index === subcategories.length - 1) {
+                    setSubcategories(prev => [...prev, ""]);
+                    setTimeout(() => {
+                        subcategoryRefs.current[index + 1]?.focus();
+                    }, 50);
+                } else {
+                    // Move to next subcategory
+                    subcategoryRefs.current[index + 1]?.focus();
+                }
+            }
+        }
+    };
 
     const handleSubcategoryChange = (index, value) => {
         const updated = [...subcategories];
@@ -75,13 +101,13 @@ function CategoryModal({ isOpen, onClose, onSave, onDelete, editData }) {
         >
             <div className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4">
                 {/* Modal Header */}
-                <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
-                    <h3 className="text-base font-semibold text-gray-900">
+                <div className="flex items-center justify-between px-5 py-4 rounded-t-lg" style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
+                    <h3 className="text-base font-semibold text-white">
                         {isEditMode ? "Edit Category" : "New Category"}
                     </h3>
                     <button
                         onClick={onClose}
-                        className="text-gray-400 hover:text-gray-600 transition-colors"
+                        className="text-white/80 hover:text-white transition-colors"
                     >
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -90,19 +116,21 @@ function CategoryModal({ isOpen, onClose, onSave, onDelete, editData }) {
                 </div>
 
                 {/* Modal Body */}
-                <div className="px-5 py-4 space-y-4">
+                <div className="px-5 py-4 space-y-4 max-h-[400px] overflow-y-auto">
                     {/* Category Name */}
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
                             Category<span className="text-red-500">*</span>
                         </label>
                         <input
+                            ref={categoryNameRef}
                             type="text"
                             value={categoryName}
                             onChange={(e) => {
                                 setCategoryName(e.target.value);
                                 if (error) setError("");
                             }}
+                            onKeyDown={(e) => handleKeyDown(e, 'categoryName')}
                             placeholder="Enter category name"
                             className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                         />
@@ -116,15 +144,17 @@ function CategoryModal({ isOpen, onClose, onSave, onDelete, editData }) {
                         <label className="block text-sm font-medium text-gray-700 mb-1">
                             Sub Categories
                         </label>
-                        <div className="space-y-2">
+                        <div className="space-y-2 max-h-[200px] overflow-y-auto">
                             {subcategories.map((sub, index) => (
                                 <div key={index} className="flex items-center gap-2">
                                     <input
+                                        ref={(el) => (subcategoryRefs.current[index] = el)}
                                         type="text"
                                         value={sub}
                                         onChange={(e) =>
                                             handleSubcategoryChange(index, e.target.value)
                                         }
+                                        onKeyDown={(e) => handleKeyDown(e, 'subcategory', index)}
                                         placeholder={`Subcategory ${index + 1}`}
                                         className="flex-1 border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                                     />
@@ -374,11 +404,11 @@ export default function ItemCategoryPage() {
                 className="flex-1 overflow-auto px-4 pb-1"
                 onClick={handleTableContainerClick}
             >
-                <div className="border border-gray-200 rounded overflow-hidden h-full">
+                <div className="border border-gray-400 rounded overflow-hidden h-full">
                     <table className="w-full border-collapse text-sm" style={{ borderSpacing: 0 }}>
                         <thead className="sticky top-0 z-10 bg-white">
-                            <tr className="border-b border-gray-300">
-                                <th className="w-[35%] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-200">
+                            <tr className="border-b border-gray-400">
+                                <th className="w-[35%] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
                                     <div className="flex items-center gap-2">
                                         <span className="text-gray-400 cursor-grab">⋮⋮</span>
                                         <span>Category</span>
@@ -387,7 +417,7 @@ export default function ItemCategoryPage() {
                                         </svg>
                                     </div>
                                 </th>
-                                <th className="w-[50%] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-200">
+                                <th className="w-[50%] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
                                     <div className="flex items-center gap-2">
                                         <span className="text-gray-400 cursor-grab">⋮⋮</span>
                                         <span>Sub Category</span>
@@ -406,7 +436,7 @@ export default function ItemCategoryPage() {
                             {categories.map((category, rowIndex) => (
                                 <tr
                                     key={category.id || category._id || rowIndex}
-                                    className={`border-b border-gray-200 hover:bg-blue-100 transition-colors ${rowIndex % 2 === 0 ? 'bg-blue-50/40' : 'bg-white'}`}
+                                    className={`border-b border-gray-400 hover:bg-blue-100 transition-colors ${rowIndex % 2 === 0 ? 'bg-blue-50/40' : 'bg-white'}`}
                                 >
                                     <td
                                         className={getCellClasses(rowIndex, 0) + " text-left text-blue-600"}
@@ -453,7 +483,7 @@ export default function ItemCategoryPage() {
                                 return (
                                     <tr
                                         key={`empty-${idx}`}
-                                        className={`border-b border-gray-200 hover:bg-blue-100 transition-colors ${rowIndex % 2 === 0 ? 'bg-blue-50/40' : 'bg-white'}`}
+                                        className={`border-b border-gray-400 hover:bg-blue-100 transition-colors ${rowIndex % 2 === 0 ? 'bg-blue-50/40' : 'bg-white'}`}
                                     >
                                         <td
                                             className={getCellClasses(rowIndex, 0)}
