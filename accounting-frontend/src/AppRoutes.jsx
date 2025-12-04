@@ -10,6 +10,7 @@ import UnitPage from "src/features/items/unit/UnitPage";
 import CustomerPage from "src/features/party/customer/CustomerPage";
 import VendorPage from "src/features/party/vendor/VendorPage";
 import BankPage from "src/features/account/bank/BankPage";
+import BrandPage from "src/features/account/brand/BrandPage";
 import ExpensePage from "src/features/transactions/expense/ExpensePage";
 import IncomePage from "src/features/transactions/income/IncomePage";
 import SalesPage from "src/features/transactions/sales/SalesPage";
@@ -30,6 +31,7 @@ export default function AppRoutes() {
                 <Route path="customer" element={<CustomerPage />} />
                 <Route path="vendor" element={<VendorPage />} />
                 <Route path="bank" element={<BankPage />} />
+                <Route path="brand" element={<BrandPage />} />
                 <Route path="expenses" element={<ExpensePage />} />
                 <Route path="income" element={<IncomePage />} />
                 <Route path="sales" element={<SalesPage />} />
