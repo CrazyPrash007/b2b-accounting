@@ -1,4 +1,3 @@
-// BrandPage.jsx
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import useBrand from "./hooks/useBrand";
@@ -13,12 +12,11 @@ function BrandModal({ isOpen, onClose, onSave, onDelete, editData }) {
     useEffect(() => {
         if (isOpen) {
             if (editData) {
-                setBrandName(editData.name || "");
+                setBrandName(editData.brandName || "");
             } else {
                 setBrandName("");
             }
             setError("");
-            // Focus first field when modal opens
             setTimeout(() => brandNameRef.current?.focus(), 100);
         }
     }, [editData, isOpen]);
@@ -39,7 +37,7 @@ function BrandModal({ isOpen, onClose, onSave, onDelete, editData }) {
 
         const brandData = {
             id: isEditMode ? editData.id : String(Date.now()),
-            name: brandName.trim(),
+            brandName: brandName.trim(),
         };
 
         onSave(brandData, isEditMode);
@@ -176,11 +174,11 @@ export default function BrandPage() {
         try {
             if (isEdit) {
                 await update(brandData.id, {
-                    name: brandData.name,
+                    brandName: brandData.brandName,
                 });
             } else {
                 await create({
-                    name: brandData.name,
+                    brandName: brandData.brandName,
                 });
             }
             setIsModalOpen(false);
@@ -337,7 +335,7 @@ export default function BrandPage() {
                                         className={getCellClasses(rowIndex, 0) + " text-left text-gray-900"}
                                         onClick={() => handleCellClick(rowIndex, 0)}
                                     >
-                                        {brand.name}
+                                        {brand.brandName}
                                     </td>
                                     <td className={`h-8 px-4 text-left sticky right-0 z-10 ${rowIndex % 2 === 0 ? 'bg-blue-50' : 'bg-white'}`} style={{ boxShadow: '-2px 0 0 0 #000' }}>
                                         <div className="flex items-center justify-end gap-2">
