@@ -18,15 +18,21 @@ function PurchaseInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, wit
     const [paymentMode, setPaymentMode] = useState("");
     const [paymentAmount, setPaymentAmount] = useState("");
 
+    // Get next invoice counter from localStorage or start at 1
+    const getNextInvoiceCounter = () => {
+        const saved = localStorage.getItem('purchaseInvoiceCounter');
+        return saved ? parseInt(saved, 10) : 1;
+    };
+
     const [formData, setFormData] = useState({
         supplier: "",
         invoicePrefix: "PUR",
-        invoiceNumber: "0001",
+        invoiceNumber: String(getNextInvoiceCounter()).padStart(6, '0'), // 6-digit auto-increment
         invoiceSuffix: "",
         invoiceDate: new Date().toISOString().split('T')[0],
         supplierInvoiceNumber: "",
         supplierInvoiceDate: "",
-        items: [{ id: 1, goodsService: "", qty: "", rate: "", gstPercent: "", gstType: "Excluded", amount: "" }],
+        items: [{ id: 1, goodsService: "", qty: "", rate: "", gstPercent: "", gstType: "Excluded", actualAmount: "", finalAmount: "" }],
         isPaymentMade: true,
         paymentMode: "Cash",
         refNo: "",
@@ -58,12 +64,12 @@ function PurchaseInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, wit
                 setFormData({
                     supplier: editData.supplier || "",
                     invoicePrefix: editData.invoicePrefix || "PUR",
-                    invoiceNumber: editData.invoiceNumber || "0001",
+                    invoiceNumber: editData.invoiceNumber || String(getNextInvoiceCounter()).padStart(6, '0'),
                     invoiceSuffix: editData.invoiceSuffix || "",
                     invoiceDate: editData.invoiceDate || new Date().toISOString().split('T')[0],
                     supplierInvoiceNumber: editData.supplierInvoiceNumber || "",
                     supplierInvoiceDate: editData.supplierInvoiceDate || "",
-                    items: editData.items || [{ id: 1, goodsService: "", qty: "", rate: "", gstPercent: "", gstType: "Excluded", amount: "" }],
+                    items: editData.items || [{ id: 1, goodsService: "", qty: "", rate: "", gstPercent: "", gstType: "Excluded", actualAmount: "", finalAmount: "" }],
                     isPaymentMade: editData.isPaymentMade ?? true,
                     paymentMode: editData.paymentMode || "Cash",
                     refNo: editData.refNo || "",
@@ -77,15 +83,16 @@ function PurchaseInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, wit
                 setAdditionalCharges(editData.additionalCharges || []);
                 setPayments(editData.payments || []);
             } else {
+                const nextCounter = getNextInvoiceCounter();
                 setFormData({
                     supplier: "",
                     invoicePrefix: "PUR",
-                    invoiceNumber: "0001",
+                    invoiceNumber: String(nextCounter).padStart(6, '0'),
                     invoiceSuffix: "",
                     invoiceDate: new Date().toISOString().split('T')[0],
                     supplierInvoiceNumber: "",
                     supplierInvoiceDate: "",
-                    items: [{ id: 1, goodsService: "", qty: "", rate: "", gstPercent: "", gstType: "Excluded", amount: "" }],
+                    items: [{ id: 1, goodsService: "", qty: "", rate: "", gstPercent: "", gstType: "Excluded", actualAmount: "", finalAmount: "" }],
                     isPaymentMade: true,
                     paymentMode: "Cash",
                     refNo: "",
@@ -112,33 +119,52 @@ function PurchaseInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, wit
         const newItems = [...formData.items];
         newItems[index] = { ...newItems[index], [field]: value };
         
-        // Calculate amount if qty and rate are available
+        // Calculate amounts if qty and rate are available
         const qty = parseFloat(newItems[index].qty) || 0;
         const rate = parseFloat(newItems[index].rate) || 0;
-        let amount = qty * rate;
+        const gstPercent = parseFloat(newItems[index].gstPercent) || 0;
+        const gstType = newItems[index].gstType || "Excluded";
         
-        if (withGst && newItems[index].gstPercent && newItems[index].gstType === "Excluded") {
-            const gstPercent = parseFloat(newItems[index].gstPercent) || 0;
-            amount = amount + (amount * gstPercent / 100);
+        let actualAmount = 0; // Pre-tax amount
+        let finalAmount = 0;  // Amount with tax
+        
+        if (withGst && gstPercent > 0) {
+            if (gstType === "Excluded") {
+                // Rate is pre-tax: actualAmount = qty * rate, finalAmount = actualAmount + tax
+                actualAmount = qty * rate;
+                finalAmount = actualAmount + (actualAmount * gstPercent / 100);
+            } else {
+                // GST Included: Rate includes tax, so we need to back-calculate
+                // finalAmount = qty * rate (since rate includes tax)
+                // actualAmount = finalAmount / (1 + gstPercent/100)
+                finalAmount = qty * rate;
+                actualAmount = finalAmount / (1 + gstPercent / 100);
+            }
+        } else {
+            // No GST: both amounts are the same
+            actualAmount = qty * rate;
+            finalAmount = actualAmount;
         }
         
-        newItems[index].amount = amount > 0 ? amount.toFixed(2) : "";
+        newItems[index].actualAmount = actualAmount > 0 ? actualAmount.toFixed(2) : "";
+        newItems[index].finalAmount = finalAmount > 0 ? finalAmount.toFixed(2) : "";
         setFormData((prev) => ({ ...prev, items: newItems }));
     };
 
     const handleAmountKeyDown = (e, index) => {
         if (e.key === 'Enter') {
             e.preventDefault();
-            // If it's the last row, add a new row
+            // If it's the last row, add a new row only if current row is complete
             if (index === formData.items.length - 1) {
-                addRow();
-                setTimeout(() => {
-                    const nextRow = document.querySelector(`tr[data-item-row="${index + 1}"]`);
-                    if (nextRow) {
-                        const firstInput = nextRow.querySelector('input');
-                        if (firstInput) firstInput.focus();
-                    }
-                }, 50);
+                if (addRow()) {
+                    setTimeout(() => {
+                        const nextRow = document.querySelector(`tr[data-item-row="${index + 1}"]`);
+                        if (nextRow) {
+                            const firstInput = nextRow.querySelector('input');
+                            if (firstInput) firstInput.focus();
+                        }
+                    }, 50);
+                }
             } else {
                 // Move to first input of next row
                 const row = e.target.closest('tr');
@@ -165,15 +191,17 @@ function PurchaseInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, wit
             const currentIdx = inputs.indexOf(e.target);
             
             if (isLastField || currentIdx >= inputs.length - 1) {
+                // If it's the last row, add a new row only if current row is complete
                 if (index === formData.items.length - 1) {
-                    addRow();
-                    setTimeout(() => {
-                        const nextRow = document.querySelector(`tr[data-item-row="${index + 1}"]`);
-                        if (nextRow) {
-                            const firstInput = nextRow.querySelector('input');
-                            if (firstInput) firstInput.focus();
-                        }
-                    }, 50);
+                    if (addRow()) {
+                        setTimeout(() => {
+                            const nextRow = document.querySelector(`tr[data-item-row="${index + 1}"]`);
+                            if (nextRow) {
+                                const firstInput = nextRow.querySelector('input');
+                                if (firstInput) firstInput.focus();
+                            }
+                        }, 50);
+                    }
                 } else {
                     const rows = Array.from(document.querySelectorAll('[data-items-table] tbody tr'));
                     const currentRowIdx = rows.indexOf(row);
@@ -208,12 +236,45 @@ function PurchaseInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, wit
         }
     };
 
+    // Check if a row is complete (all required fields filled)
+    const isRowComplete = (item) => {
+        const hasGoodsService = item.goodsService && item.goodsService.trim() !== "";
+        const hasQty = item.qty && parseFloat(item.qty) > 0;
+        const hasRate = item.rate && parseFloat(item.rate) > 0;
+        
+        if (withGst) {
+            // GST percent can be 0, so we check for empty string or undefined
+            const hasGstPercent = item.gstPercent !== "" && item.gstPercent !== undefined && item.gstPercent !== null;
+            return hasGoodsService && hasQty && hasRate && hasGstPercent;
+        }
+        return hasGoodsService && hasQty && hasRate;
+    };
+
+    // Check if the current item at index is complete
+    const isCurrentRowComplete = (index) => {
+        if (index < 0 || index >= formData.items.length) return false;
+        return isRowComplete(formData.items[index]);
+    };
+
+    // Check if the last row is complete before allowing new row addition
+    const canAddNewRow = () => {
+        if (formData.items.length === 0) return true;
+        const lastItem = formData.items[formData.items.length - 1];
+        return isRowComplete(lastItem);
+    };
+
     const addRow = () => {
+        if (!canAddNewRow()) {
+            setError("Please complete the current row before adding a new one");
+            return false;
+        }
         const newId = formData.items.length + 1;
         setFormData((prev) => ({
             ...prev,
-            items: [...prev.items, { id: newId, goodsService: "", qty: "", rate: "", gstPercent: "", gstType: "Excluded", amount: "" }]
+            items: [...prev.items, { id: newId, goodsService: "", qty: "", rate: "", gstPercent: "", gstType: "Excluded", actualAmount: "", finalAmount: "" }]
         }));
+        if (error) setError("");
+        return true;
     };
 
     const removeRow = (index) => {
@@ -228,26 +289,30 @@ function PurchaseInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, wit
     const calculateTotals = () => {
         let taxableAmt = 0;
         let totalGst = 0;
+        let totalFinalAmt = 0;
+        
         formData.items.forEach(item => {
-            const qty = parseFloat(item.qty) || 0;
-            const rate = parseFloat(item.rate) || 0;
-            const baseAmount = qty * rate;
-            taxableAmt += baseAmount;
-            if (withGst && item.gstPercent) {
-                const gstPercent = parseFloat(item.gstPercent) || 0;
-                totalGst += baseAmount * gstPercent / 100;
-            }
+            const actualAmount = parseFloat(item.actualAmount) || 0;
+            const finalAmount = parseFloat(item.finalAmount) || 0;
+            
+            taxableAmt += actualAmount;
+            totalFinalAmt += finalAmount;
+            totalGst += (finalAmount - actualAmount);
         });
-        let subTotal = taxableAmt + totalGst;
+        
+        let subTotal = totalFinalAmt;
         const discountAmount = parseFloat(formData.discount) || 0;
         let total = subTotal - discountAmount;
+        
         // Add additional charges
         additionalCharges.forEach(c => {
             total += parseFloat(c.amount) || 0;
         });
+        
         if (formData.autoRoundOff) {
             total = Math.round(total);
         }
+        
         return { taxableAmt, totalGst, subTotal, total };
     };
 
@@ -269,6 +334,12 @@ function PurchaseInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, wit
             additionalCharges,
             payments,
         };
+
+        // Increment invoice counter for new invoices
+        if (!isEditMode) {
+            const currentCounter = getNextInvoiceCounter();
+            localStorage.setItem('purchaseInvoiceCounter', String(currentCounter + 1));
+        }
 
         onSave(purchaseData, isEditMode);
     };
@@ -328,20 +399,22 @@ function PurchaseInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, wit
                                         type="text"
                                         value={formData.invoicePrefix}
                                         onChange={(e) => handleChange("invoicePrefix", e.target.value)}
+                                        placeholder="Prefix"
                                         className="w-14 min-w-12 border border-gray-300 rounded px-2 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
                                     />
                                     <input
                                         type="text"
                                         value={formData.invoiceNumber}
-                                        onChange={(e) => handleChange("invoiceNumber", e.target.value)}
-                                        className="w-16 min-w-16 border border-gray-300 rounded px-2 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                        readOnly
+                                        title="Auto-generated invoice number (locked)"
+                                        className="w-20 min-w-20 border border-gray-300 rounded px-2 py-2 text-sm bg-gray-100 text-gray-600 cursor-not-allowed focus:outline-none"
                                     />
                                     <input
                                         type="text"
                                         value={formData.invoiceSuffix}
                                         onChange={(e) => handleChange("invoiceSuffix", e.target.value)}
-                                        placeholder="Suffix"
-                                        className="flex-1 min-w-16 border border-gray-300 rounded px-2 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                        placeholder="Suffix (optional)"
+                                        className="flex-1 min-w-20 border border-gray-300 rounded px-2 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
                                     />
                                 </div>
                             </div>
@@ -401,7 +474,8 @@ function PurchaseInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, wit
                                             <th className="px-1 py-1.5 text-left font-medium text-gray-700" style={{width: '90px'}}>GST Type</th>
                                         </>
                                     )}
-                                    <th className="px-1 py-1.5 text-left font-medium text-gray-700">Amount (₹)</th>
+                                    <th className="px-1 py-1.5 text-left font-medium text-gray-700" style={{width: '100px'}}>Actual Amt (₹)</th>
+                                    <th className="px-1 py-1.5 text-left font-medium text-gray-700" style={{width: '100px'}}>Final Amt (₹)</th>
                                     <th className="px-1 pr-2 py-1.5 text-center font-medium text-gray-700" style={{width: '36px'}}>
                                         <svg className="w-4 h-4 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -470,10 +544,18 @@ function PurchaseInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, wit
                                         <td className="px-1 py-1">
                                             <input
                                                 type="number"
-                                                value={item.amount}
-                                                onChange={(e) => handleItemChange(index, "amount", e.target.value)}
+                                                value={item.actualAmount}
+                                                readOnly
+                                                className="w-full border border-gray-300 rounded px-2 py-1 text-sm bg-gray-50 focus:outline-none"
+                                            />
+                                        </td>
+                                        <td className="px-1 py-1">
+                                            <input
+                                                type="number"
+                                                value={item.finalAmount}
+                                                readOnly
                                                 onKeyDown={(e) => handleAmountKeyDown(e, index)}
-                                                className="w-full border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                                className="w-full border border-gray-300 rounded px-2 py-1 text-sm bg-gray-50 focus:outline-none"
                                             />
                                         </td>
                                         <td className="px-1 pr-2 py-1 text-center">
@@ -600,9 +682,15 @@ function PurchaseInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, wit
                         <div className="bg-gray-50 rounded-lg p-3 space-y-1">
                             <h4 className="font-medium text-gray-700 mb-2 text-sm">Summary</h4>
                             <div className="flex justify-between text-sm">
-                                <span className="text-gray-600">Taxable Amt.</span>
+                                <span className="text-gray-600">Taxable Amt. (Pre-Tax)</span>
                                 <span>₹{totals.taxableAmt.toFixed(2)}</span>
                             </div>
+                            {withGst && (
+                                <div className="flex justify-between text-sm">
+                                    <span className="text-gray-600">Tax Amount (GST)</span>
+                                    <span className="text-green-600">₹{totals.totalGst.toFixed(2)}</span>
+                                </div>
+                            )}
                             <div className="flex justify-between text-sm">
                                 <span className="text-gray-600">Sub Total</span>
                                 <span>₹{totals.subTotal.toFixed(2)}</span>
@@ -908,9 +996,9 @@ export default function PurchasePage() {
                 </button>
             </div>
 
-            {/* Toolbar */}
+            {/* Toolbar - Icons commented out as per requirement */}
             <div className="flex items-center justify-end gap-2 px-4 py-2 border-b border-gray-100">
-                <button className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded">
+                {/* <button className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                     </svg>
@@ -936,7 +1024,7 @@ export default function PurchasePage() {
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
                     </svg>
                     More Filter
-                </button>
+                </button> */}
             </div>
 
             {/* Table Container - Scrollable */}
@@ -946,52 +1034,53 @@ export default function PurchasePage() {
                 onClick={handleTableContainerClick}
             >
                 <div className="border border-gray-400 rounded overflow-hidden h-full">
-                    <table className="w-full border-collapse text-sm" style={{ borderSpacing: 0 }}>
+                    <div className="overflow-x-auto h-full">
+                    <table className="min-w-[1200px] w-full border-collapse text-sm" style={{ borderSpacing: 0 }}>
                         <thead className="sticky top-0 z-10 bg-white">
                             <tr className="border-b border-gray-400">
-                                <th className="w-[10%] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                <th className="min-w-[110px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
                                     <div className="flex items-center gap-2">
                                         <span className="text-gray-400 cursor-grab">⋮⋮</span>
                                         <span>Date</span>
                                     </div>
                                 </th>
-                                <th className="w-[14%] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                <th className="min-w-[140px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
                                     <div className="flex items-center gap-2">
                                         <span className="text-gray-400 cursor-grab">⋮⋮</span>
                                         <span>Invoice No.</span>
                                     </div>
                                 </th>
-                                <th className="w-[18%] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                <th className="min-w-[180px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
                                     <div className="flex items-center gap-2">
                                         <span className="text-gray-400 cursor-grab">⋮⋮</span>
                                         <span>Supplier</span>
                                     </div>
                                 </th>
-                                <th className="w-[12%] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                <th className="min-w-[130px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
                                     <div className="flex items-center gap-2">
                                         <span className="text-gray-400 cursor-grab">⋮⋮</span>
                                         <span>Amount</span>
                                     </div>
                                 </th>
-                                <th className="w-[10%] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                <th className="min-w-[110px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
                                     <div className="flex items-center gap-2">
                                         <span className="text-gray-400 cursor-grab">⋮⋮</span>
                                         <span>GST</span>
                                     </div>
                                 </th>
-                                <th className="w-[12%] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                <th className="min-w-[120px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
                                     <div className="flex items-center gap-2">
                                         <span className="text-gray-400 cursor-grab">⋮⋮</span>
                                         <span>Type</span>
                                     </div>
                                 </th>
-                                <th className="w-[12%] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                <th className="min-w-[110px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
                                     <div className="flex items-center gap-2">
                                         <span className="text-gray-400 cursor-grab">⋮⋮</span>
                                         <span>Payment</span>
                                     </div>
                                 </th>
-                                <th className="w-[12%] h-9 px-4 text-left text-sm font-medium text-gray-700">
+                                <th className="min-w-[100px] h-9 px-4 text-left text-sm font-medium text-gray-700 sticky right-0 z-10 bg-gray-100" style={{ boxShadow: '-2px 0 0 0 #000' }}>
                                     Actions
                                 </th>
                             </tr>
@@ -1051,7 +1140,7 @@ export default function PurchasePage() {
                                             <span className="text-yellow-600 text-xs">Pending</span>
                                         )}
                                     </td>
-                                    <td className="h-8 px-4 text-left">
+                                    <td className={`h-8 px-4 text-left sticky right-0 z-10 ${rowIndex % 2 === 0 ? 'bg-blue-50' : 'bg-white'}`} style={{ boxShadow: '-2px 0 0 0 #000' }}>
                                         <div className="flex items-center justify-end gap-2">
                                             <button
                                                 onClick={() => handleEditInvoice(invoice)}
@@ -1083,12 +1172,13 @@ export default function PurchasePage() {
                                         <td className={getCellClasses(rowIndex, 4)} onClick={() => handleCellClick(rowIndex, 4)}></td>
                                         <td className={getCellClasses(rowIndex, 5)} onClick={() => handleCellClick(rowIndex, 5)}></td>
                                         <td className={getCellClasses(rowIndex, 6)} onClick={() => handleCellClick(rowIndex, 6)}></td>
-                                        <td className="h-8 px-4"></td>
+                                        <td className={`h-8 px-4 sticky right-0 z-10 ${rowIndex % 2 === 0 ? 'bg-blue-50' : 'bg-white'}`} style={{ boxShadow: '-2px 0 0 0 #000' }}></td>
                                     </tr>
                                 );
                             })}
                         </tbody>
                     </table>
+                    </div>
                 </div>
             </div>
 
