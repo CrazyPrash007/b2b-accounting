@@ -1,5 +1,6 @@
 // ReceiptPage.jsx - Payment In
 import React, { useState, useEffect, useRef } from "react";
+import InvoicePreviewModal from "./components/InvoicePreviewModal";
 
 /**
  * ReceiptModal - Modal for creating/editing receipt (payment in) entries
@@ -348,12 +349,160 @@ function ReceiptModal({ isOpen, onClose, onSave, onDelete, editData }) {
  * ReceiptPage - Payment In Management
  * - Frontend-only receipt management
  * - Excel-like table with row highlighting and cell selection
+ * - PDF Invoice export functionality
  */
 export default function ReceiptPage() {
     const [receipts, setReceipts] = useState([]);
     const [selectedCell, setSelectedCell] = useState(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingReceipt, setEditingReceipt] = useState(null);
+    const [isInvoicePreviewOpen, setIsInvoicePreviewOpen] = useState(false);
+    const [selectedReceiptForInvoice, setSelectedReceiptForInvoice] = useState(null);
+
+    // Sample company data - in production, this would come from organization settings/API
+    const companyData = {
+        name: "Your Company Name",
+        gstin: "00XXXXX0000X0ZX",
+        addressLine1: "Plot No XX, Ward No XX",
+        addressLine2: "Main Road",
+        city: "City",
+        state: "State",
+        pincode: "000000",
+        phone: "+91 9999999999",
+        email: "contact@company.com",
+        website: "https://www.company.com",
+        logoUrl: "", // Wire from organization settings
+    };
+
+    // Convert receipt to invoice format for PDF export
+    const convertReceiptToInvoice = (receipt) => {
+        if (!receipt) return null;
+
+        // Find party details - in real app, fetch from customer API
+        const customerData = {
+            name: receipt.party || "Customer Name",
+            partyName: receipt.party,
+            phone: "",
+            billingAddressLine1: "Customer Address Line 1",
+            billingAddressLine2: "",
+            city: "City",
+            state: "State",
+            pincode: "000000",
+            gstin: "",
+        };
+
+        return {
+            company: companyData,
+            customer: customerData,
+            meta: {
+                invoiceNumber: receipt.invoice || `RCP-${receipt.id}`,
+                invoiceDate: receipt.date,
+                dueDate: receipt.date,
+                placeOfSupply: customerData.state,
+            },
+            items: [
+                {
+                    id: 1,
+                    srNo: 1,
+                    description: receipt.description || `Payment Receipt - ${receipt.paymentMethod}`,
+                    hsnSac: "",
+                    taxPercent: 0,
+                    quantity: 1,
+                    unit: "",
+                    rate: receipt.amount,
+                    amount: receipt.amount,
+                },
+            ],
+            summary: {
+                totalQuantity: 1,
+                deliveryCharges: 0,
+                taxableAmount: receipt.amount,
+                grandTotal: receipt.amount,
+                amountInWords: numberToWords(receipt.amount),
+            },
+            bankDetails: {
+                bankName: "Bank Name",
+                accountNumber: "0000000000",
+                ifscCode: "BANK0000000",
+                branch: "Branch Name",
+            },
+            // TODO: wire UPI QR code URL from backend
+            paymentDetails: {
+                upiQrUrl: "",
+            },
+            // TODO: wire signatory name and signature image from backend
+            signatory: {
+                name: "Authorized Signatory",
+                signatureImageUrl: "",
+            },
+        };
+    };
+
+    // Convert number to words for amount in words
+    const numberToWords = (num) => {
+        if (num === 0) return "Zero Rupees Only";
+
+        const ones = ["", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten",
+            "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen", "Seventeen", "Eighteen", "Nineteen"];
+        const tens = ["", "", "Twenty", "Thirty", "Forty", "Fifty", "Sixty", "Seventy", "Eighty", "Ninety"];
+
+        const convertLessThanThousand = (n) => {
+            if (n === 0) return "";
+            if (n < 20) return ones[n];
+            if (n < 100) return tens[Math.floor(n / 10)] + (n % 10 !== 0 ? " " + ones[n % 10] : "");
+            return ones[Math.floor(n / 100)] + " Hundred" + (n % 100 !== 0 ? " " + convertLessThanThousand(n % 100) : "");
+        };
+
+        const numInt = Math.floor(num);
+        const paisa = Math.round((num - numInt) * 100);
+
+        let result = "";
+        
+        if (numInt >= 10000000) {
+            result += convertLessThanThousand(Math.floor(numInt / 10000000)) + " Crore ";
+        }
+        if (numInt >= 100000) {
+            result += convertLessThanThousand(Math.floor((numInt % 10000000) / 100000)) + " Lakh ";
+        }
+        if (numInt >= 1000) {
+            result += convertLessThanThousand(Math.floor((numInt % 100000) / 1000)) + " Thousand ";
+        }
+        if (numInt >= 100) {
+            result += convertLessThanThousand(Math.floor((numInt % 1000) / 100)) + " Hundred ";
+        }
+        if (numInt % 100 !== 0) {
+            result += convertLessThanThousand(numInt % 100);
+        }
+
+        result = result.trim() + " Rupees";
+        
+        if (paisa > 0) {
+            result += " and " + convertLessThanThousand(paisa) + " Paise";
+        }
+
+        return "INR " + result + " Only";
+    };
+
+    // Invoice config - can be wired from settings
+    // TODO: wire footer text / watermark from configurable settings
+    // TODO: replace with real terms from backend or settings
+    const invoiceConfig = {
+        footerText: "This is a computer generated receipt",
+        watermarkText: "",
+        termsAndConditions: "",
+        poweredByText: "",
+        poweredByLogoUrl: "",
+    };
+
+    const handleOpenInvoicePreview = (receipt) => {
+        setSelectedReceiptForInvoice(receipt);
+        setIsInvoicePreviewOpen(true);
+    };
+
+    const handleCloseInvoicePreview = () => {
+        setIsInvoicePreviewOpen(false);
+        setSelectedReceiptForInvoice(null);
+    };
 
     const handleOpenCreate = () => {
         setEditingReceipt(null);
@@ -609,6 +758,13 @@ export default function ReceiptPage() {
                                     <td className={`h-8 px-4 text-left sticky right-0 z-10 border-l border-gray-400 ${rowIndex % 2 === 0 ? 'bg-blue-50' : 'bg-white'}`} style={{ boxShadow: '-4px 0 8px -2px rgba(0, 0, 0, 0.1)' }}>
                                         <div className="flex items-center justify-end gap-2">
                                             <button
+                                                onClick={() => handleOpenInvoicePreview(receipt)}
+                                                className="text-purple-600 hover:underline text-sm"
+                                                title="Export as PDF"
+                                            >
+                                                PDF
+                                            </button>
+                                            <button
                                                 onClick={() => handleEditReceipt(receipt)}
                                                 className="text-blue-600 hover:underline text-sm"
                                             >
@@ -660,6 +816,16 @@ export default function ReceiptPage() {
                 onDelete={handleDeleteReceipt}
                 editData={editingReceipt}
             />
+
+            {/* Invoice Preview Modal with PDF Export */}
+            {selectedReceiptForInvoice && (
+                <InvoicePreviewModal
+                    isOpen={isInvoicePreviewOpen}
+                    onClose={handleCloseInvoicePreview}
+                    invoice={convertReceiptToInvoice(selectedReceiptForInvoice)}
+                    config={invoiceConfig}
+                />
+            )}
         </div>
     );
 }

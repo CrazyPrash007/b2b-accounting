@@ -1,0 +1,98 @@
+/* Invoice PDF Template Styles */
+/* These styles ensure proper A4 proportions for PDF export */
+
+.receipt-page {
+  padding: 16px;
+}
+
+#invoice-pdf-container {
+  width: 794px; /* ~A4 at 96dpi */
+  margin: 0 auto;
+  background: #ffffff;
+  padding: 0;
+  border: 1px solid #e0e0e0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Print-specific styles */
+@media print {
+  #invoice-pdf-container {
+    width: 100%;
+    border: none;
+    box-shadow: none;
+  }
+  
+  .receipt-page button {
+    display: none;
+  }
+}
+
+/* Invoice container styling for consistent PDF output */
+.invoice-pdf-container {
+  font-family: Arial, sans-serif;
+  line-height: 1.4;
+  color: #333333;
+}
+
+.invoice-pdf-container * {
+  box-sizing: border-box;
+}
+
+/* Table styling for invoice items */
+.invoice-pdf-container table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+.invoice-pdf-container th,
+.invoice-pdf-container td {
+  border: 1px solid #e0e0e0;
+}
+
+/* Ensure images are properly rendered in PDF */
+.invoice-pdf-container img {
+  max-width: 100%;
+  height: auto;
+}
+
+/* QR code placeholder styling */
+.invoice-qr-placeholder {
+  width: 80px;
+  height: 80px;
+  background: #f3f4f6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #9ca3af;
+  font-size: 8px;
+  text-align: center;
+  border: 1px dashed #d1d5db;
+}
+
+/* Signature line styling */
+.invoice-signature-line {
+  border-bottom: 1px solid #333;
+  width: 100px;
+  height: 30px;
+}
+
+/* Amount highlight */
+.invoice-grand-total {
+  font-size: 14px;
+  font-weight: bold;
+  color: #1f2937;
+}
+
+/* Header styling */
+.invoice-header-title {
+  color: #2563eb;
+  font-weight: bold;
+  font-size: 16px;
+}
+
+/* Company name styling */
+.invoice-company-name {
+  font-size: 18px;
+  font-weight: bold;
+  color: #1e40af;
+}
