@@ -678,7 +678,8 @@ export default function VendorPage() {
                 </button>
             </div>
 
-            {/* Toolbar */}
+            {/* Toolbar - Icons commented out */}
+            {/*
             <div className="flex items-center justify-end gap-2 px-4 py-2 border-b border-gray-100">
                 <button className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -701,48 +702,74 @@ export default function VendorPage() {
                     </svg>
                 </button>
             </div>
+            */}
 
-            {/* Table Container */}
+            {/* Table Container - Scrollable with horizontal scroll */}
             <div
                 ref={tableContainerRef}
                 className="flex-1 overflow-auto px-4 pb-1"
                 onClick={handleTableContainerClick}
             >
                 <div className="border border-gray-400 rounded overflow-hidden h-full">
-                    <table className="w-full border-collapse text-sm" style={{ borderSpacing: 0 }}>
+                    <div className="overflow-x-auto h-full">
+                    <table className="min-w-[1800px] w-full border-collapse text-sm" style={{ borderSpacing: 0 }}>
                         <thead className="sticky top-0 z-10 bg-white">
                             <tr className="border-b border-gray-400">
-                                <th className="w-[25%] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                <th className="min-w-[160px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
                                     <div className="flex items-center gap-2">
                                         <span className="text-gray-400 cursor-grab">⋮⋮</span>
                                         <span>Vendor Name</span>
                                     </div>
                                 </th>
-                                <th className="w-[15%] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                <th className="min-w-[120px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
                                     <div className="flex items-center gap-2">
                                         <span className="text-gray-400 cursor-grab">⋮⋮</span>
                                         <span>Mobile</span>
                                     </div>
                                 </th>
-                                <th className="w-[20%] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                <th className="min-w-[180px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-gray-400 cursor-grab">⋮⋮</span>
+                                        <span>Email</span>
+                                    </div>
+                                </th>
+                                <th className="min-w-[150px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
                                     <div className="flex items-center gap-2">
                                         <span className="text-gray-400 cursor-grab">⋮⋮</span>
                                         <span>Company</span>
                                     </div>
                                 </th>
-                                <th className="w-[15%] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                <th className="min-w-[110px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
                                     <div className="flex items-center gap-2">
                                         <span className="text-gray-400 cursor-grab">⋮⋮</span>
                                         <span>GST Type</span>
                                     </div>
                                 </th>
-                                <th className="w-[15%] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                <th className="min-w-[200px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-gray-400 cursor-grab">⋮⋮</span>
+                                        <span>Billing Address</span>
+                                    </div>
+                                </th>
+                                <th className="min-w-[120px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-gray-400 cursor-grab">⋮⋮</span>
+                                        <span>District</span>
+                                    </div>
+                                </th>
+                                <th className="min-w-[120px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-gray-400 cursor-grab">⋮⋮</span>
+                                        <span>State</span>
+                                    </div>
+                                </th>
+                                <th className="min-w-[140px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
                                     <div className="flex items-center gap-2">
                                         <span className="text-gray-400 cursor-grab">⋮⋮</span>
                                         <span>Balance</span>
                                     </div>
                                 </th>
-                                <th className="w-[10%] h-9 px-4 text-left text-sm font-medium text-gray-700">
+                                <th className="min-w-[100px] h-9 px-4 text-left text-sm font-medium text-gray-700 sticky right-0 z-10 bg-gray-100" style={{ boxShadow: '-2px 0 0 0 #000' }}>
                                     Actions
                                 </th>
                             </tr>
@@ -764,27 +791,51 @@ export default function VendorPage() {
                                         className={getCellClasses(rowIndex, 1) + " text-left text-gray-600"}
                                         onClick={() => handleCellClick(rowIndex, 1)}
                                     >
-                                        {vendor.mobileNumber}
+                                        {vendor.mobileNumber || "-"}
                                     </td>
                                     <td
                                         className={getCellClasses(rowIndex, 2) + " text-left text-gray-600"}
                                         onClick={() => handleCellClick(rowIndex, 2)}
                                     >
-                                        {vendor.companyName}
+                                        {vendor.emailAddress || "-"}
                                     </td>
                                     <td
                                         className={getCellClasses(rowIndex, 3) + " text-left text-gray-600"}
                                         onClick={() => handleCellClick(rowIndex, 3)}
                                     >
-                                        {vendor.gstType}
+                                        {vendor.companyName || "-"}
                                     </td>
                                     <td
                                         className={getCellClasses(rowIndex, 4) + " text-left text-gray-600"}
                                         onClick={() => handleCellClick(rowIndex, 4)}
                                     >
+                                        {vendor.gstType || "-"}
+                                    </td>
+                                    <td
+                                        className={getCellClasses(rowIndex, 5) + " text-left text-gray-600"}
+                                        onClick={() => handleCellClick(rowIndex, 5)}
+                                    >
+                                        {vendor.billingAddress || "-"}
+                                    </td>
+                                    <td
+                                        className={getCellClasses(rowIndex, 6) + " text-left text-gray-600"}
+                                        onClick={() => handleCellClick(rowIndex, 6)}
+                                    >
+                                        {vendor.billingDistrict || "-"}
+                                    </td>
+                                    <td
+                                        className={getCellClasses(rowIndex, 7) + " text-left text-gray-600"}
+                                        onClick={() => handleCellClick(rowIndex, 7)}
+                                    >
+                                        {vendor.billingState || "-"}
+                                    </td>
+                                    <td
+                                        className={getCellClasses(rowIndex, 8) + " text-left text-gray-600"}
+                                        onClick={() => handleCellClick(rowIndex, 8)}
+                                    >
                                         {vendor.openingBalanceAmount ? `₹${vendor.openingBalanceAmount} (${vendor.openingBalanceType})` : '-'}
                                     </td>
-                                    <td className="h-8 px-4 text-left">
+                                    <td className={`h-8 px-4 text-left sticky right-0 z-10 ${rowIndex % 2 === 0 ? 'bg-blue-50' : 'bg-white'}`} style={{ boxShadow: '-2px 0 0 0 #000' }}>
                                         <div className="flex items-center justify-end gap-2">
                                             <button
                                                 onClick={() => handleEditVendor(vendor)}
@@ -814,12 +865,17 @@ export default function VendorPage() {
                                         <td className={getCellClasses(rowIndex, 2)} onClick={() => handleCellClick(rowIndex, 2)}></td>
                                         <td className={getCellClasses(rowIndex, 3)} onClick={() => handleCellClick(rowIndex, 3)}></td>
                                         <td className={getCellClasses(rowIndex, 4)} onClick={() => handleCellClick(rowIndex, 4)}></td>
-                                        <td className="h-8 px-4"></td>
+                                        <td className={getCellClasses(rowIndex, 5)} onClick={() => handleCellClick(rowIndex, 5)}></td>
+                                        <td className={getCellClasses(rowIndex, 6)} onClick={() => handleCellClick(rowIndex, 6)}></td>
+                                        <td className={getCellClasses(rowIndex, 7)} onClick={() => handleCellClick(rowIndex, 7)}></td>
+                                        <td className={getCellClasses(rowIndex, 8)} onClick={() => handleCellClick(rowIndex, 8)}></td>
+                                        <td className={`h-8 px-4 sticky right-0 z-10 ${rowIndex % 2 === 0 ? 'bg-blue-50' : 'bg-white'}`} style={{ boxShadow: '-2px 0 0 0 #000' }}></td>
                                     </tr>
                                 );
                             })}
                         </tbody>
                     </table>
+                    </div>
                 </div>
             </div>
 
