@@ -276,7 +276,8 @@ export default function BrandPage() {
                 </button>
             </div>
 
-            {/* Toolbar */}
+            {/* Toolbar - Icons commented out */}
+            {/*
             <div className="flex items-center justify-end gap-2 px-4 py-2 border-b border-gray-100">
                 <button className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -299,6 +300,7 @@ export default function BrandPage() {
                     </svg>
                 </button>
             </div>
+            */}
 
             {/* Table Container */}
             <div
@@ -319,7 +321,7 @@ export default function BrandPage() {
                                         </svg>
                                     </div>
                                 </th>
-                                <th className="w-[30%] h-9 px-4 text-left text-sm font-medium text-gray-700">
+                                <th className="min-w-[100px] h-9 px-4 text-left text-sm font-medium text-gray-700 sticky right-0 z-10 bg-gray-100" style={{ boxShadow: '-2px 0 0 0 #000' }}>
                                     Actions
                                 </th>
                             </tr>
@@ -337,7 +339,7 @@ export default function BrandPage() {
                                     >
                                         {brand.name}
                                     </td>
-                                    <td className="h-8 px-4 text-left">
+                                    <td className={`h-8 px-4 text-left sticky right-0 z-10 ${rowIndex % 2 === 0 ? 'bg-blue-50' : 'bg-white'}`} style={{ boxShadow: '-2px 0 0 0 #000' }}>
                                         <div className="flex items-center justify-end gap-2">
                                             <button
                                                 onClick={() => handleEditBrand(brand)}
@@ -366,7 +368,7 @@ export default function BrandPage() {
                                             className={getCellClasses(rowIndex, 0)}
                                             onClick={() => handleCellClick(rowIndex, 0)}
                                         ></td>
-                                        <td className="h-8 px-4"></td>
+                                        <td className={`h-8 px-4 sticky right-0 z-10 ${rowIndex % 2 === 0 ? 'bg-blue-50' : 'bg-white'}`} style={{ boxShadow: '-2px 0 0 0 #000' }}></td>
                                     </tr>
                                 );
                             })}
