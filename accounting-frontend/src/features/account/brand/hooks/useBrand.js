@@ -1,4 +1,3 @@
-// src/features/account/brand/hooks/useBrand.js
 import createUseResource from "src/services/useResourceFactory";
 import * as api from "../api/brand.api";
 
