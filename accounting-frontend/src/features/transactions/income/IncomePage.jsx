@@ -123,9 +123,23 @@ function IncomeModal({ isOpen, onClose, onSave, onDelete, editData }) {
         }
     };
 
+    // Handle Enter key to move to next input
     const handleKeyDown = (e) => {
         if (e.key === 'Enter' && e.ctrlKey) {
             handleSave();
+            return;
+        }
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            const form = e.target.closest('[data-form-container]');
+            if (!form) return;
+            
+            const inputs = Array.from(form.querySelectorAll('input, select, textarea'));
+            const currentIndex = inputs.indexOf(e.target);
+            
+            if (currentIndex !== -1 && currentIndex < inputs.length - 1) {
+                inputs[currentIndex + 1].focus();
+            }
         }
     };
 
@@ -136,28 +150,25 @@ function IncomeModal({ isOpen, onClose, onSave, onDelete, editData }) {
             className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
             onClick={handleBackdropClick}
         >
-            <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl mx-4 max-h-[90vh] flex flex-col">
                 {/* Modal Header */}
-                <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 sticky top-0 bg-white">
-                    <div className="flex items-center gap-2">
-                        <div className="w-1 h-6 bg-green-500 rounded"></div>
-                        <h3 className="text-lg font-semibold text-gray-900">
-                            {isEditMode ? "Edit Income" : "Basic Details"}
-                        </h3>
-                    </div>
+                <div className="flex items-center justify-between px-6 py-4 rounded-t-lg shrink-0" style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
+                    <h3 className="text-lg font-semibold text-white">
+                        {isEditMode ? "Edit Income" : "New Income"}
+                    </h3>
                     <div className="flex items-center gap-3">
-                        <span className="text-sm text-gray-500">Date</span>
+                        <span className="text-sm text-white/80">Date</span>
                         <input
                             type="date"
                             value={formData.date}
                             onChange={(e) => handleChange("date", e.target.value)}
-                            className="border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                            className="border border-white/30 bg-white/20 text-white rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-white/50"
                         />
                     </div>
                 </div>
 
                 {/* Modal Body */}
-                <div className="px-6 py-5 space-y-5" onKeyDown={handleKeyDown}>
+                <div className="px-6 py-5 space-y-5 overflow-y-auto flex-1" data-form-container onKeyDown={handleKeyDown}>
                     {/* Bill Name */}
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1.5 uppercase tracking-wide">
@@ -169,6 +180,7 @@ function IncomeModal({ isOpen, onClose, onSave, onDelete, editData }) {
                             onChange={(e) => handleChange("billName", e.target.value)}
                             placeholder="Enter income source or bill name"
                             className="w-full border border-gray-300 rounded px-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                            autoFocus
                         />
                     </div>
 
@@ -212,16 +224,13 @@ function IncomeModal({ isOpen, onClose, onSave, onDelete, editData }) {
                             <label className="block text-sm font-medium text-gray-700 mb-1.5 uppercase tracking-wide">
                                 Category <span className="text-red-500">*</span>
                             </label>
-                            <select
+                            <input
+                                type="text"
                                 value={formData.category}
                                 onChange={(e) => handleChange("category", e.target.value)}
-                                className="w-full border border-gray-300 rounded px-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 bg-white"
-                            >
-                                <option value="">Select Category</option>
-                                {categories.map((cat) => (
-                                    <option key={cat} value={cat}>{cat}</option>
-                                ))}
-                            </select>
+                                placeholder="Enter category"
+                                className="w-full border border-gray-300 rounded px-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                            />
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1.5 uppercase tracking-wide">
@@ -430,7 +439,7 @@ export default function IncomePage() {
                 </div>
                 <button
                     onClick={handleOpenCreate}
-                    className="flex items-center gap-1 bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition-colors text-sm font-medium"
+                    className="flex items-center gap-1 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition-colors text-sm font-medium"
                 >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -439,9 +448,9 @@ export default function IncomePage() {
                 </button>
             </div>
 
-            {/* Toolbar */}
+            {/* Toolbar - Icons commented out as per requirement */}
             <div className="flex items-center justify-end gap-2 px-4 py-2 border-b border-gray-100">
-                <button className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded">
+                {/* <button className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                     </svg>
@@ -467,7 +476,7 @@ export default function IncomePage() {
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
                     </svg>
                     More Filter
-                </button>
+                </button> */}
             </div>
 
             {/* Table Container - Scrollable */}
@@ -477,46 +486,47 @@ export default function IncomePage() {
                 onClick={handleTableContainerClick}
             >
                 <div className="border border-gray-400 rounded overflow-hidden h-full">
-                    <table className="w-full border-collapse text-sm" style={{ borderSpacing: 0 }}>
+                    <div className="overflow-x-auto h-full">
+                    <table className="min-w-[1000px] w-full border-collapse text-sm" style={{ borderSpacing: 0 }}>
                         <thead className="sticky top-0 z-10 bg-white">
                             <tr className="border-b border-gray-400">
-                                <th className="w-[12%] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                <th className="min-w-[110px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
                                     <div className="flex items-center gap-2">
                                         <span className="text-gray-400 cursor-grab">⋮⋮</span>
                                         <span>Date</span>
                                     </div>
                                 </th>
-                                <th className="w-[22%] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                <th className="min-w-[180px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
                                     <div className="flex items-center gap-2">
                                         <span className="text-gray-400 cursor-grab">⋮⋮</span>
                                         <span>Bill Name</span>
                                     </div>
                                 </th>
-                                <th className="w-[15%] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                <th className="min-w-[130px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
                                     <div className="flex items-center gap-2">
                                         <span className="text-gray-400 cursor-grab">⋮⋮</span>
                                         <span>Amount</span>
                                     </div>
                                 </th>
-                                <th className="w-[15%] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                <th className="min-w-[130px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
                                     <div className="flex items-center gap-2">
                                         <span className="text-gray-400 cursor-grab">⋮⋮</span>
                                         <span>Category</span>
                                     </div>
                                 </th>
-                                <th className="w-[15%] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                <th className="min-w-[140px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
                                     <div className="flex items-center gap-2">
                                         <span className="text-gray-400 cursor-grab">⋮⋮</span>
                                         <span>Payment Method</span>
                                     </div>
                                 </th>
-                                <th className="w-[11%] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                <th className="min-w-[100px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
                                     <div className="flex items-center gap-2">
                                         <span className="text-gray-400 cursor-grab">⋮⋮</span>
                                         <span>Bill</span>
                                     </div>
                                 </th>
-                                <th className="w-[10%] h-9 px-4 text-left text-sm font-medium text-gray-700">
+                                <th className="min-w-[100px] h-9 px-4 text-left text-sm font-medium text-gray-700 sticky right-0 z-10 bg-gray-100" style={{ boxShadow: '-2px 0 0 0 #000' }}>
                                     Actions
                                 </th>
                             </tr>
@@ -570,7 +580,7 @@ export default function IncomePage() {
                                             <span className="text-gray-400 text-xs">-</span>
                                         )}
                                     </td>
-                                    <td className="h-8 px-4 text-left">
+                                    <td className={`h-8 px-4 text-left sticky right-0 z-10 ${rowIndex % 2 === 0 ? 'bg-blue-50' : 'bg-white'}`} style={{ boxShadow: '-2px 0 0 0 #000' }}>
                                         <div className="flex items-center justify-end gap-2">
                                             <button
                                                 onClick={() => handleEditIncome(income)}
@@ -601,12 +611,13 @@ export default function IncomePage() {
                                         <td className={getCellClasses(rowIndex, 3)} onClick={() => handleCellClick(rowIndex, 3)}></td>
                                         <td className={getCellClasses(rowIndex, 4)} onClick={() => handleCellClick(rowIndex, 4)}></td>
                                         <td className={getCellClasses(rowIndex, 5)} onClick={() => handleCellClick(rowIndex, 5)}></td>
-                                        <td className="h-8 px-4"></td>
+                                        <td className={`h-8 px-4 sticky right-0 z-10 ${rowIndex % 2 === 0 ? 'bg-blue-50' : 'bg-white'}`} style={{ boxShadow: '-2px 0 0 0 #000' }}></td>
                                     </tr>
                                 );
                             })}
                         </tbody>
                     </table>
+                    </div>
                 </div>
             </div>
 

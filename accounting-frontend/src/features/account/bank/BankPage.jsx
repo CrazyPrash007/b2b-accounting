@@ -100,6 +100,37 @@ function BankModal({ isOpen, onClose, onSave, onDelete, editData }) {
         }
     };
 
+    // Handle Enter key to move to next field
+    const handleKeyDown = (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            const container = e.target.closest('[data-form-container]');
+            if (!container) return;
+            
+            const focusable = Array.from(container.querySelectorAll('input:not([type="radio"]), select, textarea'));
+            const idx = focusable.indexOf(e.target);
+            if (idx >= 0 && idx < focusable.length - 1) {
+                focusable[idx + 1].focus();
+            } else if (idx === focusable.length - 1) {
+                // Last field - trigger save
+                handleSave();
+            }
+        }
+    };
+
+    // Focus first input when modal opens
+    useEffect(() => {
+        if (isOpen) {
+            setTimeout(() => {
+                const container = document.querySelector('[data-form-container]');
+                if (container) {
+                    const firstInput = container.querySelector('input');
+                    firstInput?.focus();
+                }
+            }, 100);
+        }
+    }, [isOpen]);
+
     if (!isOpen) return null;
 
     return (
@@ -109,13 +140,13 @@ function BankModal({ isOpen, onClose, onSave, onDelete, editData }) {
         >
             <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
                 {/* Modal Header */}
-                <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200 sticky top-0 bg-white">
-                    <h3 className="text-base font-semibold text-gray-900">
+                <div className="flex items-center justify-between px-5 py-4 rounded-t-lg sticky top-0" style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
+                    <h3 className="text-base font-semibold text-white">
                         {isEditMode ? "Edit Bank Account" : "Create Bank Account"}
                     </h3>
                     <button
                         onClick={onClose}
-                        className="text-gray-400 hover:text-gray-600 transition-colors"
+                        className="text-white/80 hover:text-white transition-colors"
                     >
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -124,7 +155,7 @@ function BankModal({ isOpen, onClose, onSave, onDelete, editData }) {
                 </div>
 
                 {/* Modal Body */}
-                <div className="px-5 py-4 space-y-5">
+                <div className="px-5 py-4 space-y-5" data-form-container>
                     {/* Under Group - Bank Account Section */}
                     <div>
                         <h4 className="text-sm font-medium text-gray-800 mb-3 pb-2 border-b border-gray-200">
@@ -139,6 +170,7 @@ function BankModal({ isOpen, onClose, onSave, onDelete, editData }) {
                                     type="text"
                                     value={formData.accountDisplayName}
                                     onChange={(e) => handleChange("accountDisplayName", e.target.value)}
+                                    onKeyDown={handleKeyDown}
                                     placeholder="Enter account display name"
                                     className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                                 />
@@ -151,6 +183,7 @@ function BankModal({ isOpen, onClose, onSave, onDelete, editData }) {
                                     type="text"
                                     value={formData.shortAliasName}
                                     onChange={(e) => handleChange("shortAliasName", e.target.value)}
+                                    onKeyDown={handleKeyDown}
                                     placeholder="Enter short/alias name"
                                     className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                                 />
@@ -163,6 +196,7 @@ function BankModal({ isOpen, onClose, onSave, onDelete, editData }) {
                                     type="email"
                                     value={formData.emailAddress}
                                     onChange={(e) => handleChange("emailAddress", e.target.value)}
+                                    onKeyDown={handleKeyDown}
                                     placeholder="Enter email address"
                                     className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                                 />
@@ -175,6 +209,7 @@ function BankModal({ isOpen, onClose, onSave, onDelete, editData }) {
                                     type="tel"
                                     value={formData.phoneNo}
                                     onChange={(e) => handleChange("phoneNo", e.target.value)}
+                                    onKeyDown={handleKeyDown}
                                     placeholder="Enter phone number"
                                     className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                                 />
@@ -196,6 +231,7 @@ function BankModal({ isOpen, onClose, onSave, onDelete, editData }) {
                                     type="text"
                                     value={formData.accountHolderName}
                                     onChange={(e) => handleChange("accountHolderName", e.target.value)}
+                                    onKeyDown={handleKeyDown}
                                     placeholder="Enter account holder's name"
                                     className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                                 />
@@ -208,6 +244,7 @@ function BankModal({ isOpen, onClose, onSave, onDelete, editData }) {
                                     type="text"
                                     value={formData.accountNumber}
                                     onChange={(e) => handleChange("accountNumber", e.target.value)}
+                                    onKeyDown={handleKeyDown}
                                     placeholder="Enter account number"
                                     className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                                 />
@@ -220,6 +257,7 @@ function BankModal({ isOpen, onClose, onSave, onDelete, editData }) {
                                     type="text"
                                     value={formData.ifscCode}
                                     onChange={(e) => handleChange("ifscCode", e.target.value)}
+                                    onKeyDown={handleKeyDown}
                                     placeholder="Enter IFSC code"
                                     className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                                 />
@@ -232,6 +270,7 @@ function BankModal({ isOpen, onClose, onSave, onDelete, editData }) {
                                     type="text"
                                     value={formData.bankName}
                                     onChange={(e) => handleChange("bankName", e.target.value)}
+                                    onKeyDown={handleKeyDown}
                                     placeholder="Enter bank name"
                                     className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                                 />
@@ -253,6 +292,7 @@ function BankModal({ isOpen, onClose, onSave, onDelete, editData }) {
                                     type="number"
                                     value={formData.openingBalance}
                                     onChange={(e) => handleChange("openingBalance", e.target.value)}
+                                    onKeyDown={handleKeyDown}
                                     placeholder="Enter opening balance"
                                     className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                                 />
@@ -264,6 +304,7 @@ function BankModal({ isOpen, onClose, onSave, onDelete, editData }) {
                                 <select
                                     value={formData.openingBalanceType}
                                     onChange={(e) => handleChange("openingBalanceType", e.target.value)}
+                                    onKeyDown={handleKeyDown}
                                     className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                                 >
                                     <option value="Credit">Credit</option>
@@ -512,7 +553,8 @@ export default function BankPage() {
                 </button>
             </div>
 
-            {/* Toolbar */}
+            {/* Toolbar - Icons commented out */}
+            {/*
             <div className="flex items-center justify-end gap-2 px-4 py-2 border-b border-gray-100">
                 <button className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -542,72 +584,80 @@ export default function BankPage() {
                     More Filter
                 </button>
             </div>
+            */}
 
-            {/* Table Container - Scrollable */}
+            {/* Table Container - Scrollable with horizontal scroll */}
             <div
                 ref={tableContainerRef}
                 className="flex-1 overflow-auto px-4 pb-1"
                 onClick={handleTableContainerClick}
             >
                 <div className="border border-gray-400 rounded overflow-hidden h-full">
-                    <table className="w-full border-collapse text-sm" style={{ borderSpacing: 0 }}>
+                    <div className="overflow-x-auto h-full">
+                    <table className="min-w-[1400px] w-full border-collapse text-sm" style={{ borderSpacing: 0 }}>
                         <thead className="sticky top-0 z-10 bg-white">
                             <tr className="border-b border-gray-400">
-                                <th className="w-[20%] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                <th className="min-w-[180px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
                                     <div className="flex items-center gap-2">
                                         <span className="text-gray-400 cursor-grab">⋮⋮</span>
-                                        <span>Account Name</span>
-                                        <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
-                                        </svg>
+                                        <span>Account Display Name</span>
                                     </div>
                                 </th>
-                                <th className="w-[15%] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                <th className="min-w-[140px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
                                     <div className="flex items-center gap-2">
                                         <span className="text-gray-400 cursor-grab">⋮⋮</span>
-                                        <span>Bank Name</span>
-                                        <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
-                                        </svg>
+                                        <span>Alias Name</span>
                                     </div>
                                 </th>
-                                <th className="w-[15%] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                <th className="min-w-[180px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-gray-400 cursor-grab">⋮⋮</span>
+                                        <span>Email Address</span>
+                                    </div>
+                                </th>
+                                <th className="min-w-[120px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-gray-400 cursor-grab">⋮⋮</span>
+                                        <span>Phone No</span>
+                                    </div>
+                                </th>
+                                <th className="min-w-[160px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-gray-400 cursor-grab">⋮⋮</span>
+                                        <span>Account Holder</span>
+                                    </div>
+                                </th>
+                                <th className="min-w-[150px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
                                     <div className="flex items-center gap-2">
                                         <span className="text-gray-400 cursor-grab">⋮⋮</span>
                                         <span>Account Number</span>
-                                        <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
-                                        </svg>
                                     </div>
                                 </th>
-                                <th className="w-[12%] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                <th className="min-w-[120px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
                                     <div className="flex items-center gap-2">
                                         <span className="text-gray-400 cursor-grab">⋮⋮</span>
                                         <span>IFSC Code</span>
-                                        <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
-                                        </svg>
                                     </div>
                                 </th>
-                                <th className="w-[13%] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                <th className="min-w-[140px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-gray-400 cursor-grab">⋮⋮</span>
+                                        <span>Bank Name</span>
+                                    </div>
+                                </th>
+                                <th className="min-w-[150px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
                                     <div className="flex items-center gap-2">
                                         <span className="text-gray-400 cursor-grab">⋮⋮</span>
                                         <span>Opening Balance</span>
-                                        <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
-                                        </svg>
                                     </div>
                                 </th>
-                                <th className="w-[10%] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                <th className="min-w-[100px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
                                     <div className="flex items-center gap-2">
                                         <span className="text-gray-400 cursor-grab">⋮⋮</span>
                                         <span>Status</span>
-                                        <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
-                                        </svg>
                                     </div>
                                 </th>
-                                <th className="w-[15%] h-9 px-4 text-left text-sm font-medium text-gray-700">
+                                <th className="min-w-[100px] h-9 px-4 text-left text-sm font-medium text-gray-700 sticky right-0 z-10 bg-gray-100" style={{ boxShadow: '-2px 0 0 0 #000' }}>
                                     Actions
                                 </th>
                             </tr>
@@ -629,35 +679,59 @@ export default function BankPage() {
                                         className={getCellClasses(rowIndex, 1) + " text-left text-gray-600"}
                                         onClick={() => handleCellClick(rowIndex, 1)}
                                     >
-                                        {account.bankName}
+                                        {account.shortAliasName || "-"}
                                     </td>
                                     <td
                                         className={getCellClasses(rowIndex, 2) + " text-left text-gray-600"}
                                         onClick={() => handleCellClick(rowIndex, 2)}
                                     >
-                                        {account.accountNumber}
+                                        {account.emailAddress || "-"}
                                     </td>
                                     <td
                                         className={getCellClasses(rowIndex, 3) + " text-left text-gray-600"}
                                         onClick={() => handleCellClick(rowIndex, 3)}
                                     >
-                                        {account.ifscCode}
+                                        {account.phoneNo || "-"}
                                     </td>
                                     <td
                                         className={getCellClasses(rowIndex, 4) + " text-left text-gray-600"}
                                         onClick={() => handleCellClick(rowIndex, 4)}
                                     >
+                                        {account.accountHolderName || "-"}
+                                    </td>
+                                    <td
+                                        className={getCellClasses(rowIndex, 5) + " text-left text-gray-600"}
+                                        onClick={() => handleCellClick(rowIndex, 5)}
+                                    >
+                                        {account.accountNumber}
+                                    </td>
+                                    <td
+                                        className={getCellClasses(rowIndex, 6) + " text-left text-gray-600"}
+                                        onClick={() => handleCellClick(rowIndex, 6)}
+                                    >
+                                        {account.ifscCode || "-"}
+                                    </td>
+                                    <td
+                                        className={getCellClasses(rowIndex, 7) + " text-left text-gray-600"}
+                                        onClick={() => handleCellClick(rowIndex, 7)}
+                                    >
+                                        {account.bankName}
+                                    </td>
+                                    <td
+                                        className={getCellClasses(rowIndex, 8) + " text-left text-gray-600"}
+                                        onClick={() => handleCellClick(rowIndex, 8)}
+                                    >
                                         {account.openingBalance ? `₹${account.openingBalance} (${account.openingBalanceType})` : "-"}
                                     </td>
                                     <td
-                                        className={getCellClasses(rowIndex, 5) + " text-left"}
-                                        onClick={() => handleCellClick(rowIndex, 5)}
+                                        className={getCellClasses(rowIndex, 9) + " text-left"}
+                                        onClick={() => handleCellClick(rowIndex, 9)}
                                     >
                                         <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${account.status === 'Active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
                                             {account.status}
                                         </span>
                                     </td>
-                                    <td className="h-8 px-4 text-left">
+                                    <td className={`h-8 px-4 text-left sticky right-0 z-10 ${rowIndex % 2 === 0 ? 'bg-blue-50' : 'bg-white'}`} style={{ boxShadow: '-2px 0 0 0 #000' }}>
                                         <div className="flex items-center justify-end gap-2">
                                             <button
                                                 onClick={() => handleEditAccount(account)}
@@ -682,36 +756,23 @@ export default function BankPage() {
                                         key={`empty-${idx}`}
                                         className={`border-b border-gray-400 hover:bg-blue-100 transition-colors ${rowIndex % 2 === 0 ? 'bg-blue-50/40' : 'bg-white'}`}
                                     >
-                                        <td
-                                            className={getCellClasses(rowIndex, 0)}
-                                            onClick={() => handleCellClick(rowIndex, 0)}
-                                        ></td>
-                                        <td
-                                            className={getCellClasses(rowIndex, 1)}
-                                            onClick={() => handleCellClick(rowIndex, 1)}
-                                        ></td>
-                                        <td
-                                            className={getCellClasses(rowIndex, 2)}
-                                            onClick={() => handleCellClick(rowIndex, 2)}
-                                        ></td>
-                                        <td
-                                            className={getCellClasses(rowIndex, 3)}
-                                            onClick={() => handleCellClick(rowIndex, 3)}
-                                        ></td>
-                                        <td
-                                            className={getCellClasses(rowIndex, 4)}
-                                            onClick={() => handleCellClick(rowIndex, 4)}
-                                        ></td>
-                                        <td
-                                            className={getCellClasses(rowIndex, 5)}
-                                            onClick={() => handleCellClick(rowIndex, 5)}
-                                        ></td>
-                                        <td className="h-8 px-4"></td>
+                                        <td className={getCellClasses(rowIndex, 0)} onClick={() => handleCellClick(rowIndex, 0)}></td>
+                                        <td className={getCellClasses(rowIndex, 1)} onClick={() => handleCellClick(rowIndex, 1)}></td>
+                                        <td className={getCellClasses(rowIndex, 2)} onClick={() => handleCellClick(rowIndex, 2)}></td>
+                                        <td className={getCellClasses(rowIndex, 3)} onClick={() => handleCellClick(rowIndex, 3)}></td>
+                                        <td className={getCellClasses(rowIndex, 4)} onClick={() => handleCellClick(rowIndex, 4)}></td>
+                                        <td className={getCellClasses(rowIndex, 5)} onClick={() => handleCellClick(rowIndex, 5)}></td>
+                                        <td className={getCellClasses(rowIndex, 6)} onClick={() => handleCellClick(rowIndex, 6)}></td>
+                                        <td className={getCellClasses(rowIndex, 7)} onClick={() => handleCellClick(rowIndex, 7)}></td>
+                                        <td className={getCellClasses(rowIndex, 8)} onClick={() => handleCellClick(rowIndex, 8)}></td>
+                                        <td className={getCellClasses(rowIndex, 9)} onClick={() => handleCellClick(rowIndex, 9)}></td>
+                                        <td className={`h-8 px-4 sticky right-0 z-10 ${rowIndex % 2 === 0 ? 'bg-blue-50' : 'bg-white'}`} style={{ boxShadow: '-2px 0 0 0 #000' }}></td>
                                     </tr>
                                 );
                             })}
                         </tbody>
                     </table>
+                    </div>
                 </div>
             </div>
 

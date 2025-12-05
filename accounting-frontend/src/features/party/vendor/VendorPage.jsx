@@ -149,6 +149,22 @@ function VendorModal({ isOpen, onClose, onSave, onDelete, editData }) {
         }
     };
 
+    // Handle Enter key to move to next input
+    const handleKeyDown = (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            const form = e.target.closest('[data-form-container]');
+            if (!form) return;
+            
+            const inputs = Array.from(form.querySelectorAll('input, select, textarea'));
+            const currentIndex = inputs.indexOf(e.target);
+            
+            if (currentIndex !== -1 && currentIndex < inputs.length - 1) {
+                inputs[currentIndex + 1].focus();
+            }
+        }
+    };
+
     if (!isOpen) return null;
 
     return (
@@ -158,13 +174,13 @@ function VendorModal({ isOpen, onClose, onSave, onDelete, editData }) {
         >
             <div className="bg-white rounded-lg shadow-xl w-full max-w-5xl mx-4 flex flex-col max-h-[90vh]">
                 {/* Modal Header */}
-                <div className="flex items-center justify-between px-5 py-3 border-b border-gray-200">
-                    <h3 className="text-base font-semibold text-gray-900">
+                <div className="flex items-center justify-between px-5 py-3 rounded-t-lg" style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
+                    <h3 className="text-base font-semibold text-white">
                         {isEditMode ? "Edit Vendor" : "New Vendor"}
                     </h3>
                     <button
                         onClick={onClose}
-                        className="text-gray-400 hover:text-gray-600 transition-colors"
+                        className="text-white/80 hover:text-white transition-colors"
                     >
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -173,7 +189,7 @@ function VendorModal({ isOpen, onClose, onSave, onDelete, editData }) {
                 </div>
 
                 {/* Modal Body - Scrollable */}
-                <div className="px-5 py-4 overflow-y-auto flex-1">
+                <div className="px-5 py-4 overflow-y-auto flex-1" data-form-container onKeyDown={handleKeyDown}>
                     {/* Basic Details Section */}
                     <div className="mb-4">
                         <h4 className="text-sm font-semibold text-gray-800 mb-2 pb-1 border-b border-gray-200">Basic Details</h4>
@@ -191,6 +207,7 @@ function VendorModal({ isOpen, onClose, onSave, onDelete, editData }) {
                                     }}
                                     className={baseInput + (errorName ? " border-red-500" : "")}
                                     placeholder="Enter Vendor Name"
+                                    autoFocus
                                 />
                                 {errorName && <p className="mt-1 text-xs text-red-500">{errorName}</p>}
                             </div>
@@ -661,7 +678,8 @@ export default function VendorPage() {
                 </button>
             </div>
 
-            {/* Toolbar */}
+            {/* Toolbar - Icons commented out */}
+            {/*
             <div className="flex items-center justify-end gap-2 px-4 py-2 border-b border-gray-100">
                 <button className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -684,48 +702,74 @@ export default function VendorPage() {
                     </svg>
                 </button>
             </div>
+            */}
 
-            {/* Table Container */}
+            {/* Table Container - Scrollable with horizontal scroll */}
             <div
                 ref={tableContainerRef}
                 className="flex-1 overflow-auto px-4 pb-1"
                 onClick={handleTableContainerClick}
             >
                 <div className="border border-gray-400 rounded overflow-hidden h-full">
-                    <table className="w-full border-collapse text-sm" style={{ borderSpacing: 0 }}>
+                    <div className="overflow-x-auto h-full">
+                    <table className="min-w-[1800px] w-full border-collapse text-sm" style={{ borderSpacing: 0 }}>
                         <thead className="sticky top-0 z-10 bg-white">
                             <tr className="border-b border-gray-400">
-                                <th className="w-[25%] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                <th className="min-w-[160px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
                                     <div className="flex items-center gap-2">
                                         <span className="text-gray-400 cursor-grab">⋮⋮</span>
                                         <span>Vendor Name</span>
                                     </div>
                                 </th>
-                                <th className="w-[15%] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                <th className="min-w-[120px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
                                     <div className="flex items-center gap-2">
                                         <span className="text-gray-400 cursor-grab">⋮⋮</span>
                                         <span>Mobile</span>
                                     </div>
                                 </th>
-                                <th className="w-[20%] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                <th className="min-w-[180px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-gray-400 cursor-grab">⋮⋮</span>
+                                        <span>Email</span>
+                                    </div>
+                                </th>
+                                <th className="min-w-[150px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
                                     <div className="flex items-center gap-2">
                                         <span className="text-gray-400 cursor-grab">⋮⋮</span>
                                         <span>Company</span>
                                     </div>
                                 </th>
-                                <th className="w-[15%] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                <th className="min-w-[110px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
                                     <div className="flex items-center gap-2">
                                         <span className="text-gray-400 cursor-grab">⋮⋮</span>
                                         <span>GST Type</span>
                                     </div>
                                 </th>
-                                <th className="w-[15%] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                <th className="min-w-[200px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-gray-400 cursor-grab">⋮⋮</span>
+                                        <span>Billing Address</span>
+                                    </div>
+                                </th>
+                                <th className="min-w-[120px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-gray-400 cursor-grab">⋮⋮</span>
+                                        <span>District</span>
+                                    </div>
+                                </th>
+                                <th className="min-w-[120px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-gray-400 cursor-grab">⋮⋮</span>
+                                        <span>State</span>
+                                    </div>
+                                </th>
+                                <th className="min-w-[140px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
                                     <div className="flex items-center gap-2">
                                         <span className="text-gray-400 cursor-grab">⋮⋮</span>
                                         <span>Balance</span>
                                     </div>
                                 </th>
-                                <th className="w-[10%] h-9 px-4 text-left text-sm font-medium text-gray-700">
+                                <th className="min-w-[100px] h-9 px-4 text-left text-sm font-medium text-gray-700 sticky right-0 z-10 bg-gray-100" style={{ boxShadow: '-2px 0 0 0 #000' }}>
                                     Actions
                                 </th>
                             </tr>
@@ -747,27 +791,51 @@ export default function VendorPage() {
                                         className={getCellClasses(rowIndex, 1) + " text-left text-gray-600"}
                                         onClick={() => handleCellClick(rowIndex, 1)}
                                     >
-                                        {vendor.mobileNumber}
+                                        {vendor.mobileNumber || "-"}
                                     </td>
                                     <td
                                         className={getCellClasses(rowIndex, 2) + " text-left text-gray-600"}
                                         onClick={() => handleCellClick(rowIndex, 2)}
                                     >
-                                        {vendor.companyName}
+                                        {vendor.emailAddress || "-"}
                                     </td>
                                     <td
                                         className={getCellClasses(rowIndex, 3) + " text-left text-gray-600"}
                                         onClick={() => handleCellClick(rowIndex, 3)}
                                     >
-                                        {vendor.gstType}
+                                        {vendor.companyName || "-"}
                                     </td>
                                     <td
                                         className={getCellClasses(rowIndex, 4) + " text-left text-gray-600"}
                                         onClick={() => handleCellClick(rowIndex, 4)}
                                     >
+                                        {vendor.gstType || "-"}
+                                    </td>
+                                    <td
+                                        className={getCellClasses(rowIndex, 5) + " text-left text-gray-600"}
+                                        onClick={() => handleCellClick(rowIndex, 5)}
+                                    >
+                                        {vendor.billingAddress || "-"}
+                                    </td>
+                                    <td
+                                        className={getCellClasses(rowIndex, 6) + " text-left text-gray-600"}
+                                        onClick={() => handleCellClick(rowIndex, 6)}
+                                    >
+                                        {vendor.billingDistrict || "-"}
+                                    </td>
+                                    <td
+                                        className={getCellClasses(rowIndex, 7) + " text-left text-gray-600"}
+                                        onClick={() => handleCellClick(rowIndex, 7)}
+                                    >
+                                        {vendor.billingState || "-"}
+                                    </td>
+                                    <td
+                                        className={getCellClasses(rowIndex, 8) + " text-left text-gray-600"}
+                                        onClick={() => handleCellClick(rowIndex, 8)}
+                                    >
                                         {vendor.openingBalanceAmount ? `₹${vendor.openingBalanceAmount} (${vendor.openingBalanceType})` : '-'}
                                     </td>
-                                    <td className="h-8 px-4 text-left">
+                                    <td className={`h-8 px-4 text-left sticky right-0 z-10 ${rowIndex % 2 === 0 ? 'bg-blue-50' : 'bg-white'}`} style={{ boxShadow: '-2px 0 0 0 #000' }}>
                                         <div className="flex items-center justify-end gap-2">
                                             <button
                                                 onClick={() => handleEditVendor(vendor)}
@@ -797,12 +865,17 @@ export default function VendorPage() {
                                         <td className={getCellClasses(rowIndex, 2)} onClick={() => handleCellClick(rowIndex, 2)}></td>
                                         <td className={getCellClasses(rowIndex, 3)} onClick={() => handleCellClick(rowIndex, 3)}></td>
                                         <td className={getCellClasses(rowIndex, 4)} onClick={() => handleCellClick(rowIndex, 4)}></td>
-                                        <td className="h-8 px-4"></td>
+                                        <td className={getCellClasses(rowIndex, 5)} onClick={() => handleCellClick(rowIndex, 5)}></td>
+                                        <td className={getCellClasses(rowIndex, 6)} onClick={() => handleCellClick(rowIndex, 6)}></td>
+                                        <td className={getCellClasses(rowIndex, 7)} onClick={() => handleCellClick(rowIndex, 7)}></td>
+                                        <td className={getCellClasses(rowIndex, 8)} onClick={() => handleCellClick(rowIndex, 8)}></td>
+                                        <td className={`h-8 px-4 sticky right-0 z-10 ${rowIndex % 2 === 0 ? 'bg-blue-50' : 'bg-white'}`} style={{ boxShadow: '-2px 0 0 0 #000' }}></td>
                                     </tr>
                                 );
                             })}
                         </tbody>
                     </table>
+                    </div>
                 </div>
             </div>
 

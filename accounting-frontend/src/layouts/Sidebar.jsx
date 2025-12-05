@@ -93,7 +93,7 @@ export default function Sidebar() {
     );
 
     return (
-        <aside className="w-[260px] bg-white border-r border-gray-200 h-screen sticky top-0 flex flex-col">
+        <aside className="w-[235px] bg-white border-r border-gray-200 h-screen sticky top-0 flex flex-col">
             <nav className="flex-1 px-4 py-4 overflow-y-auto">
                 {/* Dashboard (top-level) */}
                 <div className="mb-4">
@@ -106,8 +106,9 @@ export default function Sidebar() {
                     <div className="text-xs text-gray-400 mt-4 mb-2 uppercase">MASTER</div>
 
                     <Parent title="Account Master" icon={<FiUsers />} openKey="masterAccount">
-                        <SubItem title="Category" to="/account-category" />
+                        <SubItem title="Group" to="/account-category" />
                         <SubItem title="Bank" to="/bank" />
+                        <SubItem title="Brand" to="/brand" />
                     </Parent>
 
                     <Parent title="Party Master" icon={<FiUsers />} openKey="masterParty">

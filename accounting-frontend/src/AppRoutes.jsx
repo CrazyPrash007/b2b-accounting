@@ -10,9 +10,13 @@ import UnitPage from "src/features/items/unit/UnitPage";
 import CustomerPage from "src/features/party/customer/CustomerPage";
 import VendorPage from "src/features/party/vendor/VendorPage";
 import BankPage from "src/features/account/bank/BankPage";
+import BrandPage from "src/features/account/brand/BrandPage";
 import ExpensePage from "src/features/transactions/expense/ExpensePage";
 import IncomePage from "src/features/transactions/income/IncomePage";
 import SalesPage from "src/features/transactions/sales/SalesPage";
+import PurchasePage from "src/features/transactions/purchase/PurchasePage";
+import PaymentPage from "src/features/transactions/payment/PaymentPage";
+import ReceiptPage from "src/features/transactions/receipt/ReceiptPage";
 
 
 export default function AppRoutes() {
@@ -27,9 +31,13 @@ export default function AppRoutes() {
                 <Route path="customer" element={<CustomerPage />} />
                 <Route path="vendor" element={<VendorPage />} />
                 <Route path="bank" element={<BankPage />} />
+                <Route path="brand" element={<BrandPage />} />
                 <Route path="expenses" element={<ExpensePage />} />
                 <Route path="income" element={<IncomePage />} />
                 <Route path="sales" element={<SalesPage />} />
+                <Route path="purchase" element={<PurchasePage />} />
+                <Route path="payment" element={<PaymentPage />} />
+                <Route path="receipt" element={<ReceiptPage />} />
 
                 <Route path="*" element={<div className="p-6">Page not found</div>} />
             </Route>

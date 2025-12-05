@@ -1,62 +1,51 @@
-// GstPage.jsx
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import useGst from "./hooks/useGst";
+import useBrand from "./hooks/useBrand";
 
-/**
- * GstModal - Modal for creating/editing GST rates
- */
-function GstModal({ isOpen, onClose, onSave, onDelete, editData }) {
-    const [gstRate, setGstRate] = useState("");
+function BrandModal({ isOpen, onClose, onSave, onDelete, editData }) {
+    const [brandName, setBrandName] = useState("");
     const [error, setError] = useState("");
-    const inputRef = useRef(null);
+    const brandNameRef = useRef(null);
 
     const isEditMode = !!editData;
 
     useEffect(() => {
         if (isOpen) {
             if (editData) {
-                setGstRate(editData.rate || "");
+                setBrandName(editData.brandName || "");
             } else {
-                setGstRate("");
+                setBrandName("");
             }
             setError("");
-            // Focus input when modal opens
-            setTimeout(() => inputRef.current?.focus(), 100);
+            setTimeout(() => brandNameRef.current?.focus(), 100);
         }
     }, [editData, isOpen]);
-
-    const handleSave = () => {
-        if (!gstRate.toString().trim()) {
-            setError("GST Rate is required");
-            return;
-        }
-
-        const rate = parseFloat(gstRate);
-        if (isNaN(rate) || rate < 0) {
-            setError("Please enter a valid GST rate");
-            return;
-        }
-
-        const gstData = {
-            id: isEditMode ? editData.id : String(Date.now()),
-            rate: rate,
-        };
-
-        onSave(gstData, isEditMode);
-    };
-
-    const handleBackdropClick = (e) => {
-        if (e.target === e.currentTarget) {
-            onClose();
-        }
-    };
 
     // Handle Enter key to save
     const handleKeyDown = (e) => {
         if (e.key === 'Enter') {
             e.preventDefault();
             handleSave();
+        }
+    };
+
+    const handleSave = () => {
+        if (!brandName.trim()) {
+            setError("Brand Name is required");
+            return;
+        }
+
+        const brandData = {
+            id: isEditMode ? editData.id : String(Date.now()),
+            brandName: brandName.trim(),
+        };
+
+        onSave(brandData, isEditMode);
+    };
+
+    const handleBackdropClick = (e) => {
+        if (e.target === e.currentTarget) {
+            onClose();
         }
     };
 
@@ -71,7 +60,7 @@ function GstModal({ isOpen, onClose, onSave, onDelete, editData }) {
                 {/* Modal Header */}
                 <div className="flex items-center justify-between px-5 py-4 rounded-t-lg" style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
                     <h3 className="text-base font-semibold text-white">
-                        {isEditMode ? "Edit GST Rate" : "New GST Rate"}
+                        {isEditMode ? "Edit Brand" : "New Brand"}
                     </h3>
                     <button
                         onClick={onClose}
@@ -84,24 +73,23 @@ function GstModal({ isOpen, onClose, onSave, onDelete, editData }) {
                 </div>
 
                 {/* Modal Body */}
-                <div className="px-5 py-4">
+                <div className="px-5 py-4 space-y-4">
+                    {/* Brand Name */}
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
-                            GST Rate (%)<span className="text-red-500">*</span>
+                            Brand Name<span className="text-red-500">*</span>
                         </label>
                         <input
-                            ref={inputRef}
-                            type="number"
-                            value={gstRate}
+                            ref={brandNameRef}
+                            type="text"
+                            value={brandName}
                             onChange={(e) => {
-                                setGstRate(e.target.value);
+                                setBrandName(e.target.value);
                                 if (error) setError("");
                             }}
                             onKeyDown={handleKeyDown}
-                            placeholder="Enter GST rate (e.g., 18)"
+                            placeholder="Enter brand name"
                             className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                            min="0"
-                            step="0.01"
                         />
                         {error && (
                             <p className="mt-1 text-xs text-red-500">{error}</p>
@@ -145,67 +133,73 @@ function GstModal({ isOpen, onClose, onSave, onDelete, editData }) {
 }
 
 /**
- * GstPage - GST Rate management with Excel-like table
+ * BrandPage - Brand management with Excel-like table
  */
-export default function GstPage() {
+export default function BrandPage() {
     const navigate = useNavigate();
     const location = useLocation();
 
-    const { rows: gstRates = [], loading, error, reload, create, update, remove } =
-        useGst({ useLocalFallback: true });
+    const { rows: brands = [], loading, error, reload, create, update, remove } =
+        useBrand({ useLocalFallback: true });
+
     const [selectedCell, setSelectedCell] = useState(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
-    const [editingGst, setEditingGst] = useState(null);
+    const [editingBrand, setEditingBrand] = useState(null);
 
-
-
+    useEffect(() => {
+        if (location.state?.savedBrand || location.state?.deletedBrandId) {
+            // server is source of truth now — reload list
+            reload();
+            // Clear the state
+            window.history.replaceState({}, document.title);
+        }
+    }, [location.state, reload]);
 
     const handleOpenCreate = () => {
-        setEditingGst(null);
+        setEditingBrand(null);
         setIsModalOpen(true);
     };
 
-    const handleEditGst = (gst) => {
-        setEditingGst(gst);
+    const handleEditBrand = (brand) => {
+        setEditingBrand(brand);
         setIsModalOpen(true);
     };
 
     const handleCloseModal = () => {
         setIsModalOpen(false);
-        setEditingGst(null);
+        setEditingBrand(null);
     };
 
-    const handleSaveGst = async (gstData, isEdit) => {
+    const handleSaveBrand = async (brandData, isEdit) => {
         try {
             if (isEdit) {
-                await update(gstData.id, { rate: gstData.rate });
+                await update(brandData.id, {
+                    brandName: brandData.brandName,
+                });
             } else {
-                await create({ rate: gstData.rate });
+                await create({
+                    brandName: brandData.brandName,
+                });
             }
-            // refresh list after operation
-            await reload();
             setIsModalOpen(false);
-            setEditingGst(null);
+            setEditingBrand(null);
         } catch (err) {
-            console.error("Failed to save GST:", err);
-            alert(err?.message || "Failed to save GST rate");
+            console.error("Failed to save brand:", err);
+            alert(err?.message || "Failed to save brand");
         }
     };
 
-
-    const handleDeleteGst = async (id) => {
-        if (!window.confirm("Are you sure you want to delete this GST rate?")) return;
+    const handleDeleteBrand = async (id) => {
+        if (!window.confirm("Are you sure you want to delete this brand?")) return;
         try {
             await remove(id);
-            await reload();
             setIsModalOpen(false);
-            setEditingGst(null);
+            setEditingBrand(null);
         } catch (err) {
-            console.error("Failed to delete GST:", err);
-            alert(err?.message || "Failed to delete GST rate");
+            console.error("Failed to delete brand:", err);
+            alert(err?.message || "Failed to delete brand");
         }
     };
-
 
     const handleCellClick = (rowIndex, colIndex) => {
         setSelectedCell({ rowIndex, colIndex });
@@ -238,10 +232,10 @@ export default function GstPage() {
         return () => window.removeEventListener('resize', calculateRows);
     }, []);
 
-    const emptyRowsCount = Math.max(0, visibleRows - gstRates.length);
+    const emptyRowsCount = Math.max(0, visibleRows - brands.length);
     const emptyRows = Array.from({ length: emptyRowsCount }, (_, i) => i);
 
-    const totalRecords = gstRates.length;
+    const totalRecords = brands.length;
     const startRecord = totalRecords > 0 ? 1 : 0;
     const endRecord = totalRecords;
 
@@ -262,7 +256,7 @@ export default function GstPage() {
             {/* Header Row */}
             <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
                 <div className="flex items-center gap-3">
-                    <h2 className="text-lg font-semibold text-gray-900">GST Rates</h2>
+                    <h2 className="text-lg font-semibold text-gray-900">Brands</h2>
                     <button className="text-gray-400 hover:text-yellow-500">
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
@@ -276,7 +270,7 @@ export default function GstPage() {
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                     </svg>
-                    Add GST Rate
+                    Add Brand
                 </button>
             </div>
 
@@ -319,7 +313,7 @@ export default function GstPage() {
                                 <th className="w-[70%] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
                                     <div className="flex items-center gap-2">
                                         <span className="text-gray-400 cursor-grab">⋮⋮</span>
-                                        <span>GST Rate (%)</span>
+                                        <span>Brand Name</span>
                                         <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
                                         </svg>
@@ -332,21 +326,21 @@ export default function GstPage() {
                         </thead>
                         <tbody>
                             {/* Data rows */}
-                            {gstRates.map((gst, rowIndex) => (
+                            {brands.map((brand, rowIndex) => (
                                 <tr
-                                    key={gst.id || gst._id || rowIndex}
+                                    key={brand.id || brand._id || rowIndex}
                                     className={`border-b border-gray-400 hover:bg-blue-100 transition-colors ${rowIndex % 2 === 0 ? 'bg-blue-50/40' : 'bg-white'}`}
                                 >
                                     <td
                                         className={getCellClasses(rowIndex, 0) + " text-left text-gray-900"}
                                         onClick={() => handleCellClick(rowIndex, 0)}
                                     >
-                                        {gst.rate}%
+                                        {brand.brandName}
                                     </td>
                                     <td className={`h-8 px-4 text-left sticky right-0 z-10 ${rowIndex % 2 === 0 ? 'bg-blue-50' : 'bg-white'}`} style={{ boxShadow: '-2px 0 0 0 #000' }}>
                                         <div className="flex items-center justify-end gap-2">
                                             <button
-                                                onClick={() => handleEditGst(gst)}
+                                                onClick={() => handleEditBrand(brand)}
                                                 className="text-blue-600 hover:underline text-sm"
                                             >
                                                 Edit
@@ -362,7 +356,7 @@ export default function GstPage() {
                             ))}
                             {/* Empty rows */}
                             {emptyRows.map((_, idx) => {
-                                const rowIndex = gstRates.length + idx;
+                                const rowIndex = brands.length + idx;
                                 return (
                                     <tr
                                         key={`empty-${idx}`}
@@ -372,7 +366,7 @@ export default function GstPage() {
                                             className={getCellClasses(rowIndex, 0)}
                                             onClick={() => handleCellClick(rowIndex, 0)}
                                         ></td>
-                                        <td className={`h-8 px-4 sticky right-0 border-l border-gray-300 ${rowIndex % 2 === 0 ? 'bg-blue-50' : 'bg-white'}`}></td>
+                                        <td className={`h-8 px-4 sticky right-0 z-10 ${rowIndex % 2 === 0 ? 'bg-blue-50' : 'bg-white'}`} style={{ boxShadow: '-2px 0 0 0 #000' }}></td>
                                     </tr>
                                 );
                             })}
@@ -386,13 +380,13 @@ export default function GstPage() {
                 {totalRecords > 0 ? `${startRecord}-${endRecord} of ${totalRecords} Records` : '0 Records'}
             </div>
 
-            {/* GST Modal */}
-            <GstModal
+            {/* Brand Modal */}
+            <BrandModal
                 isOpen={isModalOpen}
                 onClose={handleCloseModal}
-                onSave={handleSaveGst}
-                onDelete={handleDeleteGst}
-                editData={editingGst}
+                onSave={handleSaveBrand}
+                onDelete={handleDeleteBrand}
+                editData={editingBrand}
             />
         </div>
     );
