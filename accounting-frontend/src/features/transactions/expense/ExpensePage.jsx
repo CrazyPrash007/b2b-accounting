@@ -498,14 +498,43 @@ export default function ExpensePage() {
     const handleDownloadReceipt = async (expense) => {
         try {
             const id = expense._id ?? expense.id;
-            const res = await fetch(`/api/expense/${id}/receipt`);
-            if (!res.ok) throw new Error("Receipt not found");
+            if (!id) throw new Error("Invalid expense id");
+            const backendBase = "http://localhost:4000";
+
+            const headers = {};
+            if (window.__DEV_OWNER_ID__) headers['x-owner-id'] = window.__DEV_OWNER_ID__;
+
+            const res = await fetch(`${backendBase}/api/expense/${id}/receipt`, {
+                method: 'GET',
+                headers,
+                credentials: 'same-origin',
+            });
+
+            if (!res.ok) {
+                let msg = `Failed to download receipt (${res.status})`;
+                try {
+                    const j = await res.json();
+                    if (j && j.error && j.error.message) msg = j.error.message;
+                } catch (e) {
+                    // ignore parse errors
+                }
+                throw new Error(msg);
+            }
+            const contentDisposition = res.headers.get('content-disposition') || '';
+
+            const filenameMatch = contentDisposition.match(/filename\*=UTF-8''([^;]+)/i)
+                || contentDisposition.match(/filename="?([^";]+)"?/i);
+            let filename = filenameMatch ? decodeURIComponent(filenameMatch[1]) : (
+                (expense.receipt && expense.receipt.fileName) ||
+                expense.uploadBillName ||
+                `receipt-${id}`
+            );
+
             const blob = await res.blob();
             const url = window.URL.createObjectURL(blob);
-            const a = document.createElement("a");
+            const a = document.createElement('a');
             a.href = url;
-            const fileName = (expense.receipt && expense.receipt.fileName) || expense.uploadBillName || `receipt-${id}`;
-            a.download = fileName;
+            a.download = filename;
             document.body.appendChild(a);
             a.click();
             a.remove();
@@ -515,6 +544,7 @@ export default function ExpensePage() {
             alert(err?.message || "Download failed");
         }
     };
+
 
     return (
         <div className="h-full flex flex-col bg-white">

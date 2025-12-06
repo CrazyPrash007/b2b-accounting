@@ -8,10 +8,8 @@ export const listExpenses = api.list;
 // Override create to support FormData
 export async function createExpense(payload) {
     if (payload instanceof FormData) {
-        // assume apiClient is available from resourceApiFactory internals:
         const apiClient = require("src/services/apiClient").default;
         const res = await apiClient.post("/api/expense", payload, {
-            headers: { "Content-Type": "multipart/form-data" },
             withCredentials: true,
         });
         return res.data;
@@ -23,7 +21,6 @@ export async function updateExpense(id, payload) {
     if (payload instanceof FormData) {
         const apiClient = require("src/services/apiClient").default;
         const res = await apiClient.put(`/api/expense/${id}`, payload, {
-            headers: { "Content-Type": "multipart/form-data" },
             withCredentials: true,
         });
         return res.data;

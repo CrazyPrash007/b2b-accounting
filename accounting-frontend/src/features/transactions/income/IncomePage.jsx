@@ -488,23 +488,62 @@ export default function IncomePage() {
     const handleDownloadReceipt = async (income) => {
         try {
             const id = income._id ?? income.id;
-            const res = await fetch(`/api/income/${id}/receipt`);
-            if (!res.ok) throw new Error("Receipt not found");
+            if (!id) throw new Error("Invalid income id");
+
+            // Match backendBase used elsewhere in this file (keep in sync)
+            const backendBase = "http://localhost:4000";
+
+            // Optional dev owner header — set window.__DEV_OWNER_ID__ in dev if you want per-request header
+            const headers = {};
+            if (window.__DEV_OWNER_ID__) headers['x-owner-id'] = window.__DEV_OWNER_ID__;
+
+            // Fetch binary from backend (absolute URL to avoid vite/dev-server proxy issues)
+            const res = await fetch(`${backendBase}/api/income/${id}/receipt`, {
+                method: 'GET',
+                headers,
+                credentials: 'same-origin', // keep same-origin to include cookies if you ever use them
+            });
+
+            if (!res.ok) {
+                // Try to parse JSON error body (useful when backend returns { error: { message } })
+                let msg = `Failed to download receipt (${res.status})`;
+                try {
+                    const j = await res.json();
+                    if (j && j.error && j.error.message) msg = j.error.message;
+                } catch (e) {
+                    // ignore parse errors
+                }
+                throw new Error(msg);
+            }
+
+            // Try to infer filename from Content-Disposition header
+            const contentDisposition = res.headers.get('content-disposition') || '';
+            // Supports: filename="name.png" and filename*=UTF-8''name.png
+            const filenameMatch = contentDisposition.match(/filename\*=UTF-8''([^;]+)/i)
+                || contentDisposition.match(/filename="?([^";]+)"?/i);
+            let filename = filenameMatch ? decodeURIComponent(filenameMatch[1]) : (
+                (income.receipt && income.receipt.fileName) ||
+                income.uploadBillName ||
+                `receipt-${id}`
+            );
+
             const blob = await res.blob();
             const url = window.URL.createObjectURL(blob);
-            const a = document.createElement("a");
+            const a = document.createElement('a');
             a.href = url;
-            const fileName = (income.receipt && income.receipt.fileName) || income.uploadBillName || `receipt-${id}`;
-            a.download = fileName;
+            a.download = filename;
+            // ensure element in DOM for Firefox
             document.body.appendChild(a);
             a.click();
             a.remove();
             window.URL.revokeObjectURL(url);
         } catch (err) {
             console.error("Download failed", err);
+            // show a friendly message
             alert(err?.message || "Download failed");
         }
     };
+
 
     return (
         <div className="h-full flex flex-col bg-white">
