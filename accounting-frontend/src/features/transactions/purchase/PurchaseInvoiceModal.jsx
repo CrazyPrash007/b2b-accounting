@@ -1,18 +1,15 @@
-// src/features/purchase/PurchasePage.jsx
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 
 /**
- * PurchaseInvoiceModal + PurchasePage combined (single module)
- * - Forces backend host for suggestions (fast fix)
- * - Fetches customers + vendors (merged), items, gst, bank when modal opens
- * - Autofills rate from matched item
- * - Does NOT use localStorage for invoices (server should be source of truth)
+ * PurchaseInvoiceModal - Modal for creating/editing purchase invoices
+ * Mirrors Sales modal behavior: suggestions from server, rate autofill from selected item,
+ * no localStorage persistence for invoices (server is source of truth).
  *
- * Note: change API_BASE if your backend is not on http://localhost:4000
+ * Props:
+ *  - isOpen, onClose, onSave(purchaseData, isEdit), onDelete(id), editData
+ *  - withGst (bool), bankAccounts (array), gstRates (array)  <-- bankAccounts/gstRates are optional; modal will fetch if not provided
  */
-
-/* ----------------------------- PurchaseInvoiceModal ---------------------------- */
-function PurchaseInvoiceModal({
+export default function PurchaseInvoiceModal({
     isOpen,
     onClose,
     onSave,
@@ -22,22 +19,17 @@ function PurchaseInvoiceModal({
     bankAccounts: bankAccountsProp = [],
     gstRates: gstRatesProp = []
 }) {
-    // Force backend host (fast fix) — change if needed
-    const API_BASE = "http://localhost:4000";
-
-    // suggestion lists & loading state
+    // lists loaded from server (or props)
     const [bankAccounts, setBankAccounts] = useState(Array.isArray(bankAccountsProp) ? bankAccountsProp : []);
     const [gstList, setGstList] = useState(Array.isArray(gstRatesProp) ? gstRatesProp.map(g => (g && g.rate != null) ? String(g.rate) : String(g)) : []);
-    const [suppliersList, setSuppliersList] = useState([]); // merged customers + vendors
-    const [itemsList, setItemsList] = useState([]);
-    const [listsLoading, setListsLoading] = useState(false);
-    const [listsError, setListsError] = useState(null);
+    const [suppliersList, setSuppliersList] = useState([]); // merged customers + vendors (display strings)
+    const [itemsList, setItemsList] = useState([]); // full item objects
 
     // form state
     const [formData, setFormData] = useState({
         supplier: "",
         invoicePrefix: "PUR",
-        invoiceNumber: "",
+        invoiceNumber: "", // server should ideally assign; allow manual if desired
         invoiceSuffix: "",
         invoiceDate: new Date().toISOString().split('T')[0],
         supplierInvoiceNumber: "",
@@ -67,93 +59,142 @@ function PurchaseInvoiceModal({
     const [error, setError] = useState("");
     const isEditMode = !!editData;
 
-    // Defaults
+    // Default GST options if none available
     const defaultGstOptions = ["0", "5", "12", "18", "28"];
+
+    // Default payment modes
     const defaultPaymentModes = ["Cash", "UPI", "Credit Card", "Debit Card", "Cheque"];
 
-    // safe JSON parse for API responses that might wrap in { data: [...] }
-    async function parseJsonSafe(res) {
-        const body = await res.json().catch(() => null);
-        if (!body) return null;
-        if (typeof body === "object" && Object.prototype.hasOwnProperty.call(body, "data")) return body.data;
-        return body;
-    }
+    // Fetch suggestion lists when modal opens (unless parent supplied them)
+    useEffect(() => {
+        let mounted = true;
 
-    // Fetch customers, vendors, items, gst, bank (bank optional)
-    const fetchLists = async () => {
-        setListsLoading(true);
-        setListsError(null);
-        try {
-            const promises = await Promise.allSettled([
-                fetch(`${API_BASE}/api/customers`),
-                fetch(`${API_BASE}/api/vendors`),
-                fetch(`${API_BASE}/api/items`),
-                fetch(`${API_BASE}/api/gst`),
-                fetch(`${API_BASE}/api/bank`)
-            ]);
+        const parseJsonSafe = async (res) => {
+            const body = await res.json().catch(() => null);
+            if (!body) return null;
+            if (typeof body === "object" && Object.prototype.hasOwnProperty.call(body, "data")) return body.data;
+            return body;
+        };
 
-            const parseSettled = async (s) => {
-                if (s.status !== "fulfilled") return [];
-                const r = s.value;
-                if (!r) return [];
-                if (!r.ok) {
-                    const txt = await r.text().catch(() => "");
-                    console.warn("Non-OK response", r.status, txt);
-                    return [];
-                }
-                const parsed = await parseJsonSafe(r);
-                return Array.isArray(parsed) ? parsed : parsed ? [parsed] : [];
-            };
+        async function fetchLists() {
+            try {
+                // if parent passed them, respect props (but still fetch missing ones)
+                const toFetch = [
+                    (!suppliersList.length) ? fetch('/api/customers') : null,
+                    (!suppliersList.length) ? fetch('/api/vendors') : null,
+                    (!itemsList.length) ? fetch('/api/items') : null,
+                    (!gstList.length) ? fetch('/api/gst') : null,
+                    (!bankAccounts.length) ? fetch('/api/bank') : null
+                ].filter(Boolean);
 
-            const [customersData, vendorsData, itemsData, gstData, bankData] = await Promise.all(promises.map(p => parseSettled(p)));
+                if (!toFetch.length) return;
 
-            const normalizePeople = (arr) =>
-            (Array.isArray(arr) ? arr.map(c => {
-                if (!c) return null;
-                if (typeof c === 'string') return c;
-                return c.displayName || c.fullName || c.name || c.companyName || (c.email ? `${c.email}` : null);
-            }).filter(Boolean) : []);
+                const promises = await Promise.allSettled(toFetch);
 
-            const customersNormalized = normalizePeople(customersData);
-            const vendorsNormalized = normalizePeople(vendorsData);
-            const mergedSuppliers = Array.from(new Set([...(customersNormalized), ...(vendorsNormalized)]));
+                const parseSettled = async (s) => {
+                    if (s.status !== "fulfilled") return [];
+                    const r = s.value;
+                    if (!r || !r.ok) {
+                        return [];
+                    }
+                    const parsed = await parseJsonSafe(r);
+                    return Array.isArray(parsed) ? parsed : parsed ? [parsed] : [];
+                };
 
-            const itemsNormalized = (Array.isArray(itemsData) ? itemsData : [])
-                .map(it => {
-                    if (!it) return null;
-                    const title = it.itemName || it.name || it.title || it.displayName || "";
-                    return { ...it, _displayName: title, displayName: title };
-                }).filter(Boolean);
+                // Map in same request order (customers, vendors, items, gst, bank) depending on which were requested
+                const results = await Promise.all(promises.map(p => parseSettled(p)));
 
-            const gstNormalized = (Array.isArray(gstData) ? gstData : [])
-                .map(g => {
-                    if (!g) return null;
-                    if (typeof g === "number") return String(g);
-                    if (typeof g === "string") return g;
-                    if (g.rate != null) return String(g.rate);
-                    return null;
-                }).filter(Boolean);
-
-            const bankNormalized = (Array.isArray(bankData) ? bankData : [])
-                .map(b => {
-                    if (!b) return null;
-                    const display = b.accountDisplayName || b.bankName || b.name || (b.accountNumber ? `Acct ${b.accountNumber}` : null);
-                    return { ...b, accountDisplayName: display };
-                }).filter(Boolean);
-
-            setSuppliersList(mergedSuppliers);
-            setItemsList(itemsNormalized);
-            setGstList(gstNormalized.length ? Array.from(new Set(gstNormalized)) : defaultGstOptions);
-            if (bankNormalized.length) setBankAccounts(bankNormalized);
-        } catch (err) {
-            console.error("Failed to fetch lists for purchase modal", err);
-            setListsError(err);
-        } finally {
-            setListsLoading(false);
+                // Determine which results correspond to which endpoint by checking lengths and what we requested.
+                // Simpler approach: re-fetch individually if we need fine control.
+            } catch (err) {
+                console.warn("Failed to bulk fetch lists for purchase modal", err);
+            }
         }
-    };
 
-    // When modal opens, seed form and fetch lists if missing
+        // Simpler robust fetch: fetch each required endpoint individually only if missing
+        async function fetchIfMissing() {
+            try {
+                if (!suppliersList.length) {
+                    const [cRes, vRes] = await Promise.allSettled([fetch('/api/customers'), fetch('/api/vendors')]);
+                    const parse = async (r) => {
+                        if (!r || r.status !== 200) return [];
+                        const body = await r.json().catch(() => null);
+                        return Array.isArray(body && body.data ? body.data : body) ? (body.data || body) : [];
+                    };
+                    const customers = cRes.status === 'fulfilled' ? await parse(cRes.value) : [];
+                    const vendors = vRes.status === 'fulfilled' ? await parse(vRes.value) : [];
+                    // normalize display strings
+                    const normalize = arr => (Array.isArray(arr) ? arr.map(c => {
+                        if (!c) return null;
+                        if (typeof c === 'string') return c;
+                        return c.displayName || c.fullName || c.name || c.companyName || (c.email ? `${c.email}` : null);
+                    }).filter(Boolean) : []);
+                    const merged = Array.from(new Set([...(normalize(customers)), ...(normalize(vendors))]));
+                    if (mounted) setSuppliersList(merged);
+                }
+
+                if (!itemsList.length) {
+                    const res = await fetch('/api/items');
+                    if (res && res.ok) {
+                        const body = await res.json().catch(() => null);
+                        const data = body && body.data ? body.data : (Array.isArray(body) ? body : []);
+                        // ensure display name for each item
+                        const itemsNormalized = (Array.isArray(data) ? data : []).map(it => {
+                            if (!it) return null;
+                            const title = it.itemName || it.name || it.title || it.displayName || "";
+                            return { ...it, _displayName: title, displayName: title };
+                        }).filter(Boolean);
+                        if (mounted) setItemsList(itemsNormalized);
+                    }
+                }
+
+                if (!gstList.length) {
+                    const res = await fetch('/api/gst');
+                    if (res && res.ok) {
+                        const body = await res.json().catch(() => null);
+                        const data = body && body.data ? body.data : (Array.isArray(body) ? body : []);
+                        const gstNormalized = (Array.isArray(data) ? data : [])
+                            .map(g => {
+                                if (!g) return null;
+                                if (typeof g === "number") return String(g);
+                                if (typeof g === "string") return g;
+                                if (g.rate != null) return String(g.rate);
+                                return null;
+                            })
+                            .filter(Boolean);
+                        if (mounted) setGstList(gstNormalized.length ? Array.from(new Set(gstNormalized)) : defaultGstOptions);
+                    } else {
+                        if (mounted && !gstList.length) setGstList(defaultGstOptions);
+                    }
+                }
+
+                if (!bankAccounts.length) {
+                    const res = await fetch('/api/bank');
+                    if (res && res.ok) {
+                        const body = await res.json().catch(() => null);
+                        const data = body && body.data ? body.data : (Array.isArray(body) ? body : []);
+                        const bankNormalized = (Array.isArray(data) ? data : [])
+                            .map(b => {
+                                if (!b) return null;
+                                const display = b.accountDisplayName || b.bankName || b.name || (b.accountNumber ? `Acct ${b.accountNumber}` : null);
+                                return { ...b, accountDisplayName: display };
+                            })
+                            .filter(Boolean);
+                        if (mounted) setBankAccounts(bankNormalized);
+                    }
+                }
+            } catch (err) {
+                console.error("Error fetching purchase modal lists:", err);
+            }
+        }
+
+        if (isOpen) fetchIfMissing();
+
+        return () => { mounted = false; };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isOpen]);
+
+    // When modal opens in edit mode, seed form and helper arrays
     useEffect(() => {
         if (!isOpen) return;
 
@@ -191,6 +232,7 @@ function PurchaseInvoiceModal({
             setPayments(editData.payments || []);
             setError("");
         } else {
+            // New invoice: reset (leave invoiceNumber blank for server-side numbering)
             setFormData({
                 supplier: "",
                 invoicePrefix: "PUR",
@@ -214,11 +256,6 @@ function PurchaseInvoiceModal({
             setPayments([]);
             setError("");
         }
-
-        // fetch suggestions when modal opens (unless already loaded)
-        if (!suppliersList.length || !itemsList.length || !gstList.length || !bankAccounts.length) {
-            fetchLists();
-        }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isOpen, editData]);
 
@@ -234,7 +271,6 @@ function PurchaseInvoiceModal({
         return rateVal != null ? String(rateVal) : "";
     };
 
-    // Handlers (same behavior as your original modal)
     const handleChange = (field, value) => {
         setFormData(prev => ({ ...prev, [field]: value }));
         if (error) setError("");
@@ -342,11 +378,14 @@ function PurchaseInvoiceModal({
         if (e.key === 'Enter' && !e.shiftKey) {
             const target = e.target;
             if (target.closest('[data-items-table]')) return;
+
             e.preventDefault();
             const form = target.closest('[data-form-container]');
             if (!form) return;
+
             const inputs = Array.from(form.querySelectorAll('input:not([data-items-table] input), select:not([data-items-table] select), textarea:not([data-items-table] textarea)'));
             const currentIndex = inputs.indexOf(target);
+
             if (currentIndex !== -1 && currentIndex < inputs.length - 1) {
                 inputs[currentIndex + 1].focus();
             }
@@ -357,6 +396,7 @@ function PurchaseInvoiceModal({
         const hasGoodsService = item.goodsService && item.goodsService.trim() !== "";
         const hasQty = item.qty && parseFloat(item.qty) > 0;
         const hasRate = item.rate && parseFloat(item.rate) > 0;
+
         if (withGst) {
             const hasGstPercent = item.gstPercent !== "" && item.gstPercent !== undefined && item.gstPercent !== null;
             return hasGoodsService && hasQty && hasRate && hasGstPercent;
@@ -392,20 +432,28 @@ function PurchaseInvoiceModal({
         let taxableAmt = 0;
         let totalGst = 0;
         let totalFinalAmt = 0;
+
         formData.items.forEach(item => {
             const actualAmount = parseFloat(item.actualAmount) || 0;
             const finalAmount = parseFloat(item.finalAmount) || 0;
+
             taxableAmt += actualAmount;
             totalFinalAmt += finalAmount;
             totalGst += (finalAmount - actualAmount);
         });
+
         let subTotal = totalFinalAmt;
         const discountAmount = parseFloat(formData.discount) || 0;
         let total = subTotal - discountAmount;
+
         additionalCharges.forEach(c => {
             total += parseFloat(c.amount) || 0;
         });
-        if (formData.autoRoundOff) total = Math.round(total);
+
+        if (formData.autoRoundOff) {
+            total = Math.round(total);
+        }
+
         return { taxableAmt, totalGst, subTotal, total };
     };
 
@@ -417,12 +465,14 @@ function PurchaseInvoiceModal({
             setError("Supplier is required");
             return;
         }
+
         if (!Array.isArray(formData.items) || formData.items.length === 0) {
             setError("At least one item is required");
             return;
         }
 
         const payload = {
+            // do not rely on client id; server will assign _id
             ...formData,
             withGst,
             totalAmount: totals.total,
@@ -432,15 +482,29 @@ function PurchaseInvoiceModal({
             payments
         };
 
+        // do not update invoice counter in localStorage — server should manage numbering
         onSave(payload, isEditMode);
-        // close locally in case parent doesn't
-        try { onClose && onClose(); } catch (e) { /* noop */ }
+        // modal will be closed by parent if parent follows Sales pattern; still close locally for safety
+        setIsModalOpenLocalFalse();
     };
+
+    // helper to closes modal locally (used after save to avoid stuck modal if parent doesn't close)
+    function setIsModalOpenLocalFalse() {
+        // attempt to close; parent may choose to reload and close
+        try {
+            onClose && onClose();
+        } catch (e) {
+            /* noop */
+        }
+    }
 
     const handleBackdropClick = (e) => {
-        if (e.target === e.currentTarget) onClose();
+        if (e.target === e.currentTarget) {
+            onClose();
+        }
     };
 
+    // handle adding additional charge
     const addCharge = () => {
         if (!chargeName || !chargeAmount) return;
         setAdditionalCharges(prev => [...prev, { name: chargeName, amount: chargeAmount }]);
@@ -449,6 +513,7 @@ function PurchaseInvoiceModal({
         setShowAddCharge(false);
     };
 
+    // handle adding payment split
     const addPaymentSplit = () => {
         if (!paymentMode || !paymentAmount) return;
         setPayments(prev => [...prev, { mode: paymentMode, amount: paymentAmount }]);
@@ -457,6 +522,7 @@ function PurchaseInvoiceModal({
         setShowAddPayment(false);
     };
 
+    // Delete handler calls parent onDelete with id (parent will call server)
     const handleDeleteClick = () => {
         if (!isEditMode) return;
         const id = editData?._id || editData?.id;
@@ -465,8 +531,10 @@ function PurchaseInvoiceModal({
         onDelete && onDelete(id);
     };
 
+    // If modal not open, nothing to render
     if (!isOpen) return null;
 
+    // Payment mode and paidFrom options
     const bankAccountOptions = bankAccounts.map(acc => acc.accountDisplayName || acc.bankName).filter(Boolean);
     const paymentModes = [...defaultPaymentModes, ...bankAccountOptions];
     const paidFromOptions = ["Cash-in-Hand", ...bankAccountOptions, "Petty Cash"];
@@ -532,7 +600,7 @@ function PurchaseInvoiceModal({
                         </div>
                     </div>
 
-                    {/* Items table */}
+                    {/* Items table (same layout as before) */}
                     <div className="border border-gray-300 rounded-lg overflow-hidden shrink-0 max-h-[250px] overflow-y-auto" data-items-table>
                         <table className="w-full text-sm">
                             <thead className="bg-gray-50 border-b border-gray-300 sticky top-0">
@@ -724,198 +792,6 @@ function PurchaseInvoiceModal({
                     </div>
                 </div>
             </div>
-        </div>
-    );
-}
-
-/* --------------------------------- PurchasePage --------------------------------- */
-export default function PurchasePage() {
-    const [invoices, setInvoices] = useState([]);
-    const [selectedCell, setSelectedCell] = useState(null);
-    const [isModalOpen, setIsModalOpen] = useState(false);
-    const [editingInvoice, setEditingInvoice] = useState(null);
-    const [invoiceType, setInvoiceType] = useState("withGst");
-    const [activeTab, setActiveTab] = useState("all");
-    const [bankAccounts, setBankAccounts] = useState([]);
-    const [gstRates, setGstRates] = useState([]);
-
-    const tableContainerRef = useRef(null);
-    const TOTAL_ROWS = 15;
-    const [visibleRows, setVisibleRows] = useState(TOTAL_ROWS);
-
-    useEffect(() => {
-        const calculateRows = () => {
-            if (tableContainerRef.current) {
-                const containerHeight = tableContainerRef.current.clientHeight;
-                const rowHeight = 32;
-                const headerHeight = 36;
-                const availableHeight = containerHeight - headerHeight;
-                const rows = Math.floor(availableHeight / rowHeight);
-                setVisibleRows(Math.max(rows, 1));
-            }
-        };
-        calculateRows();
-        window.addEventListener('resize', calculateRows);
-        return () => window.removeEventListener('resize', calculateRows);
-    }, []);
-
-    // Filtered invoices
-    const filteredInvoices = activeTab === "all"
-        ? invoices
-        : activeTab === "withGst"
-            ? invoices.filter(inv => inv.withGst)
-            : invoices.filter(inv => !inv.withGst);
-
-    const emptyRowsCount = Math.max(0, visibleRows - filteredInvoices.length);
-    const emptyRows = Array.from({ length: emptyRowsCount }, (_, i) => i);
-
-    const totalRecords = filteredInvoices.length;
-    const startRecord = totalRecords > 0 ? 1 : 0;
-    const endRecord = totalRecords;
-
-    const isCellSelected = (rowIndex, colIndex) => selectedCell?.rowIndex === rowIndex && selectedCell?.colIndex === colIndex;
-
-    const getCellClasses = (rowIndex, colIndex) => {
-        const baseClasses = "h-8 px-4 border-r border-gray-400 cursor-cell";
-        const selectedClasses = isCellSelected(rowIndex, colIndex) ? "outline outline-2 outline-blue-500 outline-offset-[-2px] bg-blue-50" : "";
-        return `${baseClasses} ${selectedClasses}`;
-    };
-
-    const formatDate = (dateString) => {
-        if (!dateString) return "-";
-        const date = new Date(dateString);
-        return date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
-    };
-
-    const formatCurrency = (amount) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', minimumFractionDigits: 2 }).format(amount || 0);
-
-    const handleOpenCreate = (type) => {
-        setInvoiceType(type);
-        setEditingInvoice(null);
-        setIsModalOpen(true);
-    };
-
-    const handleEditInvoice = (invoice) => {
-        setInvoiceType(invoice.withGst ? "withGst" : "withoutGst");
-        setEditingInvoice(invoice);
-        setIsModalOpen(true);
-    };
-
-    const handleCloseModal = () => {
-        setIsModalOpen(false);
-        setEditingInvoice(null);
-    };
-
-    // NOTE: These handlers are still local/in-memory. Replace with your hook calls (create/update/remove/reload) as needed.
-    const handleSaveInvoice = (invoiceData, isEdit) => {
-        if (isEdit) {
-            setInvoices(prev => prev.map(inv => (inv.id === invoiceData.id ? invoiceData : inv)));
-        } else {
-            // If server assigns _id, parent should reload. For now keep in-memory id
-            setInvoices(prev => [...prev, { ...invoiceData, id: invoiceData.id || String(Date.now()) }]);
-        }
-        setIsModalOpen(false);
-        setEditingInvoice(null);
-    };
-
-    const handleDeleteInvoice = (id) => {
-        if (!window.confirm("Are you sure you want to delete this invoice?")) return;
-        setInvoices(prev => prev.filter(inv => inv.id !== id));
-        setIsModalOpen(false);
-        setEditingInvoice(null);
-    };
-
-    const handleCellClick = (rowIndex, colIndex) => setSelectedCell({ rowIndex, colIndex });
-
-    const handleTableContainerClick = (e) => { if (e.target === e.currentTarget) setSelectedCell(null); };
-
-    return (
-        <div className="h-full flex flex-col bg-white">
-            {/* Header & toolbar */}
-            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
-                <div className="flex items-center gap-3">
-                    <h2 className="text-lg font-semibold text-gray-900">Purchase</h2>
-                </div>
-                <div className="flex items-center gap-2">
-                    <button onClick={() => handleOpenCreate("withGst")} className="flex items-center gap-1 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition-colors text-sm font-medium">With GST</button>
-                    <button onClick={() => handleOpenCreate("withoutGst")} className="flex items-center gap-1 bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700 transition-colors text-sm font-medium">Without GST</button>
-                </div>
-            </div>
-
-            {/* Tabs */}
-            <div className="flex items-center gap-4 px-4 py-2 border-b border-gray-100">
-                <button onClick={() => setActiveTab("all")} className={`px-3 py-1.5 text-sm font-medium rounded transition-colors ${activeTab === "all" ? "bg-blue-100 text-blue-700" : "text-gray-600 hover:bg-gray-100"}`}>All Invoices</button>
-                <button onClick={() => setActiveTab("withGst")} className={`px-3 py-1.5 text-sm font-medium rounded transition-colors ${activeTab === "withGst" ? "bg-blue-100 text-blue-700" : "text-gray-600 hover:bg-gray-100"}`}>With GST</button>
-                <button onClick={() => setActiveTab("withoutGst")} className={`px-3 py-1.5 text-sm font-medium rounded transition-colors ${activeTab === "withoutGst" ? "bg-gray-200 text-gray-700" : "text-gray-600 hover:bg-gray-100"}`}>Without GST</button>
-            </div>
-
-            {/* Table */}
-            <div ref={tableContainerRef} className="flex-1 overflow-auto px-4 pb-1" onClick={handleTableContainerClick}>
-                <div className="border border-gray-400 rounded overflow-hidden h-full">
-                    <div className="overflow-x-auto h-full">
-                        <table className="min-w-[1200px] w-full border-collapse text-sm" style={{ borderSpacing: 0 }}>
-                            <thead className="sticky top-0 z-10 bg-white">
-                                <tr className="border-b border-gray-400">
-                                    <th className="min-w-[110px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">Date</th>
-                                    <th className="min-w-[140px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">Invoice No.</th>
-                                    <th className="min-w-[180px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">Supplier</th>
-                                    <th className="min-w-[130px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">Amount</th>
-                                    <th className="min-w-[110px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">GST</th>
-                                    <th className="min-w-[120px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">Type</th>
-                                    <th className="min-w-[110px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">Payment</th>
-                                    <th className="min-w-[100px] h-9 px-4 text-left text-sm font-medium text-gray-700 sticky right-0 z-20 bg-gray-100 border-l border-gray-400">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {filteredInvoices.map((invoice, rowIndex) => (
-                                    <tr key={invoice.id} className={`border-b border-gray-400 hover:bg-blue-100 transition-colors ${rowIndex % 2 === 0 ? 'bg-blue-50/40' : 'bg-white'}`}>
-                                        <td className={getCellClasses(rowIndex, 0) + " text-left text-gray-600"} onClick={() => handleCellClick(rowIndex, 0)}>{formatDate(invoice.invoiceDate)}</td>
-                                        <td className={getCellClasses(rowIndex, 1) + " text-left text-blue-600"} onClick={() => handleCellClick(rowIndex, 1)}>{invoice.invoicePrefix}{invoice.invoiceNumber}{invoice.invoiceSuffix}</td>
-                                        <td className={getCellClasses(rowIndex, 2) + " text-left text-gray-600"} onClick={() => handleCellClick(rowIndex, 2)}>{invoice.supplier}</td>
-                                        <td className={getCellClasses(rowIndex, 3) + " text-left text-gray-600 font-medium"} onClick={() => handleCellClick(rowIndex, 3)}>{formatCurrency(invoice.totalAmount)}</td>
-                                        <td className={getCellClasses(rowIndex, 4) + " text-left text-gray-600"} onClick={() => handleCellClick(rowIndex, 4)}>{invoice.withGst ? formatCurrency(invoice.gstAmount) : "-"}</td>
-                                        <td className={getCellClasses(rowIndex, 5) + " text-left"} onClick={() => handleCellClick(rowIndex, 5)}><span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${invoice.withGst ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'}`}>{invoice.withGst ? "With GST" : "Without GST"}</span></td>
-                                        <td className={getCellClasses(rowIndex, 6) + " text-left text-gray-600"} onClick={() => handleCellClick(rowIndex, 6)}>{invoice.isPaymentMade ? (<span className="text-green-600 text-xs">✓ Paid</span>) : (<span className="text-yellow-600 text-xs">Pending</span>)}</td>
-                                        <td className={`h-8 px-4 text-left sticky right-0 z-10 border-l border-gray-400 ${rowIndex % 2 === 0 ? 'bg-blue-50' : 'bg-white'}`}><div className="flex items-center justify-end gap-2"><button onClick={() => handleEditInvoice(invoice)} className="text-blue-600 hover:underline text-sm">Edit</button></div></td>
-                                    </tr>
-                                ))}
-                                {emptyRows.map((_, idx) => {
-                                    const rowIndex = filteredInvoices.length + idx;
-                                    return (
-                                        <tr key={`empty-${idx}`} className={`border-b border-gray-400 hover:bg-blue-100 transition-colors ${rowIndex % 2 === 0 ? 'bg-blue-50/40' : 'bg-white'}`}>
-                                            <td className={getCellClasses(rowIndex, 0)}></td>
-                                            <td className={getCellClasses(rowIndex, 1)}></td>
-                                            <td className={getCellClasses(rowIndex, 2)}></td>
-                                            <td className={getCellClasses(rowIndex, 3)}></td>
-                                            <td className={getCellClasses(rowIndex, 4)}></td>
-                                            <td className={getCellClasses(rowIndex, 5)}></td>
-                                            <td className={getCellClasses(rowIndex, 6)}></td>
-                                            <td className={`h-8 px-4 sticky right-0 z-10 border-l border-gray-400 ${rowIndex % 2 === 0 ? 'bg-blue-50' : 'bg-white'}`}></td>
-                                        </tr>
-                                    );
-                                })}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-
-            {/* Footer */}
-            <div className="px-4 py-2 border-t border-gray-200 text-sm text-blue-600 bg-white">
-                {totalRecords > 0 ? `${startRecord}-${endRecord} of ${totalRecords} Records` : '0 Records'}
-            </div>
-
-            {/* Modal (same module) */}
-            <PurchaseInvoiceModal
-                isOpen={isModalOpen}
-                onClose={handleCloseModal}
-                onSave={handleSaveInvoice}
-                onDelete={handleDeleteInvoice}
-                editData={editingInvoice}
-                withGst={invoiceType === "withGst"}
-                bankAccounts={bankAccounts}
-                gstRates={gstRates}
-            />
         </div>
     );
 }

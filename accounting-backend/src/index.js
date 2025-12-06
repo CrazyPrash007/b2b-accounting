@@ -13,6 +13,8 @@ const brandRoutes = require('./routes/brand.routes');
 const itemRoutes = require('./routes/item.routes');
 const incomeRoutes = require('./routes/income.routes');
 const expenseRoutes = require('./routes/expense.routes');
+const saleRoutes = require('./routes/sale.routes');
+const purchaseRoutes = require('./routes/purchase.routes');
 const errorHandler = require('./middlewares/errorHandler');
 
 const PORT = process.env.PORT || 4000;
@@ -38,6 +40,8 @@ async function start() {
     app.use('/api/items', itemRoutes);
     app.use('/api/income', incomeRoutes);
     app.use('/api/expense', expenseRoutes);
+    app.use('/api/sales', saleRoutes);
+    app.use('/api/purchases', purchaseRoutes);
 
     // Global error handler
     app.use(errorHandler);
