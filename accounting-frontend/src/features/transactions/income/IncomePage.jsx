@@ -1,5 +1,7 @@
 // IncomePage.jsx
 import React, { useState, useEffect, useRef } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
+import useIncome from "./hooks/useIncome";
 
 /**
  * IncomeModal - Modal for creating/editing income entries
@@ -133,10 +135,10 @@ function IncomeModal({ isOpen, onClose, onSave, onDelete, editData }) {
             e.preventDefault();
             const form = e.target.closest('[data-form-container]');
             if (!form) return;
-            
+
             const inputs = Array.from(form.querySelectorAll('input, select, textarea'));
             const currentIndex = inputs.indexOf(e.target);
-            
+
             if (currentIndex !== -1 && currentIndex < inputs.length - 1) {
                 inputs[currentIndex + 1].focus();
             }
@@ -236,7 +238,7 @@ function IncomeModal({ isOpen, onClose, onSave, onDelete, editData }) {
                             <label className="block text-sm font-medium text-gray-700 mb-1.5 uppercase tracking-wide">
                                 Upload Bill
                             </label>
-                            <div 
+                            <div
                                 onClick={() => fileInputRef.current?.click()}
                                 className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center cursor-pointer hover:border-blue-400 hover:bg-blue-50/30 transition-colors"
                             >
@@ -314,13 +316,14 @@ function IncomeModal({ isOpen, onClose, onSave, onDelete, editData }) {
     );
 }
 
-/**
- * IncomePage
- * - Frontend-only income management
- * - Excel-like table with row highlighting and cell selection
- */
+
 export default function IncomePage() {
-    const [incomes, setIncomes] = useState([]);
+    // server-backed hook (assumes returns { rows, loading, error, reload, create, update, remove })
+    const { rows: hookRows = [], loading, error, reload, create, update, remove } = useIncome({ useLocalFallback: true });
+
+    // keep same local variable name used by UI for minimal changes
+    const incomes = hookRows || [];
+
     const [selectedCell, setSelectedCell] = useState(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingIncome, setEditingIncome] = useState(null);
@@ -340,25 +343,79 @@ export default function IncomePage() {
         setEditingIncome(null);
     };
 
-    const handleSaveIncome = (incomeData, isEdit) => {
-        if (isEdit) {
-            setIncomes((prev) =>
-                prev.map((inc) =>
-                    inc.id === incomeData.id ? incomeData : inc
-                )
-            );
-        } else {
-            setIncomes((prev) => [...prev, incomeData]);
-        }
-        setIsModalOpen(false);
-        setEditingIncome(null);
-    };
+    // incomeData shape comes from your modal (has uploadBill file in uploadBill, uploadBillName, etc.)
+    const handleSaveIncome = async (incomeData, isEdit) => {
+        try {
+            // Basic client-side validation — keep as-is if modal already validates
+            if (!incomeData.billName || !String(incomeData.billName).trim()) {
+                alert("Bill Name is required");
+                return;
+            }
+            if (!incomeData.incomeAmount || Number(incomeData.incomeAmount) <= 0) {
+                alert("Valid Income Amount is required");
+                return;
+            }
+            if (!incomeData.category || !String(incomeData.category).trim()) {
+                alert("Category is required");
+                return;
+            }
 
-    const handleDeleteIncome = (id) => {
-        if (window.confirm("Are you sure you want to delete this income entry?")) {
-            setIncomes((prev) => prev.filter((inc) => inc.id !== id));
+            // Build FormData for multipart upload (controller expects 'uploadBill' field)
+            const fd = new FormData();
+            if (incomeData.date) fd.append("date", new Date(incomeData.date).toISOString());
+            fd.append("billName", String(incomeData.billName || "").trim());
+            fd.append("incomeAmount", String(Number(incomeData.incomeAmount || 0)));
+            fd.append("paymentMethod", String(incomeData.paymentMethod || ""));
+            fd.append("category", String(incomeData.category || ""));
+            fd.append("notes", String(incomeData.notes || ""));
+
+            // If modal provided a File object in uploadBill, append it
+            if (incomeData.uploadBill instanceof File) {
+                fd.append("uploadBill", incomeData.uploadBill, incomeData.uploadBill.name);
+            }
+
+            const backendBase = "http://localhost:4000";
+            if (isEdit) {
+                const id = incomeData.id ?? incomeData._id;
+                const res = await fetch(`${backendBase}/api/income/${id}`, {
+                    method: 'PUT',
+                    body: fd,
+                    credentials: 'same-origin',
+                });
+                if (!res.ok) throw new Error(`Failed to update: ${res.status}`);
+            } else {
+                const res = await fetch(`${backendBase}/api/income`, {
+                    method: 'POST',
+                    body: fd,
+                    credentials: 'same-origin',
+                });
+                if (!res.ok) throw new Error(`Failed to create: ${res.status}`);
+            }
+            await reload();
+
+
+            // close modal and refresh canonical data
             setIsModalOpen(false);
             setEditingIncome(null);
+            await reload();
+        } catch (err) {
+            console.error("Failed to save income:", err);
+            // surface helpful message if present
+            const msg = err?.response?.data?.error?.message || err?.message || "Failed to save income";
+            alert(msg);
+        }
+    };
+
+    const handleDeleteIncome = async (id) => {
+        if (!window.confirm("Are you sure you want to delete this income entry?")) return;
+        try {
+            await remove(id);
+            setIsModalOpen(false);
+            setEditingIncome(null);
+            await reload();
+        } catch (err) {
+            console.error("Failed to delete income:", err);
+            alert(err?.message || "Failed to delete");
         }
     };
 
@@ -413,16 +470,40 @@ export default function IncomePage() {
     };
 
     const formatDate = (dateString) => {
+        if (!dateString) return "-";
         const date = new Date(dateString);
         return date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
     };
 
     const formatCurrency = (amount) => {
+        if (amount == null || amount === "") return "₹0.00";
         return new Intl.NumberFormat('en-IN', {
             style: 'currency',
             currency: 'INR',
             minimumFractionDigits: 2,
-        }).format(amount);
+        }).format(Number(amount));
+    };
+
+    // Download receipt helper: uses route GET /api/income/:id/receipt (controller you created)
+    const handleDownloadReceipt = async (income) => {
+        try {
+            const id = income._id ?? income.id;
+            const res = await fetch(`/api/income/${id}/receipt`);
+            if (!res.ok) throw new Error("Receipt not found");
+            const blob = await res.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            const fileName = (income.receipt && income.receipt.fileName) || income.uploadBillName || `receipt-${id}`;
+            a.download = fileName;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            window.URL.revokeObjectURL(url);
+        } catch (err) {
+            console.error("Download failed", err);
+            alert(err?.message || "Download failed");
+        }
     };
 
     return (
@@ -450,33 +531,7 @@ export default function IncomePage() {
 
             {/* Toolbar - Icons commented out as per requirement */}
             <div className="flex items-center justify-end gap-2 px-4 py-2 border-b border-gray-100">
-                {/* <button className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded">
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                    </svg>
-                </button>
-                <button className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded">
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
-                    </svg>
-                </button>
-                <button className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded">
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
-                    </svg>
-                </button>
-                <button className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded">
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
-                    </svg>
-                </button>
-                <div className="w-px h-5 bg-gray-300 mx-1"></div>
-                <button className="flex items-center gap-2 px-3 py-1.5 text-gray-600 hover:bg-gray-100 rounded text-sm">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
-                    </svg>
-                    More Filter
-                </button> */}
+                {/* toolbar buttons are intentionally commented */}
             </div>
 
             {/* Table Container - Scrollable */}
@@ -487,136 +542,137 @@ export default function IncomePage() {
             >
                 <div className="border border-gray-400 rounded overflow-hidden h-full">
                     <div className="overflow-x-auto h-full">
-                    <table className="min-w-[1000px] w-full border-collapse text-sm" style={{ borderSpacing: 0 }}>
-                        <thead className="sticky top-0 z-10 bg-white">
-                            <tr className="border-b border-gray-400">
-                                <th className="min-w-[110px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-gray-400 cursor-grab">⋮⋮</span>
-                                        <span>Date</span>
-                                    </div>
-                                </th>
-                                <th className="min-w-[180px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-gray-400 cursor-grab">⋮⋮</span>
-                                        <span>Bill Name</span>
-                                    </div>
-                                </th>
-                                <th className="min-w-[130px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-gray-400 cursor-grab">⋮⋮</span>
-                                        <span>Amount</span>
-                                    </div>
-                                </th>
-                                <th className="min-w-[130px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-gray-400 cursor-grab">⋮⋮</span>
-                                        <span>Category</span>
-                                    </div>
-                                </th>
-                                <th className="min-w-[140px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-gray-400 cursor-grab">⋮⋮</span>
-                                        <span>Payment Method</span>
-                                    </div>
-                                </th>
-                                <th className="min-w-[100px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-gray-400 cursor-grab">⋮⋮</span>
-                                        <span>Bill</span>
-                                    </div>
-                                </th>
-                                <th className="min-w-[100px] h-9 px-4 text-left text-sm font-medium text-gray-700 sticky right-0 z-20 bg-gray-100 border-l border-gray-400" style={{ boxShadow: '-4px 0 8px -2px rgba(0, 0, 0, 0.15)' }}>
-                                    Actions
-                                </th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {/* Data rows */}
-                            {incomes.map((income, rowIndex) => (
-                                <tr
-                                    key={income.id}
-                                    className={`border-b border-gray-400 hover:bg-blue-100 transition-colors ${rowIndex % 2 === 0 ? 'bg-blue-50/40' : 'bg-white'}`}
-                                >
-                                    <td
-                                        className={getCellClasses(rowIndex, 0) + " text-left text-gray-600"}
-                                        onClick={() => handleCellClick(rowIndex, 0)}
-                                    >
-                                        {formatDate(income.date)}
-                                    </td>
-                                    <td
-                                        className={getCellClasses(rowIndex, 1) + " text-left text-blue-600"}
-                                        onClick={() => handleCellClick(rowIndex, 1)}
-                                    >
-                                        {income.billName}
-                                    </td>
-                                    <td
-                                        className={getCellClasses(rowIndex, 2) + " text-left text-green-600 font-medium"}
-                                        onClick={() => handleCellClick(rowIndex, 2)}
-                                    >
-                                        {formatCurrency(income.incomeAmount)}
-                                    </td>
-                                    <td
-                                        className={getCellClasses(rowIndex, 3) + " text-left text-gray-600"}
-                                        onClick={() => handleCellClick(rowIndex, 3)}
-                                    >
-                                        <span className="inline-flex items-center px-2 py-0.5 rounded bg-green-100 text-green-700 text-xs">
-                                            {income.category}
-                                        </span>
-                                    </td>
-                                    <td
-                                        className={getCellClasses(rowIndex, 4) + " text-left text-gray-600"}
-                                        onClick={() => handleCellClick(rowIndex, 4)}
-                                    >
-                                        {income.paymentMethod || "-"}
-                                    </td>
-                                    <td
-                                        className={getCellClasses(rowIndex, 5) + " text-left"}
-                                        onClick={() => handleCellClick(rowIndex, 5)}
-                                    >
-                                        {income.uploadBillName ? (
-                                            <span className="text-blue-600 text-xs">📄 Attached</span>
-                                        ) : (
-                                            <span className="text-gray-400 text-xs">-</span>
-                                        )}
-                                    </td>
-                                    <td className={`h-8 px-4 text-left sticky right-0 z-10 border-l border-gray-400 ${rowIndex % 2 === 0 ? 'bg-blue-50' : 'bg-white'}`} style={{ boxShadow: '-4px 0 8px -2px rgba(0, 0, 0, 0.1)' }}>
-                                        <div className="flex items-center justify-end gap-2">
-                                            <button
-                                                onClick={() => handleEditIncome(income)}
-                                                className="text-blue-600 hover:underline text-sm"
-                                            >
-                                                Edit
-                                            </button>
-                                            <button className="text-gray-400 hover:text-gray-600">
-                                                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                                                    <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z" />
-                                                </svg>
-                                            </button>
+                        <table className="min-w-[1000px] w-full border-collapse text-sm" style={{ borderSpacing: 0 }}>
+                            <thead className="sticky top-0 z-10 bg-white">
+                                <tr className="border-b border-gray-400">
+                                    <th className="min-w-[110px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-gray-400 cursor-grab">⋮⋮</span>
+                                            <span>Date</span>
                                         </div>
-                                    </td>
+                                    </th>
+                                    <th className="min-w-[180px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-gray-400 cursor-grab">⋮⋮</span>
+                                            <span>Bill Name</span>
+                                        </div>
+                                    </th>
+                                    <th className="min-w-[130px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-gray-400 cursor-grab">⋮⋮</span>
+                                            <span>Amount</span>
+                                        </div>
+                                    </th>
+                                    <th className="min-w-[130px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-gray-400 cursor-grab">⋮⋮</span>
+                                            <span>Category</span>
+                                        </div>
+                                    </th>
+                                    <th className="min-w-[140px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-gray-400 cursor-grab">⋮⋮</span>
+                                            <span>Payment Method</span>
+                                        </div>
+                                    </th>
+                                    <th className="min-w-[100px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-gray-400 cursor-grab">⋮⋮</span>
+                                            <span>Bill</span>
+                                        </div>
+                                    </th>
+                                    <th className="min-w-[100px] h-9 px-4 text-left text-sm font-medium text-gray-700 sticky right-0 z-20 bg-gray-100 border-l border-gray-400" style={{ boxShadow: '-4px 0 8px -2px rgba(0, 0, 0, 0.15)' }}>
+                                        Actions
+                                    </th>
                                 </tr>
-                            ))}
-                            {/* Empty rows to fill the display */}
-                            {emptyRows.map((_, idx) => {
-                                const rowIndex = incomes.length + idx;
-                                return (
+                            </thead>
+                            <tbody>
+                                {/* Data rows */}
+                                {incomes.map((income, rowIndex) => (
                                     <tr
-                                        key={`empty-${idx}`}
+                                        key={income._id ?? income.id}
                                         className={`border-b border-gray-400 hover:bg-blue-100 transition-colors ${rowIndex % 2 === 0 ? 'bg-blue-50/40' : 'bg-white'}`}
                                     >
-                                        <td className={getCellClasses(rowIndex, 0)} onClick={() => handleCellClick(rowIndex, 0)}></td>
-                                        <td className={getCellClasses(rowIndex, 1)} onClick={() => handleCellClick(rowIndex, 1)}></td>
-                                        <td className={getCellClasses(rowIndex, 2)} onClick={() => handleCellClick(rowIndex, 2)}></td>
-                                        <td className={getCellClasses(rowIndex, 3)} onClick={() => handleCellClick(rowIndex, 3)}></td>
-                                        <td className={getCellClasses(rowIndex, 4)} onClick={() => handleCellClick(rowIndex, 4)}></td>
-                                        <td className={getCellClasses(rowIndex, 5)} onClick={() => handleCellClick(rowIndex, 5)}></td>
-                                        <td className={`h-8 px-4 sticky right-0 z-10 border-l border-gray-400 ${rowIndex % 2 === 0 ? 'bg-blue-50' : 'bg-white'}`} style={{ boxShadow: '-4px 0 8px -2px rgba(0, 0, 0, 0.1)' }}></td>
+                                        <td
+                                            className={getCellClasses(rowIndex, 0) + " text-left text-gray-600"}
+                                            onClick={() => handleCellClick(rowIndex, 0)}
+                                        >
+                                            {formatDate(income.date ?? income.createdAt)}
+                                        </td>
+                                        <td
+                                            className={getCellClasses(rowIndex, 1) + " text-left text-blue-600"}
+                                            onClick={() => handleCellClick(rowIndex, 1)}
+                                        >
+                                            {income.billName}
+                                        </td>
+                                        <td
+                                            className={getCellClasses(rowIndex, 2) + " text-left text-green-600 font-medium"}
+                                            onClick={() => handleCellClick(rowIndex, 2)}
+                                        >
+                                            {formatCurrency(income.incomeAmount)}
+                                        </td>
+                                        <td
+                                            className={getCellClasses(rowIndex, 3) + " text-left text-gray-600"}
+                                            onClick={() => handleCellClick(rowIndex, 3)}
+                                        >
+                                            <span className="inline-flex items-center px-2 py-0.5 rounded bg-green-100 text-green-700 text-xs">
+                                                {income.category || '-'}
+                                            </span>
+                                        </td>
+                                        <td
+                                            className={getCellClasses(rowIndex, 4) + " text-left text-gray-600"}
+                                            onClick={() => handleCellClick(rowIndex, 4)}
+                                        >
+                                            {income.paymentMethod || "-"}
+                                        </td>
+                                        <td
+                                            className={getCellClasses(rowIndex, 5) + " text-left"}
+                                            onClick={() => handleCellClick(rowIndex, 5)}
+                                        >
+                                            {(income.receipt && income.receipt.fileName) || income.uploadBillName ? (
+                                                <button onClick={() => handleDownloadReceipt(income)} className="text-blue-600 text-xs">📄 Attached</button>
+                                            ) : (
+                                                <span className="text-gray-400 text-xs">-</span>
+                                            )}
+                                        </td>
+                                        <td className={`h-8 px-4 text-left sticky right-0 z-10 border-l border-gray-400 ${rowIndex % 2 === 0 ? 'bg-blue-50' : 'bg-white'}`} style={{ boxShadow: '-4px 0 8px -2px rgba(0, 0, 0, 0.1)' }}>
+                                            <div className="flex items-center justify-end gap-2">
+                                                <button
+                                                    onClick={() => handleEditIncome(income)}
+                                                    className="text-blue-600 hover:underline text-sm"
+                                                >
+                                                    Edit
+                                                </button>
+                                                <button
+                                                    onClick={() => handleDeleteIncome(income._id ?? income.id)}
+                                                    className="text-red-500 hover:underline text-sm"
+                                                >
+                                                    Delete
+                                                </button>
+                                            </div>
+                                        </td>
                                     </tr>
-                                );
-                            })}
-                        </tbody>
-                    </table>
+                                ))}
+                                {/* Empty rows to fill the display */}
+                                {emptyRows.map((_, idx) => {
+                                    const rowIndex = incomes.length + idx;
+                                    return (
+                                        <tr
+                                            key={`empty-${idx}`}
+                                            className={`border-b border-gray-400 hover:bg-blue-100 transition-colors ${rowIndex % 2 === 0 ? 'bg-blue-50/40' : 'bg-white'}`}
+                                        >
+                                            <td className={getCellClasses(rowIndex, 0)} onClick={() => handleCellClick(rowIndex, 0)}></td>
+                                            <td className={getCellClasses(rowIndex, 1)} onClick={() => handleCellClick(rowIndex, 1)}></td>
+                                            <td className={getCellClasses(rowIndex, 2)} onClick={() => handleCellClick(rowIndex, 2)}></td>
+                                            <td className={getCellClasses(rowIndex, 3)} onClick={() => handleCellClick(rowIndex, 3)}></td>
+                                            <td className={getCellClasses(rowIndex, 4)} onClick={() => handleCellClick(rowIndex, 4)}></td>
+                                            <td className={getCellClasses(rowIndex, 5)} onClick={() => handleCellClick(rowIndex, 5)}></td>
+                                            <td className={`h-8 px-4 sticky right-0 z-10 border-l border-gray-400 ${rowIndex % 2 === 0 ? 'bg-blue-50' : 'bg-white'}`} style={{ boxShadow: '-4px 0 8px -2px rgba(0, 0, 0, 0.1)' }}></td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             </div>

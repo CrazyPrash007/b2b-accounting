@@ -11,6 +11,8 @@ const bankRoutes = require('./routes/bank.routes');
 const gstRoutes = require('./routes/gst.routes');
 const brandRoutes = require('./routes/brand.routes');
 const itemRoutes = require('./routes/item.routes');
+const incomeRoutes = require('./routes/income.routes');
+const expenseRoutes = require('./routes/expense.routes');
 const errorHandler = require('./middlewares/errorHandler');
 
 const PORT = process.env.PORT || 4000;
@@ -34,6 +36,8 @@ async function start() {
     app.use('/api/gst', gstRoutes);
     app.use('/api/brand', brandRoutes);
     app.use('/api/items', itemRoutes);
+    app.use('/api/income', incomeRoutes);
+    app.use('/api/expense', expenseRoutes);
 
     // Global error handler
     app.use(errorHandler);

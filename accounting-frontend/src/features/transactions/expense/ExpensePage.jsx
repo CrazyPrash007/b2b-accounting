@@ -1,5 +1,7 @@
 // ExpensePage.jsx
 import React, { useState, useEffect, useRef } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
+import useExpense from "./hooks/useExpense";
 
 /**
  * ExpenseModal - Modal for creating/editing expenses
@@ -134,10 +136,10 @@ function ExpenseModal({ isOpen, onClose, onSave, onDelete, editData }) {
             e.preventDefault();
             const form = e.target.closest('[data-form-container]');
             if (!form) return;
-            
+
             const inputs = Array.from(form.querySelectorAll('input, select, textarea'));
             const currentIndex = inputs.indexOf(e.target);
-            
+
             if (currentIndex !== -1 && currentIndex < inputs.length - 1) {
                 inputs[currentIndex + 1].focus();
             }
@@ -242,7 +244,7 @@ function ExpenseModal({ isOpen, onClose, onSave, onDelete, editData }) {
                             <label className="block text-sm font-medium text-gray-700 mb-1.5 uppercase tracking-wide">
                                 Upload Bill
                             </label>
-                            <div 
+                            <div
                                 onClick={() => fileInputRef.current?.click()}
                                 className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center cursor-pointer hover:border-blue-400 hover:bg-blue-50/30 transition-colors"
                             >
@@ -326,7 +328,12 @@ function ExpenseModal({ isOpen, onClose, onSave, onDelete, editData }) {
  * - Excel-like table with row highlighting and cell selection
  */
 export default function ExpensePage() {
-    const [expenses, setExpenses] = useState([]);
+    // server-backed hook (assumes returns { rows, loading, error, reload, create, update, remove })
+    const { rows: hookRows = [], loading, error, reload, create, update, remove } = useExpense({ useLocalFallback: true });
+
+    // keep same local variable name used by UI for minimal changes
+    const expenses = hookRows || [];
+
     const [selectedCell, setSelectedCell] = useState(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingExpense, setEditingExpense] = useState(null);
@@ -346,25 +353,79 @@ export default function ExpensePage() {
         setEditingExpense(null);
     };
 
-    const handleSaveExpense = (expenseData, isEdit) => {
-        if (isEdit) {
-            setExpenses((prev) =>
-                prev.map((exp) =>
-                    exp.id === expenseData.id ? expenseData : exp
-                )
-            );
-        } else {
-            setExpenses((prev) => [...prev, expenseData]);
-        }
-        setIsModalOpen(false);
-        setEditingExpense(null);
-    };
+    // expenseData shape comes from your modal (has uploadBill file in uploadBill, uploadBillName, etc.)
+    const handleSaveExpense = async (expenseData, isEdit) => {
+        try {
+            // Basic client-side validation — keep as-is if modal already validates
+            if (!expenseData.billName || !String(expenseData.billName).trim()) {
+                alert("Bill Name is required");
+                return;
+            }
+            if (!expenseData.expenseAmount || Number(expenseData.expenseAmount) <= 0) {
+                alert("Valid Expense Amount is required");
+                return;
+            }
+            if (!expenseData.category || !String(expenseData.category).trim()) {
+                alert("Category is required");
+                return;
+            }
 
-    const handleDeleteExpense = (id) => {
-        if (window.confirm("Are you sure you want to delete this expense?")) {
-            setExpenses((prev) => prev.filter((exp) => exp.id !== id));
+            // Build FormData for multipart upload (controller expects 'uploadBill' field)
+            const fd = new FormData();
+            if (expenseData.date) fd.append("date", new Date(expenseData.date).toISOString());
+            fd.append("billName", String(expenseData.billName || "").trim());
+            fd.append("expenseAmount", String(Number(expenseData.expenseAmount || 0)));
+            fd.append("paymentMethod", String(expenseData.paymentMethod || ""));
+            fd.append("category", String(expenseData.category || ""));
+            fd.append("notes", String(expenseData.notes || ""));
+
+            // If modal provided a File object in uploadBill, append it
+            if (expenseData.uploadBill instanceof File) {
+                fd.append("uploadBill", expenseData.uploadBill, expenseData.uploadBill.name);
+            }
+
+            const backendBase = "http://localhost:4000";
+            if (isEdit) {
+                const id = expenseData.id ?? expenseData._id;
+                const res = await fetch(`${backendBase}/api/expense/${id}`, {
+                    method: 'PUT',
+                    body: fd,
+                    credentials: 'same-origin',
+                });
+                if (!res.ok) throw new Error(`Failed to update: ${res.status}`);
+            } else {
+                const res = await fetch(`${backendBase}/api/expense`, {
+                    method: 'POST',
+                    body: fd,
+                    credentials: 'same-origin',
+                });
+                if (!res.ok) throw new Error(`Failed to create: ${res.status}`);
+            }
+            await reload();
+
+
+            // close modal and refresh canonical data
             setIsModalOpen(false);
             setEditingExpense(null);
+            await reload();
+        } catch (err) {
+            console.error("Failed to save expense:", err);
+            // surface helpful message if present
+            const msg = err?.response?.data?.error?.message || err?.message || "Failed to save expense";
+            alert(msg);
+        }
+    };
+
+    const handleDeleteExpense = async (id) => {
+        if (!window.confirm("Are you sure you want to delete this expense entry?")) return;
+        try {
+            await remove(id);
+            setIsModalOpen(false);
+            setEditingExpense(null);
+            await reload();
+        } catch (err) {
+            console.error("Failed to delete expense:", err);
+            alert(err?.message || "Failed to delete");
         }
     };
 
@@ -419,16 +480,40 @@ export default function ExpensePage() {
     };
 
     const formatDate = (dateString) => {
+        if (!dateString) return "-";
         const date = new Date(dateString);
         return date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
     };
 
     const formatCurrency = (amount) => {
+        if (amount == null || amount === "") return "₹0.00";
         return new Intl.NumberFormat('en-IN', {
             style: 'currency',
             currency: 'INR',
             minimumFractionDigits: 2,
-        }).format(amount);
+        }).format(Number(amount));
+    };
+
+    // Download receipt helper: uses route GET /api/expense/:id/receipt (controller you created)
+    const handleDownloadReceipt = async (expense) => {
+        try {
+            const id = expense._id ?? expense.id;
+            const res = await fetch(`/api/expense/${id}/receipt`);
+            if (!res.ok) throw new Error("Receipt not found");
+            const blob = await res.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            const fileName = (expense.receipt && expense.receipt.fileName) || expense.uploadBillName || `receipt-${id}`;
+            a.download = fileName;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            window.URL.revokeObjectURL(url);
+        } catch (err) {
+            console.error("Download failed", err);
+            alert(err?.message || "Download failed");
+        }
     };
 
     return (
@@ -493,136 +578,137 @@ export default function ExpensePage() {
             >
                 <div className="border border-gray-400 rounded overflow-hidden h-full">
                     <div className="overflow-x-auto h-full">
-                    <table className="min-w-[1000px] w-full border-collapse text-sm" style={{ borderSpacing: 0 }}>
-                        <thead className="sticky top-0 z-10 bg-white">
-                            <tr className="border-b border-gray-400">
-                                <th className="min-w-[110px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-gray-400 cursor-grab">⋮⋮</span>
-                                        <span>Date</span>
-                                    </div>
-                                </th>
-                                <th className="min-w-[180px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-gray-400 cursor-grab">⋮⋮</span>
-                                        <span>Bill Name</span>
-                                    </div>
-                                </th>
-                                <th className="min-w-[130px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-gray-400 cursor-grab">⋮⋮</span>
-                                        <span>Amount</span>
-                                    </div>
-                                </th>
-                                <th className="min-w-[130px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-gray-400 cursor-grab">⋮⋮</span>
-                                        <span>Category</span>
-                                    </div>
-                                </th>
-                                <th className="min-w-[140px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-gray-400 cursor-grab">⋮⋮</span>
-                                        <span>Payment Method</span>
-                                    </div>
-                                </th>
-                                <th className="min-w-[100px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-gray-400 cursor-grab">⋮⋮</span>
-                                        <span>Bill</span>
-                                    </div>
-                                </th>
-                                <th className="min-w-[100px] h-9 px-4 text-left text-sm font-medium text-gray-700 sticky right-0 z-20 bg-gray-100 border-l border-gray-400" style={{ boxShadow: '-4px 0 8px -2px rgba(0, 0, 0, 0.15)' }}>
-                                    Actions
-                                </th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {/* Data rows */}
-                            {expenses.map((expense, rowIndex) => (
-                                <tr
-                                    key={expense.id}
-                                    className={`border-b border-gray-400 hover:bg-blue-100 transition-colors ${rowIndex % 2 === 0 ? 'bg-blue-50/40' : 'bg-white'}`}
-                                >
-                                    <td
-                                        className={getCellClasses(rowIndex, 0) + " text-left text-gray-600"}
-                                        onClick={() => handleCellClick(rowIndex, 0)}
-                                    >
-                                        {formatDate(expense.date)}
-                                    </td>
-                                    <td
-                                        className={getCellClasses(rowIndex, 1) + " text-left text-blue-600"}
-                                        onClick={() => handleCellClick(rowIndex, 1)}
-                                    >
-                                        {expense.billName}
-                                    </td>
-                                    <td
-                                        className={getCellClasses(rowIndex, 2) + " text-left text-gray-600"}
-                                        onClick={() => handleCellClick(rowIndex, 2)}
-                                    >
-                                        {formatCurrency(expense.expenseAmount)}
-                                    </td>
-                                    <td
-                                        className={getCellClasses(rowIndex, 3) + " text-left text-gray-600"}
-                                        onClick={() => handleCellClick(rowIndex, 3)}
-                                    >
-                                        <span className="inline-flex items-center px-2 py-0.5 rounded bg-gray-100 text-gray-700 text-xs">
-                                            {expense.category}
-                                        </span>
-                                    </td>
-                                    <td
-                                        className={getCellClasses(rowIndex, 4) + " text-left text-gray-600"}
-                                        onClick={() => handleCellClick(rowIndex, 4)}
-                                    >
-                                        {expense.paymentMethod || "-"}
-                                    </td>
-                                    <td
-                                        className={getCellClasses(rowIndex, 5) + " text-left"}
-                                        onClick={() => handleCellClick(rowIndex, 5)}
-                                    >
-                                        {expense.uploadBillName ? (
-                                            <span className="text-blue-600 text-xs">📄 Attached</span>
-                                        ) : (
-                                            <span className="text-gray-400 text-xs">-</span>
-                                        )}
-                                    </td>
-                                    <td className={`h-8 px-4 text-left sticky right-0 z-10 border-l border-gray-400 ${rowIndex % 2 === 0 ? 'bg-blue-50' : 'bg-white'}`} style={{ boxShadow: '-4px 0 8px -2px rgba(0, 0, 0, 0.1)' }}>
-                                        <div className="flex items-center justify-end gap-2">
-                                            <button
-                                                onClick={() => handleEditExpense(expense)}
-                                                className="text-blue-600 hover:underline text-sm"
-                                            >
-                                                Edit
-                                            </button>
-                                            <button className="text-gray-400 hover:text-gray-600">
-                                                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                                                    <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z" />
-                                                </svg>
-                                            </button>
+                        <table className="min-w-[1000px] w-full border-collapse text-sm" style={{ borderSpacing: 0 }}>
+                            <thead className="sticky top-0 z-10 bg-white">
+                                <tr className="border-b border-gray-400">
+                                    <th className="min-w-[110px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-gray-400 cursor-grab">⋮⋮</span>
+                                            <span>Date</span>
                                         </div>
-                                    </td>
+                                    </th>
+                                    <th className="min-w-[180px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-gray-400 cursor-grab">⋮⋮</span>
+                                            <span>Bill Name</span>
+                                        </div>
+                                    </th>
+                                    <th className="min-w-[130px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-gray-400 cursor-grab">⋮⋮</span>
+                                            <span>Amount</span>
+                                        </div>
+                                    </th>
+                                    <th className="min-w-[130px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-gray-400 cursor-grab">⋮⋮</span>
+                                            <span>Category</span>
+                                        </div>
+                                    </th>
+                                    <th className="min-w-[140px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-gray-400 cursor-grab">⋮⋮</span>
+                                            <span>Payment Method</span>
+                                        </div>
+                                    </th>
+                                    <th className="min-w-[100px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-gray-400 cursor-grab">⋮⋮</span>
+                                            <span>Bill</span>
+                                        </div>
+                                    </th>
+                                    <th className="min-w-[100px] h-9 px-4 text-left text-sm font-medium text-gray-700 sticky right-0 z-20 bg-gray-100 border-l border-gray-400" style={{ boxShadow: '-4px 0 8px -2px rgba(0, 0, 0, 0.15)' }}>
+                                        Actions
+                                    </th>
                                 </tr>
-                            ))}
-                            {/* Empty rows to fill the display */}
-                            {emptyRows.map((_, idx) => {
-                                const rowIndex = expenses.length + idx;
-                                return (
+                            </thead>
+                            <tbody>
+                                {/* Data rows */}
+                                {expenses.map((expense, rowIndex) => (
                                     <tr
-                                        key={`empty-${idx}`}
+                                        key={expense._id ?? expense.id}
                                         className={`border-b border-gray-400 hover:bg-blue-100 transition-colors ${rowIndex % 2 === 0 ? 'bg-blue-50/40' : 'bg-white'}`}
                                     >
-                                        <td className={getCellClasses(rowIndex, 0)} onClick={() => handleCellClick(rowIndex, 0)}></td>
-                                        <td className={getCellClasses(rowIndex, 1)} onClick={() => handleCellClick(rowIndex, 1)}></td>
-                                        <td className={getCellClasses(rowIndex, 2)} onClick={() => handleCellClick(rowIndex, 2)}></td>
-                                        <td className={getCellClasses(rowIndex, 3)} onClick={() => handleCellClick(rowIndex, 3)}></td>
-                                        <td className={getCellClasses(rowIndex, 4)} onClick={() => handleCellClick(rowIndex, 4)}></td>
-                                        <td className={getCellClasses(rowIndex, 5)} onClick={() => handleCellClick(rowIndex, 5)}></td>
-                                        <td className={`h-8 px-4 sticky right-0 z-10 border-l border-gray-400 ${rowIndex % 2 === 0 ? 'bg-blue-50' : 'bg-white'}`} style={{ boxShadow: '-4px 0 8px -2px rgba(0, 0, 0, 0.1)' }}></td>
+                                        <td
+                                            className={getCellClasses(rowIndex, 0) + " text-left text-gray-600"}
+                                            onClick={() => handleCellClick(rowIndex, 0)}
+                                        >
+                                            {formatDate(expense.date ?? expense.createdAt)}
+                                        </td>
+                                        <td
+                                            className={getCellClasses(rowIndex, 1) + " text-left text-blue-600"}
+                                            onClick={() => handleCellClick(rowIndex, 1)}
+                                        >
+                                            {expense.billName}
+                                        </td>
+                                        <td
+                                            className={getCellClasses(rowIndex, 2) + " text-left text-green-600 font-medium"}
+                                            onClick={() => handleCellClick(rowIndex, 2)}
+                                        >
+                                            {formatCurrency(expense.expenseAmount)}
+                                        </td>
+                                        <td
+                                            className={getCellClasses(rowIndex, 3) + " text-left text-gray-600"}
+                                            onClick={() => handleCellClick(rowIndex, 3)}
+                                        >
+                                            <span className="inline-flex items-center px-2 py-0.5 rounded bg-green-100 text-green-700 text-xs">
+                                                {expense.category || '-'}
+                                            </span>
+                                        </td>
+                                        <td
+                                            className={getCellClasses(rowIndex, 4) + " text-left text-gray-600"}
+                                            onClick={() => handleCellClick(rowIndex, 4)}
+                                        >
+                                            {expense.paymentMethod || "-"}
+                                        </td>
+                                        <td
+                                            className={getCellClasses(rowIndex, 5) + " text-left"}
+                                            onClick={() => handleCellClick(rowIndex, 5)}
+                                        >
+                                            {(expense.receipt && expense.receipt.fileName) || expense.uploadBillName ? (
+                                                <button onClick={() => handleDownloadReceipt(expense)} className="text-blue-600 text-xs">📄 Attached</button>
+                                            ) : (
+                                                <span className="text-gray-400 text-xs">-</span>
+                                            )}
+                                        </td>
+                                        <td className={`h-8 px-4 text-left sticky right-0 z-10 border-l border-gray-400 ${rowIndex % 2 === 0 ? 'bg-blue-50' : 'bg-white'}`} style={{ boxShadow: '-4px 0 8px -2px rgba(0, 0, 0, 0.1)' }}>
+                                            <div className="flex items-center justify-end gap-2">
+                                                <button
+                                                    onClick={() => handleEditExpense(expense)}
+                                                    className="text-blue-600 hover:underline text-sm"
+                                                >
+                                                    Edit
+                                                </button>
+                                                <button
+                                                    onClick={() => handleDeleteExpense(expense._id ?? expense.id)}
+                                                    className="text-red-500 hover:underline text-sm"
+                                                >
+                                                    Delete
+                                                </button>
+                                            </div>
+                                        </td>
                                     </tr>
-                                );
-                            })}
-                        </tbody>
-                    </table>
+                                ))}
+                                {/* Empty rows to fill the display */}
+                                {emptyRows.map((_, idx) => {
+                                    const rowIndex = expenses.length + idx;
+                                    return (
+                                        <tr
+                                            key={`empty-${idx}`}
+                                            className={`border-b border-gray-400 hover:bg-blue-100 transition-colors ${rowIndex % 2 === 0 ? 'bg-blue-50/40' : 'bg-white'}`}
+                                        >
+                                            <td className={getCellClasses(rowIndex, 0)} onClick={() => handleCellClick(rowIndex, 0)}></td>
+                                            <td className={getCellClasses(rowIndex, 1)} onClick={() => handleCellClick(rowIndex, 1)}></td>
+                                            <td className={getCellClasses(rowIndex, 2)} onClick={() => handleCellClick(rowIndex, 2)}></td>
+                                            <td className={getCellClasses(rowIndex, 3)} onClick={() => handleCellClick(rowIndex, 3)}></td>
+                                            <td className={getCellClasses(rowIndex, 4)} onClick={() => handleCellClick(rowIndex, 4)}></td>
+                                            <td className={getCellClasses(rowIndex, 5)} onClick={() => handleCellClick(rowIndex, 5)}></td>
+                                            <td className={`h-8 px-4 sticky right-0 z-10 border-l border-gray-400 ${rowIndex % 2 === 0 ? 'bg-blue-50' : 'bg-white'}`} style={{ boxShadow: '-4px 0 8px -2px rgba(0, 0, 0, 0.1)' }}></td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             </div>
