@@ -1,18 +1,29 @@
 // src/models/Customer.js
 const mongoose = require('mongoose');
 
+function normalizeString(v) {
+    if (v === undefined || v === null) return "";
+    // trim, collapse multiple whitespace, lowercase
+    return String(v).trim().replace(/\s+/g, ' ').toLowerCase();
+}
+
 const CustomerSchema = new mongoose.Schema({
-    ownerId: { type: mongoose.Schema.Types.ObjectId, required: true, index: true }, // main-app user id
+    ownerId: { type: mongoose.Schema.Types.ObjectId, required: true, index: true },
 
     // Basic Details
-    customerName: { type: String, required: true, trim: true }, // main display name
-    name: { type: String, trim: true }, // alias for table/display (frontend sets this to same as customerName)
+    customerName: { type: String, required: true, trim: true },
+    name: { type: String, trim: true },
     mobileNumber: { type: String, trim: true, default: "" },
     emailAddress: { type: String, trim: true, default: "" },
     websiteLink: { type: String, trim: true, default: "" },
 
     // Company Details
     companyName: { type: String, trim: true, default: "" },
+
+    // Normalized fields used for case-insensitive uniqueness
+    customerNameNorm: { type: String, trim: true, default: "" },
+    companyNameNorm: { type: String, trim: true, default: "" },
+
     gstType: { type: String, trim: true, default: "Unregistered" },
 
     // Billing Details
@@ -36,7 +47,7 @@ const CustomerSchema = new mongoose.Schema({
 
     // Opening Balance
     openingBalanceType: { type: String, enum: ["Credit", "Debit"], default: "Credit" },
-    openingBalanceAmount: { type: Number, default: 0 }, // store as number; frontend sends string/number – convert will happen automatically if numeric
+    openingBalanceAmount: { type: Number, default: 0 },
 
     // meta / audit / flags
     isActive: { type: Boolean, default: true },
@@ -45,11 +56,37 @@ const CustomerSchema = new mongoose.Schema({
     updatedBy: { type: mongoose.Schema.Types.ObjectId },
 }, { timestamps: true });
 
-// Optional: unique per owner for customerName (ignore deleted)
-// Remove or modify if you expect duplicate names for same owner.
+// Create unique index on normalized fields (scoped to ownerId) and ignore soft-deleted docs
 CustomerSchema.index(
-    { ownerId: 1, customerName: 1 },
-    { unique: true, partialFilterExpression: { isDeleted: false } }
+    { ownerId: 1, customerNameNorm: 1, companyNameNorm: 1 },
+    { unique: true, partialFilterExpression: { isDeleted: false }, name: "ownerId_customerNameNorm_companyNameNorm_unique" }
 );
+
+// Mongoose middleware to populate normalized fields on save
+CustomerSchema.pre('save', function (next) {
+    if (this.isModified('customerName') || this.isNew) {
+        this.customerNameNorm = normalizeString(this.customerName);
+    }
+    if (this.isModified('companyName') || this.isNew) {
+        this.companyNameNorm = normalizeString(this.companyName);
+    }
+    next();
+});
+
+// For findOneAndUpdate / findByIdAndUpdate etc.
+// Note: in query middleware, `this` is the query. We must update the update object.
+CustomerSchema.pre('findOneAndUpdate', function (next) {
+    const update = this.getUpdate() || {};
+    // if using $set
+    const set = update.$set || update;
+    if (set.customerName !== undefined) {
+        (update.$set = update.$set || {})['customerNameNorm'] = normalizeString(set.customerName);
+    }
+    if (set.companyName !== undefined) {
+        (update.$set = update.$set || {})['companyNameNorm'] = normalizeString(set.companyName);
+    }
+    this.setUpdate(update);
+    next();
+});
 
 module.exports = mongoose.model('Customer', CustomerSchema);

@@ -1,15 +1,25 @@
 // src/models/Vendor.js
 const mongoose = require('mongoose');
 
+function normalizeString(v) {
+    if (v === undefined || v === null) return "";
+    return String(v).trim().replace(/\s+/g, ' ').toLowerCase();
+}
+
 const VendorSchema = new mongoose.Schema({
-    ownerId: { type: mongoose.Schema.Types.ObjectId, required: true, index: true }, // main-app user id
+    ownerId: { type: mongoose.Schema.Types.ObjectId, required: true, index: true },
     vendorName: { type: String, required: true, trim: true },
-    name: { type: String, trim: true }, // duplicate friendly name for lists / display
+    name: { type: String, trim: true },
     mobileNumber: { type: String, default: '' },
     emailAddress: { type: String, default: '' },
     websiteLink: { type: String, default: '' },
 
     companyName: { type: String, default: '' },
+
+    // Normalized fields for case-insensitive uniqueness
+    vendorNameNorm: { type: String, trim: true, default: "" },
+    companyNameNorm: { type: String, trim: true, default: "" },
+
     gstType: { type: String, default: 'Unregistered' },
 
     billingAddress: { type: String, default: '' },
@@ -38,10 +48,37 @@ const VendorSchema = new mongoose.Schema({
     updatedBy: { type: mongoose.Schema.Types.ObjectId },
 }, { timestamps: true });
 
-// Unique per owner (ignore deleted)
+// Unique per owner: normalized vendorName + companyName must be unique (ignore soft-deleted docs)
 VendorSchema.index(
-    { ownerId: 1, vendorName: 1 },
-    { unique: true, partialFilterExpression: { isDeleted: false } }
+    { ownerId: 1, vendorNameNorm: 1, companyNameNorm: 1 },
+    { unique: true, partialFilterExpression: { isDeleted: false }, name: "ownerId_vendorNameNorm_companyNameNorm_unique" }
 );
+
+// pre-save: populate normalized fields
+VendorSchema.pre('save', function (next) {
+    if (this.isModified('vendorName') || this.isNew) {
+        this.vendorNameNorm = normalizeString(this.vendorName);
+    }
+    if (this.isModified('companyName') || this.isNew) {
+        this.companyNameNorm = normalizeString(this.companyName);
+    }
+    next();
+});
+
+// pre findOneAndUpdate: ensure normalized fields updated when vendorName/companyName are changed
+VendorSchema.pre('findOneAndUpdate', function (next) {
+    const update = this.getUpdate() || {};
+    const set = update.$set || update;
+
+    if (set.vendorName !== undefined) {
+        (update.$set = update.$set || {})['vendorNameNorm'] = normalizeString(set.vendorName);
+    }
+    if (set.companyName !== undefined) {
+        (update.$set = update.$set || {})['companyNameNorm'] = normalizeString(set.companyName);
+    }
+
+    this.setUpdate(update);
+    next();
+});
 
 module.exports = mongoose.model('Vendor', VendorSchema);
