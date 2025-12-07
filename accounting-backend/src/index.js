@@ -15,6 +15,7 @@ const incomeRoutes = require('./routes/income.routes');
 const expenseRoutes = require('./routes/expense.routes');
 const saleRoutes = require('./routes/sale.routes');
 const purchaseRoutes = require('./routes/purchase.routes');
+const receiptRoutes = require('./routes/receipt.routes');
 const errorHandler = require('./middlewares/errorHandler');
 
 const PORT = process.env.PORT || 4000;
@@ -42,6 +43,7 @@ async function start() {
     app.use('/api/expense', expenseRoutes);
     app.use('/api/sales', saleRoutes);
     app.use('/api/purchases', purchaseRoutes);
+    app.use('/api/receipts', receiptRoutes);
 
     // Global error handler
     app.use(errorHandler);

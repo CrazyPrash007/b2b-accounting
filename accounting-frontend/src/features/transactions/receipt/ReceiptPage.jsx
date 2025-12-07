@@ -1,11 +1,14 @@
 // ReceiptPage.jsx - Payment In
 import React, { useState, useEffect, useRef } from "react";
 import InvoicePreviewModal from "./components/InvoicePreviewModal";
+import useReceipt from "./hooks/useReceipt";
 
 /**
  * ReceiptModal - Modal for creating/editing receipt (payment in) entries
  */
 function ReceiptModal({ isOpen, onClose, onSave, onDelete, editData }) {
+    const API_BASE = "http://localhost:4000"; // adjust if your API lives elsewhere
+
     const [formData, setFormData] = useState({
         date: new Date().toISOString().split('T')[0],
         party: "",
@@ -20,23 +23,11 @@ function ReceiptModal({ isOpen, onClose, onSave, onDelete, editData }) {
     const [error, setError] = useState("");
     const [fieldErrors, setFieldErrors] = useState({});
 
+    const [parties, setParties] = useState([]); // array of { id?, name } (we'll use name as display)
+    const [invoices, setInvoices] = useState([]); // array of { id, invoiceLabel, due, dateIso, totalAmount, paymentAmount }
+    const [invoicesLoading, setInvoicesLoading] = useState(false);
+
     const isEditMode = !!editData;
-
-    // Mock parties data - in real app, this would come from API (customers)
-    const [parties] = useState([
-        { id: "1", name: "ABC Corporation" },
-        { id: "2", name: "XYZ Enterprises" },
-        { id: "3", name: "Global Trading Corporation" },
-        { id: "4", name: "Tech Innovations Ltd" },
-        { id: "5", name: "Premier Solutions Inc" },
-    ]);
-
-    // Mock invoices data - would be filtered based on selected party
-    const [invoices] = useState([
-        { id: "INV-001", number: "INV-001", amount: 25000, dueAmount: 25000 },
-        { id: "INV-002", number: "INV-002", amount: 45000, dueAmount: 20000 },
-        { id: "INV-003", number: "INV-003", amount: 12500, dueAmount: 12500 },
-    ]);
 
     const paymentMethods = [
         "Cash",
@@ -48,20 +39,78 @@ function ReceiptModal({ isOpen, onClose, onSave, onDelete, editData }) {
         "Other"
     ];
 
+    async function parseJsonSafe(res) {
+        const body = await res.json().catch(() => null);
+        if (!body) return null;
+        if (typeof body === "object" && Object.prototype.hasOwnProperty.call(body, "data")) return body.data;
+        return body;
+    }
+
+    // fetch customers + vendors and merge to a display list
+    const fetchParties = async () => {
+        try {
+            const [cRes, vRes] = await Promise.allSettled([
+                fetch(`${API_BASE}/api/customers`),
+                fetch(`${API_BASE}/api/vendors`)
+            ]);
+
+            const parseSettled = async (s) => {
+                if (s.status !== "fulfilled") return [];
+                const r = s.value;
+                if (!r || !r.ok) return [];
+                const data = await parseJsonSafe(r);
+                return Array.isArray(data) ? data : (data ? [data] : []);
+            };
+
+            const [customersData, vendorsData] = await Promise.all([parseSettled(cRes), parseSettled(vRes)]);
+
+            const normalize = (arr) => (Array.isArray(arr) ? arr.map(item => {
+                if (!item) return null;
+                if (typeof item === "string") return { id: null, name: item };
+                const name = item.displayName || item.fullName || item.name || item.companyName || (item.email ? `${item.email}` : "");
+                return { id: item._id || item.id || null, name: name || "" };
+            }).filter(Boolean) : []);
+
+            const custNorm = normalize(customersData);
+            const vendNorm = normalize(vendorsData);
+
+            // merged, unique by name (case-insensitive)
+            const map = new Map();
+            [...custNorm, ...vendNorm].forEach(p => {
+                const key = (p.name || "").toString().trim().toLowerCase();
+                if (key) map.set(key, p);
+            });
+
+            setParties(Array.from(map.values()));
+        } catch (err) {
+            console.error("Failed to fetch parties for ReceiptModal", err);
+            setParties([]);
+        }
+    };
+
+    // call when modal opens
     useEffect(() => {
         if (isOpen) {
+            fetchParties();
+
             if (editData) {
+                // If editing existing receipt, prefill
                 setFormData({
                     date: editData.date || new Date().toISOString().split('T')[0],
                     party: editData.party || "",
                     partyId: editData.partyId || "",
-                    amount: editData.amount || "",
+                    amount: (editData.amount != null) ? String(editData.amount) : "",
                     paymentMethod: editData.paymentMethod || "Cash",
                     invoice: editData.invoice || "",
                     invoiceId: editData.invoiceId || "",
                     referenceNumber: editData.referenceNumber || "",
                     description: editData.description || "",
                 });
+
+                // if receipt references an invoice, try to load invoices for that party so dropdown shows the invoice
+                if (editData.party) {
+                    handlePartySelected(editData.party, true).catch(() => { });
+                }
             } else {
                 setFormData({
                     date: new Date().toISOString().split('T')[0],
@@ -74,51 +123,129 @@ function ReceiptModal({ isOpen, onClose, onSave, onDelete, editData }) {
                     referenceNumber: "",
                     description: "",
                 });
+                setInvoices([]);
             }
             setError("");
             setFieldErrors({});
         }
-    }, [editData, isOpen]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isOpen, editData]);
 
     const handleChange = (field, value) => {
         setFormData((prev) => ({ ...prev, [field]: value }));
         if (error) setError("");
-        if (fieldErrors[field]) {
-            setFieldErrors((prev) => ({ ...prev, [field]: "" }));
-        }
+        if (fieldErrors[field]) setFieldErrors(prev => ({ ...prev, [field]: "" }));
     };
 
-    const handlePartyChange = (partyId) => {
-        const selectedParty = parties.find(p => p.id === partyId);
-        setFormData((prev) => ({
+    // Called when a party is selected. `partyNameOrId` can be id or name depending on how you populate select.
+    // second arg `keepSelectedInvoice` used when loading for edit mode to preserve invoice selection.
+    const handlePartySelected = async (partyNameOrId, keepSelectedInvoice = false) => {
+        // partyNameOrId might be id (if your parties list had ids) or the name string. We'll resolve a name.
+        let selectedName = "";
+
+        if (!partyNameOrId) {
+            // clear invoices + invoice selection
+            setFormData(prev => ({ ...prev, partyId: "", party: "", invoice: "", invoiceId: "" }));
+            setInvoices([]);
+            return;
+        }
+
+        // If we have parties by id, try to find; otherwise treat the argument as the name
+        const found = parties.find(p => (p.id && p.id.toString() === partyNameOrId.toString()) || (p.name && p.name.toString() === partyNameOrId.toString()));
+        if (found) {
+            selectedName = found.name;
+        } else {
+            // fallback: maybe user pasted name string directly
+            selectedName = partyNameOrId.toString();
+        }
+
+        // update form party fields (partyId will be the id if we had one, otherwise empty)
+        setFormData(prev => ({
             ...prev,
-            partyId,
-            party: selectedParty?.name || "",
-            invoice: "",
-            invoiceId: "",
+            partyId: found?.id || "",
+            party: selectedName,
+            // if not keeping invoice selection (normal flow), clear invoice selections
+            invoice: keepSelectedInvoice ? prev.invoice : "",
+            invoiceId: keepSelectedInvoice ? prev.invoiceId : "",
         }));
-        if (fieldErrors.party) {
-            setFieldErrors((prev) => ({ ...prev, party: "" }));
+
+        // Now fetch invoices from /api/sales?search=<selectedName> and filter exact match on customer name (case-insensitive)
+        if (!selectedName || !selectedName.trim()) {
+            setInvoices([]);
+            return;
+        }
+
+        setInvoicesLoading(true);
+        try {
+            const res = await fetch(`${API_BASE}/api/sales?search=${encodeURIComponent(selectedName)}`);
+            if (!res.ok) {
+                setInvoices([]);
+                setInvoicesLoading(false);
+                return;
+            }
+            const body = await parseJsonSafe(res);
+            const sales = Array.isArray(body) ? body : (body ? (Array.isArray(body) ? body : [body]) : []);
+            // filter exact name match (case-insensitive)
+            const normalizedWanted = selectedName.toString().trim().toLowerCase();
+            const matches = (sales || []).filter(s => (s.customer || "").toString().trim().toLowerCase() === normalizedWanted);
+
+            // map to invoice options
+            const mapped = matches.map(s => {
+                const invLabel = `${s.invoicePrefix || ''}${s.invoiceNumber || ''}${s.invoiceSuffix || ''}`.trim();
+                const total = Number(s.totalAmount || 0);
+                const paid = Number(s.paymentAmount || 0);
+                const due = Number((total - paid).toFixed(2));
+                const dateIso = s.invoiceDate ? new Date(s.invoiceDate).toISOString() : null;
+                return {
+                    id: s._id,
+                    invoiceLabel: invLabel || (s.invoiceNumber || s._id),
+                    due,
+                    totalAmount: total,
+                    paymentAmount: paid,
+                    dateIso,
+                };
+            });
+
+            // sort by date desc (recent first)
+            mapped.sort((a, b) => {
+                if (!a.dateIso && !b.dateIso) return 0;
+                if (!a.dateIso) return 1;
+                if (!b.dateIso) return -1;
+                return new Date(b.dateIso) - new Date(a.dateIso);
+            });
+
+            setInvoices(mapped);
+        } catch (err) {
+            console.error("Failed to fetch sales for party", selectedName, err);
+            setInvoices([]);
+        } finally {
+            setInvoicesLoading(false);
         }
     };
 
+    const handlePartyChange = (partyIdOrName) => {
+        // Update selected party in form and fetch invoices
+        handlePartySelected(partyIdOrName).catch(() => { });
+    };
+
+    // when user selects an invoice, set invoice + autofill amount with due
     const handleInvoiceChange = (invoiceId) => {
-        const selectedInvoice = invoices.find(i => i.id === invoiceId);
-        setFormData((prev) => ({
+        const selected = invoices.find(inv => inv.id === invoiceId);
+        setFormData(prev => ({
             ...prev,
-            invoiceId,
-            invoice: selectedInvoice?.number || "",
-            amount: selectedInvoice?.dueAmount?.toString() || prev.amount,
+            invoiceId: invoiceId || "",
+            invoice: selected ? selected.invoiceLabel : "",
+            amount: selected ? String(selected.due) : prev.amount,
         }));
     };
 
     const handleSave = () => {
         const errors = {};
-        
-        if (!formData.partyId) {
+
+        if (!formData.party || !formData.party.trim()) {
             errors.party = "Party is required";
         }
-        if (!formData.amount || parseFloat(formData.amount) <= 0) {
+        if (!formData.amount || Number(formData.amount) <= 0) {
             errors.amount = "Valid amount is required";
         }
         if (!formData.paymentMethod) {
@@ -133,9 +260,9 @@ function ReceiptModal({ isOpen, onClose, onSave, onDelete, editData }) {
         const receiptData = {
             id: isEditMode ? editData.id : String(Date.now()),
             ...formData,
-            amount: parseFloat(formData.amount),
-            description: formData.description.trim(),
-            referenceNumber: formData.referenceNumber.trim(),
+            amount: Number(parseFloat(formData.amount)),
+            description: (formData.description || "").trim(),
+            referenceNumber: (formData.referenceNumber || "").trim(),
         };
 
         onSave(receiptData, isEditMode);
@@ -153,10 +280,10 @@ function ReceiptModal({ isOpen, onClose, onSave, onDelete, editData }) {
             e.preventDefault();
             const form = e.target.closest('form') || e.target.closest('[data-form-container]');
             if (!form) return;
-            
+
             const inputs = Array.from(form.querySelectorAll('input, select, textarea'));
             const currentIndex = inputs.indexOf(e.target);
-            
+
             if (currentIndex !== -1 && currentIndex < inputs.length - 1) {
                 inputs[currentIndex + 1].focus();
             }
@@ -211,15 +338,30 @@ function ReceiptModal({ isOpen, onClose, onSave, onDelete, editData }) {
                                 <label className="block text-sm font-medium text-gray-700 mb-1">
                                     Select Party<span className="text-red-500">*</span>
                                 </label>
+
+                                {/* Party select shows combined customers + vendors */}
                                 <select
-                                    value={formData.partyId}
-                                    onChange={(e) => handlePartyChange(e.target.value)}
+                                    value={formData.partyId || formData.party}
+                                    onChange={(e) => {
+                                        // we try to pass id if matching option had an id, otherwise pass the name
+                                        const val = e.target.value;
+                                        // find option by value
+                                        const found = parties.find(p => (p.id && p.id.toString() === val.toString()) || (p.name && p.name === val));
+                                        if (found && found.id) {
+                                            handlePartyChange(found.id);
+                                        } else {
+                                            handlePartyChange(val);
+                                        }
+                                    }}
                                     onKeyDown={handleKeyDown}
                                     className={`${baseInput} bg-white ${fieldErrors.party ? "border-red-500" : ""}`}
                                 >
                                     <option value="">Search and select party...</option>
                                     {parties.map((party) => (
-                                        <option key={party.id} value={party.id}>{party.name}</option>
+                                        // use party.id if present otherwise use party.name as value
+                                        <option key={(party.id || party.name)} value={party.id || party.name}>
+                                            {party.name}
+                                        </option>
                                     ))}
                                 </select>
                                 {fieldErrors.party && <p className="mt-1 text-xs text-red-500">{fieldErrors.party}</p>}
@@ -264,19 +406,30 @@ function ReceiptModal({ isOpen, onClose, onSave, onDelete, editData }) {
                                 <label className="block text-sm font-medium text-gray-700 mb-1">
                                     Select Invoice (Optional)
                                 </label>
+
                                 <select
                                     value={formData.invoiceId}
                                     onChange={(e) => handleInvoiceChange(e.target.value)}
                                     onKeyDown={handleKeyDown}
-                                    disabled={!formData.partyId}
+                                    disabled={!formData.party || invoicesLoading}
                                     className={`${baseInput} bg-white disabled:bg-gray-100 disabled:cursor-not-allowed`}
                                 >
-                                    <option value="">Select a party first to see their invoices...</option>
-                                    {formData.partyId && invoices.map((invoice) => (
-                                        <option key={invoice.id} value={invoice.id}>
-                                            {invoice.number} - Due: ₹{invoice.dueAmount.toLocaleString('en-IN')}
-                                        </option>
-                                    ))}
+                                    <option value="">{formData.party ? (invoicesLoading ? "Loading invoices..." : "Select an invoice...") : "Select a party first to see their invoices..."}</option>
+
+                                    {(!invoicesLoading && formData.party && invoices.length === 0) && (
+                                        <option value="" disabled>No invoices to show</option>
+                                    )}
+
+                                    {invoices.map(inv => {
+                                        // format date for display
+                                        const dateText = inv.dateIso ? new Date(inv.dateIso).toLocaleDateString('en-GB') : "";
+                                        const dueText = typeof inv.due === 'number' ? inv.due.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : inv.due;
+                                        return (
+                                            <option key={inv.id} value={inv.id}>
+                                                {inv.invoiceLabel} — Due: ₹{dueText}{dateText ? ` — ${dateText}` : ""}
+                                            </option>
+                                        );
+                                    })}
                                 </select>
                                 <p className="mt-1 text-xs text-gray-500">Select an invoice to automatically fill the amount with the due amount</p>
                             </div>
@@ -352,14 +505,15 @@ function ReceiptModal({ isOpen, onClose, onSave, onDelete, editData }) {
  * - PDF Invoice export functionality
  */
 export default function ReceiptPage() {
-    const [receipts, setReceipts] = useState([]);
+    const { rows: receipts = [], loading: receiptsLoading, error: receiptsError, reload, create, update, remove } = useReceipt({ useLocalFallback: false });
+
     const [selectedCell, setSelectedCell] = useState(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingReceipt, setEditingReceipt] = useState(null);
     const [isInvoicePreviewOpen, setIsInvoicePreviewOpen] = useState(false);
     const [selectedReceiptForInvoice, setSelectedReceiptForInvoice] = useState(null);
 
-    // Sample company data - in production, this would come from organization settings/API
+    // Company/formatter helpers (kept as you had them)
     const companyData = {
         name: "Your Company Name",
         gstin: "00XXXXX0000X0ZX",
@@ -371,14 +525,35 @@ export default function ReceiptPage() {
         phone: "+91 9999999999",
         email: "contact@company.com",
         website: "https://www.company.com",
-        logoUrl: "", // Wire from organization settings
+        logoUrl: "",
     };
 
-    // Convert receipt to invoice format for PDF export
+    const numberToWords = (num) => {
+        if (num === 0) return "Zero Rupees Only";
+        const ones = ["", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten",
+            "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen", "Seventeen", "Eighteen", "Nineteen"];
+        const tens = ["", "", "Twenty", "Thirty", "Forty", "Fifty", "Sixty", "Seventy", "Eighty", "Ninety"];
+        const convertLessThanThousand = (n) => {
+            if (n === 0) return "";
+            if (n < 20) return ones[n];
+            if (n < 100) return tens[Math.floor(n / 10)] + (n % 10 !== 0 ? " " + ones[n % 10] : "");
+            return ones[Math.floor(n / 100)] + " Hundred" + (n % 100 !== 0 ? " " + convertLessThanThousand(n % 100) : "");
+        };
+        const numInt = Math.floor(num);
+        const paisa = Math.round((num - numInt) * 100);
+        let result = "";
+        if (numInt >= 10000000) result += convertLessThanThousand(Math.floor(numInt / 10000000)) + " Crore ";
+        if (numInt >= 100000) result += convertLessThanThousand(Math.floor((numInt % 10000000) / 100000)) + " Lakh ";
+        if (numInt >= 1000) result += convertLessThanThousand(Math.floor((numInt % 100000) / 1000)) + " Thousand ";
+        if (numInt >= 100) result += convertLessThanThousand(Math.floor((numInt % 1000) / 100)) + " Hundred ";
+        if (numInt % 100 !== 0) result += convertLessThanThousand(numInt % 100);
+        result = result.trim() + " Rupees";
+        if (paisa > 0) result += " and " + convertLessThanThousand(paisa) + " Paise";
+        return "INR " + result + " Only";
+    };
+
     const convertReceiptToInvoice = (receipt) => {
         if (!receipt) return null;
-
-        // Find party details - in real app, fetch from customer API
         const customerData = {
             name: receipt.party || "Customer Name",
             partyName: receipt.party,
@@ -390,12 +565,11 @@ export default function ReceiptPage() {
             pincode: "000000",
             gstin: "",
         };
-
         return {
             company: companyData,
             customer: customerData,
             meta: {
-                invoiceNumber: receipt.invoice || `RCP-${receipt.id}`,
+                invoiceNumber: receipt.invoice || `RCP-${receipt.id || receipt._id}`,
                 invoiceDate: receipt.date,
                 dueDate: receipt.date,
                 placeOfSupply: customerData.state,
@@ -426,131 +600,26 @@ export default function ReceiptPage() {
                 ifscCode: "BANK0000000",
                 branch: "Branch Name",
             },
-            // TODO: wire UPI QR code URL from backend
-            paymentDetails: {
-                upiQrUrl: "",
-            },
-            // TODO: wire signatory name and signature image from backend
-            signatory: {
-                name: "Authorized Signatory",
-                signatureImageUrl: "",
-            },
+            paymentDetails: { upiQrUrl: "" },
+            signatory: { name: "Authorized Signatory", signatureImageUrl: "" },
         };
     };
 
-    // Convert number to words for amount in words
-    const numberToWords = (num) => {
-        if (num === 0) return "Zero Rupees Only";
-
-        const ones = ["", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten",
-            "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen", "Seventeen", "Eighteen", "Nineteen"];
-        const tens = ["", "", "Twenty", "Thirty", "Forty", "Fifty", "Sixty", "Seventy", "Eighty", "Ninety"];
-
-        const convertLessThanThousand = (n) => {
-            if (n === 0) return "";
-            if (n < 20) return ones[n];
-            if (n < 100) return tens[Math.floor(n / 10)] + (n % 10 !== 0 ? " " + ones[n % 10] : "");
-            return ones[Math.floor(n / 100)] + " Hundred" + (n % 100 !== 0 ? " " + convertLessThanThousand(n % 100) : "");
-        };
-
-        const numInt = Math.floor(num);
-        const paisa = Math.round((num - numInt) * 100);
-
-        let result = "";
-        
-        if (numInt >= 10000000) {
-            result += convertLessThanThousand(Math.floor(numInt / 10000000)) + " Crore ";
-        }
-        if (numInt >= 100000) {
-            result += convertLessThanThousand(Math.floor((numInt % 10000000) / 100000)) + " Lakh ";
-        }
-        if (numInt >= 1000) {
-            result += convertLessThanThousand(Math.floor((numInt % 100000) / 1000)) + " Thousand ";
-        }
-        if (numInt >= 100) {
-            result += convertLessThanThousand(Math.floor((numInt % 1000) / 100)) + " Hundred ";
-        }
-        if (numInt % 100 !== 0) {
-            result += convertLessThanThousand(numInt % 100);
-        }
-
-        result = result.trim() + " Rupees";
-        
-        if (paisa > 0) {
-            result += " and " + convertLessThanThousand(paisa) + " Paise";
-        }
-
-        return "INR " + result + " Only";
+    const formatDate = (dateString) => {
+        if (!dateString) return "-";
+        const date = new Date(dateString);
+        return date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
     };
 
-    // Invoice config - can be wired from settings
-    // TODO: wire footer text / watermark from configurable settings
-    // TODO: replace with real terms from backend or settings
-    const invoiceConfig = {
-        footerText: "This is a computer generated receipt",
-        watermarkText: "",
-        termsAndConditions: "",
-        poweredByText: "",
-        poweredByLogoUrl: "",
+    const formatCurrency = (amount) => {
+        return new Intl.NumberFormat('en-IN', {
+            style: 'currency',
+            currency: 'INR',
+            minimumFractionDigits: 2,
+        }).format(amount || 0);
     };
 
-    const handleOpenInvoicePreview = (receipt) => {
-        setSelectedReceiptForInvoice(receipt);
-        setIsInvoicePreviewOpen(true);
-    };
-
-    const handleCloseInvoicePreview = () => {
-        setIsInvoicePreviewOpen(false);
-        setSelectedReceiptForInvoice(null);
-    };
-
-    const handleOpenCreate = () => {
-        setEditingReceipt(null);
-        setIsModalOpen(true);
-    };
-
-    const handleEditReceipt = (receipt) => {
-        setEditingReceipt(receipt);
-        setIsModalOpen(true);
-    };
-
-    const handleCloseModal = () => {
-        setIsModalOpen(false);
-        setEditingReceipt(null);
-    };
-
-    const handleSaveReceipt = (receiptData, isEdit) => {
-        if (isEdit) {
-            setReceipts((prev) =>
-                prev.map((rec) =>
-                    rec.id === receiptData.id ? receiptData : rec
-                )
-            );
-        } else {
-            setReceipts((prev) => [...prev, receiptData]);
-        }
-        setIsModalOpen(false);
-        setEditingReceipt(null);
-    };
-
-    const handleDeleteReceipt = (id) => {
-        if (window.confirm("Are you sure you want to delete this receipt?")) {
-            setReceipts((prev) => prev.filter((rec) => rec.id !== id));
-            setIsModalOpen(false);
-            setEditingReceipt(null);
-        }
-    };
-
-    const handleCellClick = (rowIndex, colIndex) => {
-        setSelectedCell({ rowIndex, colIndex });
-    };
-
-    const handleTableContainerClick = (e) => {
-        if (e.target === e.currentTarget) {
-            setSelectedCell(null);
-        }
-    };
-
+    // table sizing (same as SalesPage)
     const TOTAL_ROWS = 15;
     const tableContainerRef = useRef(null);
     const [visibleRows, setVisibleRows] = useState(TOTAL_ROWS);
@@ -572,6 +641,14 @@ export default function ReceiptPage() {
         return () => window.removeEventListener('resize', calculateRows);
     }, []);
 
+    // Load receipts on mount (server is source of truth)
+    useEffect(() => {
+        if (typeof reload === 'function') {
+            reload().catch(e => console.warn('reload failed', e));
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
     const emptyRowsCount = Math.max(0, visibleRows - receipts.length);
     const emptyRows = Array.from({ length: emptyRowsCount }, (_, i) => i);
 
@@ -591,17 +668,118 @@ export default function ReceiptPage() {
         return `${baseClasses} ${selectedClasses}`;
     };
 
-    const formatDate = (dateString) => {
-        const date = new Date(dateString);
-        return date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+    // UI actions
+    const handleOpenCreate = () => {
+        setEditingReceipt(null);
+        setIsModalOpen(true);
     };
 
-    const formatCurrency = (amount) => {
-        return new Intl.NumberFormat('en-IN', {
-            style: 'currency',
-            currency: 'INR',
-            minimumFractionDigits: 2,
-        }).format(amount);
+    const handleEditReceipt = (receipt) => {
+        setEditingReceipt(receipt);
+        setIsModalOpen(true);
+    };
+
+    const handleCloseModal = () => {
+        setIsModalOpen(false);
+        setEditingReceipt(null);
+    };
+
+    const handleOpenInvoicePreview = (receipt) => {
+        setSelectedReceiptForInvoice(receipt);
+        setIsInvoicePreviewOpen(true);
+    };
+
+    const handleCloseInvoicePreview = () => {
+        setIsInvoicePreviewOpen(false);
+        setSelectedReceiptForInvoice(null);
+    };
+
+    // Normalize receipt payload before sending to server (mirror invoice normalization style)
+    function normalizeReceiptPayload(payload) {
+        const p = { ...payload };
+
+        // remove client-only id
+        if (p.id) delete p.id;
+
+        // date to ISO if present
+        if (p.date) p.date = new Date(p.date).toISOString();
+
+        // strings
+        p.party = (p.party || "").toString().trim();
+        p.partyId = p.partyId || null;
+        p.invoice = p.invoice || "";
+        p.invoiceId = p.invoiceId || null;
+        p.paymentMethod = p.paymentMethod || "Cash";
+        p.referenceNumber = (p.referenceNumber || "").toString().trim();
+        p.description = (p.description || "").toString().trim();
+
+        // numeric coercion
+        p.amount = (p.amount === "" || p.amount == null) ? 0 : Number(p.amount);
+
+        return p;
+    }
+
+    // Save handler (create or update)
+    const handleSaveReceipt = async (receiptData, isEdit) => {
+        try {
+            // basic client-side validation
+            if (!receiptData.party || !receiptData.party.toString().trim()) {
+                alert("Party is required.");
+                return;
+            }
+            if (!receiptData.amount || Number(receiptData.amount) <= 0) {
+                alert("Amount is required and should be > 0.");
+                return;
+            }
+
+            const payload = normalizeReceiptPayload(receiptData);
+
+            if (isEdit) {
+                const id = receiptData._id || receiptData.id || (editingReceipt && (editingReceipt._id || editingReceipt.id));
+                if (!id) throw new Error("Missing receipt id for update");
+                // try update(id, payload) signature used by your resourceFactory
+                await update(id, payload);
+                if (typeof reload === 'function') await reload();
+            } else {
+                await create(payload);
+                if (typeof reload === 'function') await reload();
+            }
+
+            setIsModalOpen(false);
+            setEditingReceipt(null);
+        } catch (err) {
+            console.error("Failed to save receipt:", err);
+            const msg = err?.response?.data?.error?.message || err?.message || "Failed to save receipt";
+            alert(msg);
+        }
+    };
+
+    // Delete handler
+    const handleDeleteReceipt = async (receiptOrId) => {
+        const id = (receiptOrId && (receiptOrId._id || receiptOrId.id)) || receiptOrId;
+        if (!id) return;
+        if (!window.confirm("Are you sure you want to delete this receipt?")) return;
+
+        try {
+            await remove(id);
+            if (typeof reload === 'function') await reload();
+            setIsModalOpen(false);
+            setEditingReceipt(null);
+        } catch (err) {
+            console.error("Failed to delete receipt:", err);
+            const msg = err?.response?.data?.error?.message || err?.message || "Failed to delete receipt";
+            alert(msg);
+        }
+    };
+
+    const handleCellClick = (rowIndex, colIndex) => {
+        setSelectedCell({ rowIndex, colIndex });
+    };
+
+    const handleTableContainerClick = (e) => {
+        if (e.target === e.currentTarget) {
+            setSelectedCell(null);
+        }
     };
 
     return (
@@ -627,38 +805,18 @@ export default function ReceiptPage() {
                 </button>
             </div>
 
-            {/* Toolbar - Icons commented out as per requirement */}
+            {/* Toolbar (kept minimal like your original) */}
             <div className="flex items-center justify-end gap-2 px-4 py-2 border-b border-gray-100">
-                {/* <button className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded">
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                    </svg>
-                </button>
-                <button className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded">
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
-                    </svg>
-                </button>
-                <button className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded">
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
-                    </svg>
-                </button>
-                <button className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded">
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
-                    </svg>
-                </button>
                 <div className="w-px h-5 bg-gray-300 mx-1"></div>
                 <button className="flex items-center gap-2 px-3 py-1.5 text-gray-600 hover:bg-gray-100 rounded text-sm">
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
                     </svg>
                     More Filter
-                </button> */}
+                </button>
             </div>
 
-            {/* Table Container - Scrollable */}
+            {/* Table Container */}
             <div
                 ref={tableContainerRef}
                 className="flex-1 overflow-auto px-4 pb-1"
@@ -666,144 +824,111 @@ export default function ReceiptPage() {
             >
                 <div className="border border-gray-400 rounded overflow-hidden h-full">
                     <div className="overflow-x-auto h-full">
-                    <table className="min-w-[1000px] w-full border-collapse text-sm" style={{ borderSpacing: 0 }}>
-                        <thead className="sticky top-0 z-10 bg-white">
-                            <tr className="border-b border-gray-400">
-                                <th className="min-w-[110px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-gray-400 cursor-grab">⋮⋮</span>
-                                        <span>Date</span>
-                                    </div>
-                                </th>
-                                <th className="min-w-[160px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-gray-400 cursor-grab">⋮⋮</span>
-                                        <span>Party</span>
-                                    </div>
-                                </th>
-                                <th className="min-w-[130px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-gray-400 cursor-grab">⋮⋮</span>
-                                        <span>Amount</span>
-                                    </div>
-                                </th>
-                                <th className="min-w-[140px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-gray-400 cursor-grab">⋮⋮</span>
-                                        <span>Payment Method</span>
-                                    </div>
-                                </th>
-                                <th className="min-w-[120px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-gray-400 cursor-grab">⋮⋮</span>
-                                        <span>Invoice</span>
-                                    </div>
-                                </th>
-                                <th className="min-w-[130px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-gray-400 cursor-grab">⋮⋮</span>
-                                        <span>Reference</span>
-                                    </div>
-                                </th>
-                                <th className="min-w-[100px] h-9 px-4 text-left text-sm font-medium text-gray-700 sticky right-0 z-20 bg-gray-100 border-l border-gray-400" style={{ boxShadow: '-4px 0 8px -2px rgba(0, 0, 0, 0.15)' }}>
-                                    Actions
-                                </th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {/* Data rows */}
-                            {receipts.map((receipt, rowIndex) => (
-                                <tr
-                                    key={receipt.id}
-                                    className={`border-b border-gray-400 hover:bg-blue-100 transition-colors ${rowIndex % 2 === 0 ? 'bg-blue-50/40' : 'bg-white'}`}
-                                >
-                                    <td
-                                        className={getCellClasses(rowIndex, 0) + " text-left text-gray-600"}
-                                        onClick={() => handleCellClick(rowIndex, 0)}
-                                    >
-                                        {formatDate(receipt.date)}
-                                    </td>
-                                    <td
-                                        className={getCellClasses(rowIndex, 1) + " text-left text-blue-600"}
-                                        onClick={() => handleCellClick(rowIndex, 1)}
-                                    >
-                                        {receipt.party}
-                                    </td>
-                                    <td
-                                        className={getCellClasses(rowIndex, 2) + " text-left text-green-600 font-medium"}
-                                        onClick={() => handleCellClick(rowIndex, 2)}
-                                    >
-                                        {formatCurrency(receipt.amount)}
-                                    </td>
-                                    <td
-                                        className={getCellClasses(rowIndex, 3) + " text-left text-gray-600"}
-                                        onClick={() => handleCellClick(rowIndex, 3)}
-                                    >
-                                        <span className="inline-flex items-center px-2 py-0.5 rounded bg-gray-100 text-gray-700 text-xs">
-                                            {receipt.paymentMethod}
-                                        </span>
-                                    </td>
-                                    <td
-                                        className={getCellClasses(rowIndex, 4) + " text-left text-gray-600"}
-                                        onClick={() => handleCellClick(rowIndex, 4)}
-                                    >
-                                        {receipt.invoice || "-"}
-                                    </td>
-                                    <td
-                                        className={getCellClasses(rowIndex, 5) + " text-left text-gray-600"}
-                                        onClick={() => handleCellClick(rowIndex, 5)}
-                                    >
-                                        {receipt.referenceNumber || "-"}
-                                    </td>
-                                    <td className={`h-8 px-4 text-left sticky right-0 z-10 border-l border-gray-400 ${rowIndex % 2 === 0 ? 'bg-blue-50' : 'bg-white'}`} style={{ boxShadow: '-4px 0 8px -2px rgba(0, 0, 0, 0.1)' }}>
-                                        <div className="flex items-center justify-end gap-2">
-                                            <button
-                                                onClick={() => handleOpenInvoicePreview(receipt)}
-                                                className="text-purple-600 hover:underline text-sm"
-                                                title="Export as PDF"
-                                            >
-                                                PDF
-                                            </button>
-                                            <button
-                                                onClick={() => handleEditReceipt(receipt)}
-                                                className="text-blue-600 hover:underline text-sm"
-                                            >
-                                                Edit
-                                            </button>
-                                            <button className="text-gray-400 hover:text-gray-600">
-                                                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                                                    <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z" />
-                                                </svg>
-                                            </button>
+                        <table className="min-w-[1000px] w-full border-collapse text-sm" style={{ borderSpacing: 0 }}>
+                            <thead className="sticky top-0 z-10 bg-white">
+                                <tr className="border-b border-gray-400">
+                                    <th className="min-w-[110px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-gray-400 cursor-grab">⋮⋮</span>
+                                            <span>Date</span>
                                         </div>
-                                    </td>
+                                    </th>
+                                    <th className="min-w-[160px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-gray-400 cursor-grab">⋮⋮</span>
+                                            <span>Party</span>
+                                        </div>
+                                    </th>
+                                    <th className="min-w-[130px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-gray-400 cursor-grab">⋮⋮</span>
+                                            <span>Amount</span>
+                                        </div>
+                                    </th>
+                                    <th className="min-w-[140px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-gray-400 cursor-grab">⋮⋮</span>
+                                            <span>Payment Method</span>
+                                        </div>
+                                    </th>
+                                    <th className="min-w-[120px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-gray-400 cursor-grab">⋮⋮</span>
+                                            <span>Invoice</span>
+                                        </div>
+                                    </th>
+                                    <th className="min-w-[130px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-gray-400 cursor-grab">⋮⋮</span>
+                                            <span>Reference</span>
+                                        </div>
+                                    </th>
+                                    <th className="min-w-[100px] h-9 px-4 text-left text-sm font-medium text-gray-700 sticky right-0 z-20 bg-gray-100 border-l border-gray-400" style={{ boxShadow: '-4px 0 8px -2px rgba(0, 0, 0, 0.15)' }}>
+                                        Actions
+                                    </th>
                                 </tr>
-                            ))}
-                            {/* Empty rows to fill the display */}
-                            {emptyRows.map((_, idx) => {
-                                const rowIndex = receipts.length + idx;
-                                return (
+                            </thead>
+                            <tbody>
+                                {receipts.map((receipt, rowIndex) => (
                                     <tr
-                                        key={`empty-${idx}`}
+                                        key={receipt.id || receipt._id || rowIndex}
                                         className={`border-b border-gray-400 hover:bg-blue-100 transition-colors ${rowIndex % 2 === 0 ? 'bg-blue-50/40' : 'bg-white'}`}
                                     >
-                                        <td className={getCellClasses(rowIndex, 0)} onClick={() => handleCellClick(rowIndex, 0)}></td>
-                                        <td className={getCellClasses(rowIndex, 1)} onClick={() => handleCellClick(rowIndex, 1)}></td>
-                                        <td className={getCellClasses(rowIndex, 2)} onClick={() => handleCellClick(rowIndex, 2)}></td>
-                                        <td className={getCellClasses(rowIndex, 3)} onClick={() => handleCellClick(rowIndex, 3)}></td>
-                                        <td className={getCellClasses(rowIndex, 4)} onClick={() => handleCellClick(rowIndex, 4)}></td>
-                                        <td className={getCellClasses(rowIndex, 5)} onClick={() => handleCellClick(rowIndex, 5)}></td>
-                                        <td className={`h-8 px-4 sticky right-0 z-10 border-l border-gray-400 ${rowIndex % 2 === 0 ? 'bg-blue-50' : 'bg-white'}`} style={{ boxShadow: '-4px 0 8px -2px rgba(0, 0, 0, 0.1)' }}></td>
+                                        <td className={getCellClasses(rowIndex, 0) + " text-left text-gray-600"} onClick={() => handleCellClick(rowIndex, 0)}>
+                                            {formatDate(receipt.date)}
+                                        </td>
+                                        <td className={getCellClasses(rowIndex, 1) + " text-left text-blue-600"} onClick={() => handleCellClick(rowIndex, 1)}>
+                                            {receipt.party}
+                                        </td>
+                                        <td className={getCellClasses(rowIndex, 2) + " text-left text-green-600 font-medium"} onClick={() => handleCellClick(rowIndex, 2)}>
+                                            {formatCurrency(receipt.amount)}
+                                        </td>
+                                        <td className={getCellClasses(rowIndex, 3) + " text-left text-gray-600"} onClick={() => handleCellClick(rowIndex, 3)}>
+                                            <span className="inline-flex items-center px-2 py-0.5 rounded bg-gray-100 text-gray-700 text-xs">
+                                                {receipt.paymentMethod}
+                                            </span>
+                                        </td>
+                                        <td className={getCellClasses(rowIndex, 4) + " text-left text-gray-600"} onClick={() => handleCellClick(rowIndex, 4)}>
+                                            {receipt.invoice || "-"}
+                                        </td>
+                                        <td className={getCellClasses(rowIndex, 5) + " text-left text-gray-600"} onClick={() => handleCellClick(rowIndex, 5)}>
+                                            {receipt.referenceNumber || "-"}
+                                        </td>
+                                        <td className={`h-8 px-4 text-left sticky right-0 z-10 border-l border-gray-400 ${rowIndex % 2 === 0 ? 'bg-blue-50' : 'bg-white'}`} style={{ boxShadow: '-4px 0 8px -2px rgba(0, 0, 0, 0.1)' }}>
+                                            <div className="flex items-center justify-end gap-2">
+                                                <button onClick={() => handleOpenInvoicePreview(receipt)} className="text-purple-600 hover:underline text-sm" title="Export as PDF">PDF</button>
+                                                <button onClick={() => handleEditReceipt(receipt)} className="text-blue-600 hover:underline text-sm">Edit</button>
+                                                <button onClick={() => handleDeleteReceipt(receipt)} className="text-gray-400 hover:text-gray-600" title="Delete">
+                                                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                                                        <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z" />
+                                                    </svg>
+                                                </button>
+                                            </div>
+                                        </td>
                                     </tr>
-                                );
-                            })}
-                        </tbody>
-                    </table>
+                                ))}
+                                {/* Empty rows */}
+                                {emptyRows.map((_, idx) => {
+                                    const rowIndex = receipts.length + idx;
+                                    return (
+                                        <tr key={`empty-${idx}`} className={`border-b border-gray-400 hover:bg-blue-100 transition-colors ${rowIndex % 2 === 0 ? 'bg-blue-50/40' : 'bg-white'}`}>
+                                            <td className={getCellClasses(rowIndex, 0)}></td>
+                                            <td className={getCellClasses(rowIndex, 1)}></td>
+                                            <td className={getCellClasses(rowIndex, 2)}></td>
+                                            <td className={getCellClasses(rowIndex, 3)}></td>
+                                            <td className={getCellClasses(rowIndex, 4)}></td>
+                                            <td className={getCellClasses(rowIndex, 5)}></td>
+                                            <td className={`h-8 px-4 sticky right-0 z-10 border-l border-gray-400 ${rowIndex % 2 === 0 ? 'bg-blue-50' : 'bg-white'}`}></td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             </div>
 
-            {/* Footer - Fixed at bottom */}
+            {/* Footer */}
             <div className="px-4 py-2 border-t border-gray-200 text-sm text-blue-600 bg-white">
                 {totalRecords > 0 ? `${startRecord}-${endRecord} of ${totalRecords} Records` : '0 Records'}
             </div>
@@ -817,15 +942,18 @@ export default function ReceiptPage() {
                 editData={editingReceipt}
             />
 
-            {/* Invoice Preview Modal with PDF Export */}
+            {/* Invoice Preview Modal */}
             {selectedReceiptForInvoice && (
                 <InvoicePreviewModal
                     isOpen={isInvoicePreviewOpen}
                     onClose={handleCloseInvoicePreview}
                     invoice={convertReceiptToInvoice(selectedReceiptForInvoice)}
-                    config={invoiceConfig}
+                    config={{ footerText: "This is a computer generated receipt" }}
                 />
             )}
+
+            {/* show simple errors */}
+            {(receiptsError) && <div className="p-3 text-red-600 text-sm">{String(receiptsError)}</div>}
         </div>
     );
 }
