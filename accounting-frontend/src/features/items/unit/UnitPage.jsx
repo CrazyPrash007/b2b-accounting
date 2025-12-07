@@ -307,7 +307,8 @@ export default function UnitPage() {
                 </button>
             </div>
 
-            {/* Toolbar */}
+            {/* Toolbar - Icons commented out */}
+            {/*
             <div className="flex items-center justify-end gap-2 px-4 py-2 border-b border-gray-100">
                 <button className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -330,6 +331,7 @@ export default function UnitPage() {
                     </svg>
                 </button>
             </div>
+            */}
 
             {/* Table Container */}
             <div
@@ -359,7 +361,7 @@ export default function UnitPage() {
                                         </svg>
                                     </div>
                                 </th>
-                                <th className="w-[20%] h-9 px-4 text-left text-sm font-medium text-gray-700">
+                                <th className="min-w-[100px] h-9 px-4 text-left text-sm font-medium text-gray-700 sticky right-0 z-20 bg-gray-100 border-l border-gray-400" style={{ boxShadow: '-4px 0 8px -2px rgba(0, 0, 0, 0.15)' }}>
                                     Actions
                                 </th>
                             </tr>
@@ -383,7 +385,7 @@ export default function UnitPage() {
                                     >
                                         {unit.aliasName}
                                     </td>
-                                    <td className="h-8 px-4 text-left">
+                                    <td className={`h-8 px-4 text-left sticky right-0 z-10 border-l border-gray-400 ${rowIndex % 2 === 0 ? 'bg-blue-50' : 'bg-white'}`} style={{ boxShadow: '-4px 0 8px -2px rgba(0, 0, 0, 0.1)' }}>
                                         <div className="flex items-center justify-end gap-2">
                                             <button
                                                 onClick={() => handleEditUnit(unit)}
@@ -416,7 +418,7 @@ export default function UnitPage() {
                                             className={getCellClasses(rowIndex, 1)}
                                             onClick={() => handleCellClick(rowIndex, 1)}
                                         ></td>
-                                        <td className="h-8 px-4"></td>
+                                        <td className={`h-8 px-4 sticky right-0 z-10 border-l border-gray-400 ${rowIndex % 2 === 0 ? 'bg-blue-50' : 'bg-white'}`} style={{ boxShadow: '-4px 0 8px -2px rgba(0, 0, 0, 0.1)' }}></td>
                                     </tr>
                                 );
                             })}
