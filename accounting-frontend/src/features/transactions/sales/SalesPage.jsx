@@ -410,7 +410,6 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
             ...prev,
             items: [...prev.items, { id: newId, goodsService: "", name: "", qty: "", rate: "", gstPercent: "", gstType: "Excluded", actualAmount: "", finalAmount: "" }]
         }));
-
         if (error) setError("");
         return true;
     };
