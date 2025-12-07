@@ -51,7 +51,7 @@ function resourceApiFactory(resourcePath) {
                     credentials: "same-origin",
                     body: JSON.stringify(payload),
                 });
-                if (!res.ok) throw new Error(`Failed to create ${BASE}: ${res.status}`);
+                if (!res.ok) throw new Error(`Failed to create`);
                 const body = await res.json();
                 return unwrap(body);
             }

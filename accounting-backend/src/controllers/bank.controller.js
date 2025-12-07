@@ -72,9 +72,32 @@ async function create(req, res, next) {
             payload.openingBalance = Number(payload.openingBalance) || 0;
         }
 
+        // ---- explicit pre-check to provide friendly error (race possible but rare) ----
+        if (!payload.accountNumber) {
+            return res.status(400).json({ success: false, error: { message: 'accountNumber is required' } });
+        }
+
+        const existing = await Bank.findOne({ ownerId, accountNumber: payload.accountNumber, isDeleted: false }).lean();
+        if (existing) {
+            return res.status(409).json({ success: false, error: { message: 'account already exists' } });
+        }
+
         const doc = await Bank.create(payload);
         res.status(201).json({ success: true, data: doc });
     } catch (err) {
+        // handle duplicate key error to give friendly message
+        if (err && err.code === 11000) {
+            // try to detect duplicated field
+            const key = (err.keyValue && Object.keys(err.keyValue)[0]) ||
+                (err.keyPattern && Object.keys(err.keyPattern)[0]) ||
+                (err.message && (err.message.match(/index:\s*(\S+)_1/) || [])[1]) ||
+                null;
+
+            if (key && /accountNumber/i.test(key)) {
+                return res.status(409).json({ success: false, error: { message: 'account already exists' } });
+            }
+            return res.status(409).json({ success: false, error: { message: 'duplicate key error' } });
+        }
         next(err);
     }
 }
@@ -95,10 +118,34 @@ async function update(req, res, next) {
             payload.openingBalance = Number(payload.openingBalance) || 0;
         }
 
-        const doc = await Bank.findOneAndUpdate({ _id: id, ownerId }, payload, { new: true });
+        // If accountNumber is being changed, ensure uniqueness scoped to owner
+        if (payload.accountNumber) {
+            const conflict = await Bank.findOne({
+                ownerId,
+                accountNumber: payload.accountNumber,
+                isDeleted: false,
+                _id: { $ne: id }
+            }).lean();
+            if (conflict) {
+                return res.status(409).json({ success: false, error: { message: 'account already exists' } });
+            }
+        }
+
+        // runValidators true ensures schema validation on update
+        const doc = await Bank.findOneAndUpdate({ _id: id, ownerId }, payload, { new: true, runValidators: true });
         if (!doc) return res.status(404).json({ success: false, error: { message: 'Not found' } });
         res.json({ success: true, data: doc });
     } catch (err) {
+        // handle duplicate key error with friendly message
+        if (err && err.code === 11000) {
+            const key = (err.keyValue && Object.keys(err.keyValue)[0]) ||
+                (err.keyPattern && Object.keys(err.keyPattern)[0]) ||
+                null;
+            if (key && /accountNumber/i.test(key)) {
+                return res.status(409).json({ success: false, error: { message: 'account already exists' } });
+            }
+            return res.status(409).json({ success: false, error: { message: 'duplicate key error' } });
+        }
         next(err);
     }
 }
@@ -107,7 +154,7 @@ async function remove(req, res, next) {
     try {
         const ownerId = req.user.ownerId;
         const id = req.params.id;
-        const doc = await Bank.findOneAndUpdate({ _id: id, ownerId }, { isDeleted: true }, { new: true });
+        const doc = await Bank.findOneAndUpdate({ _id: id, ownerId }, { isDeleted: true, updatedBy: req.user.id }, { new: true });
         if (!doc) return res.status(404).json({ success: false, error: { message: 'Not found' } });
         res.json({ success: true, data: doc });
     } catch (err) {
