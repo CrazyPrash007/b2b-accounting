@@ -77,6 +77,18 @@ async function create(req, res, next) {
             createdBy: req.user.id,
         };
 
+        // If incoming items use goodsService (old client), map to name (canonical)
+        if (Array.isArray(payload.items)) {
+            payload.items = payload.items.map(it => {
+                const copy = { ...it };
+                // prefer explicit name, fall back to goodsService
+                copy.name = (copy.name && copy.name.toString().trim()) ? copy.name.toString() : (copy.goodsService ? copy.goodsService.toString() : '');
+                // keep goodsService populated for backward compatibility
+                copy.goodsService = copy.name;
+                return copy;
+            });
+        }
+
         // Coerce numbers and dates
         if (payload.invoiceDate) payload.invoiceDate = new Date(payload.invoiceDate);
         if (payload.supplierInvoiceDate) payload.supplierInvoiceDate = new Date(payload.supplierInvoiceDate);
@@ -87,10 +99,13 @@ async function create(req, res, next) {
         payload.discount = payload.discount != null ? Number(payload.discount) : 0;
         payload.paymentAmount = payload.paymentAmount != null ? Number(payload.paymentAmount) : 0;
 
-        // normalize items array numbers
+        // normalize items array numbers (and ensure name/goodsService exist)
         if (Array.isArray(payload.items)) {
             payload.items = payload.items.map(it => {
                 const copy = { ...it };
+                // ensure canonical name exists
+                copy.name = (copy.name && copy.name.toString().trim()) ? copy.name.toString() : (copy.goodsService ? copy.goodsService.toString() : '');
+                copy.goodsService = copy.name;
                 copy.qty = copy.qty != null && copy.qty !== '' ? Number(copy.qty) : 0;
                 copy.rate = copy.rate != null && copy.rate !== '' ? Number(copy.rate) : 0;
                 copy.gstPercent = copy.gstPercent != null && copy.gstPercent !== '' ? Number(copy.gstPercent) : 0;
@@ -126,6 +141,16 @@ async function update(req, res, next) {
         const id = req.params.id;
         const payload = { ...req.body, updatedBy: req.user.id };
 
+        // If incoming items use goodsService (old client), map to name (canonical)
+        if (Array.isArray(payload.items)) {
+            payload.items = payload.items.map(it => {
+                const copy = { ...it };
+                copy.name = (copy.name && copy.name.toString().trim()) ? copy.name.toString() : (copy.goodsService ? copy.goodsService.toString() : '');
+                copy.goodsService = copy.name;
+                return copy;
+            });
+        }
+
         if (payload.invoiceDate) payload.invoiceDate = new Date(payload.invoiceDate);
         if (payload.supplierInvoiceDate) payload.supplierInvoiceDate = new Date(payload.supplierInvoiceDate);
 
@@ -138,6 +163,9 @@ async function update(req, res, next) {
         if (Array.isArray(payload.items)) {
             payload.items = payload.items.map(it => {
                 const copy = { ...it };
+                // maintain canonical name + goodsService
+                copy.name = (copy.name && copy.name.toString().trim()) ? copy.name.toString() : (copy.goodsService ? copy.goodsService.toString() : '');
+                copy.goodsService = copy.name;
                 copy.qty = copy.qty != null && copy.qty !== '' ? Number(copy.qty) : 0;
                 copy.rate = copy.rate != null && copy.rate !== '' ? Number(copy.rate) : 0;
                 copy.gstPercent = copy.gstPercent != null && copy.gstPercent !== '' ? Number(copy.gstPercent) : 0;

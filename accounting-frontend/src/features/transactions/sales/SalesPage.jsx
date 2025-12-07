@@ -16,7 +16,8 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
         invoiceNumber: String(getNextInvoiceCounter()).padStart(6, '0'),
         invoiceSuffix: "",
         invoiceDate: new Date().toISOString().split('T')[0],
-        items: [{ id: 1, goodsService: "", qty: "", rate: "", gstPercent: "", gstType: "Excluded", actualAmount: "", finalAmount: "" }],
+        // <-- make sure new items have both goodsService and name
+        items: [{ id: 1, goodsService: "", name: "", qty: "", rate: "", gstPercent: "", gstType: "Excluded", actualAmount: "", finalAmount: "" }],
         isPaymentReceived: true,
         paymentMode: "Cash",
         refNo: "",
@@ -27,6 +28,7 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
         autoRoundOff: true,
         description: "",
     });
+
     const [error, setError] = useState("");
 
     // Additional charges state
@@ -78,7 +80,23 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
                     invoiceNumber: editData.invoiceNumber || String(getNextInvoiceCounter()).padStart(6, '0'),
                     invoiceSuffix: editData.invoiceSuffix || "",
                     invoiceDate: editData.invoiceDate || new Date().toISOString().split('T')[0],
-                    items: editData.items || [{ id: 1, goodsService: "", qty: "", rate: "", gstPercent: "", gstType: "Excluded", actualAmount: "", finalAmount: "" }],
+                    // map backend items so frontend always has goodsService populated
+                    items: (editData.items && Array.isArray(editData.items) && editData.items.length) ? editData.items.map((it, i) => ({
+                        id: it.id ?? (i + 1),
+                        // prefer goodsService (if some older docs had it), otherwise fallback to 'name'
+                        goodsService: (it.goodsService ?? it.name ?? "").toString(),
+                        name: (it.name ?? it.goodsService ?? "").toString(),
+                        qty: it.qty ?? it.quantity ?? "",
+                        // keep compatibility with backend fields (sellPrice / rate)
+                        rate: it.rate ?? it.sellPrice ?? it.price ?? "",
+                        gstPercent: it.gstPercent ?? it.gstRate ?? "",
+                        gstType: it.gstType || "Excluded",
+                        actualAmount: it.actualAmount ?? "",
+                        finalAmount: it.finalAmount ?? "",
+                        hsnNo: it.hsnNo || "",
+                        unit: it.unit || "",
+                        itemId: it.itemId || it._id || null
+                    })) : [{ id: 1, goodsService: "", name: "", qty: "", rate: "", gstPercent: "", gstType: "Excluded", actualAmount: "", finalAmount: "" }],
                     isPaymentReceived: editData.isPaymentReceived ?? true,
                     paymentMode: editData.paymentMode || "Cash",
                     refNo: editData.refNo || "",
@@ -90,6 +108,7 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
                     description: editData.description || "",
                 });
             } else {
+                // existing else branch remains the same but ensure new row includes `name` as well:
                 const nextCounter = getNextInvoiceCounter();
                 setFormData({
                     customer: "",
@@ -97,7 +116,7 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
                     invoiceNumber: String(nextCounter).padStart(6, '0'),
                     invoiceSuffix: "",
                     invoiceDate: new Date().toISOString().split('T')[0],
-                    items: [{ id: 1, goodsService: "", qty: "", rate: "", gstPercent: "", gstType: "Excluded", actualAmount: "", finalAmount: "" }],
+                    items: [{ id: 1, goodsService: "", name: "", qty: "", rate: "", gstPercent: "", gstType: "Excluded", actualAmount: "", finalAmount: "" }],
                     isPaymentReceived: true,
                     paymentMode: "Cash",
                     refNo: "",
@@ -243,20 +262,21 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
 
         // If goodsService changed, try to autofill rate synchronously
         if (field === "goodsService") {
+            // set the canonical name too so payload and later editing remain consistent
+            newItems[index].name = value;
             const autoRate = tryAutoFillRate(value);
             if (autoRate !== "") {
                 newItems[index].rate = autoRate;
             }
         }
 
-        // Calculate amounts if qty and rate are available
         const qty = parseFloat(newItems[index].qty) || 0;
         const rate = parseFloat(newItems[index].rate) || 0;
         const gstPercent = parseFloat(newItems[index].gstPercent) || 0;
         const gstType = newItems[index].gstType || "Excluded";
 
-        let actualAmount = 0; // Pre-tax amount
-        let finalAmount = 0;  // Amount with tax
+        let actualAmount = 0;
+        let finalAmount = 0;
 
         if (withGst && gstPercent > 0) {
             if (gstType === "Excluded") {
@@ -388,8 +408,9 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
         const newId = formData.items.length + 1;
         setFormData((prev) => ({
             ...prev,
-            items: [...prev.items, { id: newId, goodsService: "", qty: "", rate: "", gstPercent: "", gstType: "Excluded", actualAmount: "", finalAmount: "" }]
+            items: [...prev.items, { id: newId, goodsService: "", name: "", qty: "", rate: "", gstPercent: "", gstType: "Excluded", actualAmount: "", finalAmount: "" }]
         }));
+
         if (error) setError("");
         return true;
     };
@@ -442,6 +463,7 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
         const salesData = {
             id: isEditMode ? editData.id : String(Date.now()),
             ...formData,
+            items: (formData.items || []).map(it => ({ ...it, name: (it.name || it.goodsService || "").toString() })),
             withGst,
             totalAmount: totals.total,
             taxableAmount: totals.taxableAmt,
@@ -449,6 +471,7 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
             additionalCharges,
             payments,
         };
+
 
         if (!isEditMode) {
             const currentCounter = getNextInvoiceCounter();

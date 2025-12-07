@@ -2,9 +2,7 @@
 const mongoose = require('mongoose');
 
 const SaleItemSchema = new mongoose.Schema({
-    // optional reference to Item collection if available
     itemId: { type: mongoose.Schema.Types.ObjectId, ref: 'Item', default: null },
-    // display name used by frontend (goodsService)
     name: { type: String, required: true, trim: true },
     description: { type: String, default: '' },
 

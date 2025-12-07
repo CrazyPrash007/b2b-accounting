@@ -239,7 +239,8 @@ function PurchaseInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, wit
             return name && name === value.toString().trim().toLowerCase();
         });
         if (!match) return "";
-        const rateVal = match.sellPrice ?? match.rate ?? match.price ?? match.buyPrice ?? "";
+        // prefer buyPrice for purchases
+        const rateVal = match.buyPrice ?? match.rate ?? match.price ?? "";
         return rateVal != null ? String(rateVal) : "";
     };
 
@@ -256,9 +257,9 @@ function PurchaseInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, wit
         // If goodsService changed, try to autofill rate synchronously (Sales parity)
         if (field === "goodsService") {
             const autoRate = tryAutoFillRate(value);
-            if (autoRate !== "") {
-                newItems[index].rate = autoRate;
-            }
+            if (autoRate !== "") newItems[index].rate = autoRate;
+            // optional: also set a canonical name field used by backend
+            newItems[index].name = value;
         }
 
         // Calculate amounts if qty and rate are available
@@ -450,9 +451,31 @@ function PurchaseInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, wit
             return;
         }
 
+        // Normalize items so backend receives both 'name' and 'goodsService'
+        const itemsForServer = (formData.items || []).map(it => {
+            const goodsName = (it.goodsService && it.goodsService.toString()) || (it.name && it.name.toString()) || "";
+            return {
+                // keep original fields but enforce canonical names
+                itemId: it.itemId ?? it._id ?? null,
+                name: goodsName,
+                goodsService: goodsName,
+                description: it.description || "",
+                qty: it.qty === "" || it.qty == null ? 0 : Number(it.qty),
+                rate: it.rate === "" || it.rate == null ? 0 : Number(it.rate),
+                buyPrice: it.buyPrice ?? it.buyPrice ?? null,
+                gstPercent: it.gstPercent === "" || it.gstPercent == null ? null : Number(it.gstPercent),
+                gstType: it.gstType || "Excluded",
+                actualAmount: it.actualAmount === "" || it.actualAmount == null ? null : Number(it.actualAmount),
+                finalAmount: it.finalAmount === "" || it.finalAmount == null ? null : Number(it.finalAmount),
+                hsnNo: it.hsnNo || "",
+                unit: it.unit || ""
+            };
+        });
+
         const purchaseData = {
             id: isEditMode ? editData.id : String(Date.now()),
             ...formData,
+            items: itemsForServer,
             withGst,
             totalAmount: totals.total,
             taxableAmount: totals.taxableAmt,
@@ -461,11 +484,22 @@ function PurchaseInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, wit
             payments,
         };
 
-        // Increment invoice counter for new invoices
+        // increment counter for new invoices (unchanged)
         if (!isEditMode) {
             const currentCounter = getNextInvoiceCounter();
             localStorage.setItem('purchaseInvoiceCounter', String(currentCounter + 1));
         }
+
+        // right before onSave(...)
+        purchaseData.items = Array.isArray(purchaseData.items)
+            ? purchaseData.items.map(it => ({
+                ...it,
+                // ensure both canonical fields exist: name (backend) and goodsService (frontend)
+                name: (it.name || it.goodsService || "").toString(),
+                goodsService: (it.goodsService || it.name || "").toString(),
+            }))
+            : [];
+
 
         onSave(purchaseData, isEditMode);
     };

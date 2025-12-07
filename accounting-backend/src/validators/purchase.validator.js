@@ -5,6 +5,8 @@ const Joi = require('joi');
 const itemLine = Joi.object({
     id: Joi.any().optional(),
     itemId: Joi.string().optional().allow(null, ''),
+    // accept canonical `name` and also allow legacy `goodsService`
+    name: Joi.string().allow('').optional(),
     goodsService: Joi.string().allow('').optional(),
     qty: Joi.number().min(0).optional().allow('', null),
     rate: Joi.number().min(0).optional().allow('', null),
