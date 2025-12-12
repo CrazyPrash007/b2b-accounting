@@ -4,6 +4,8 @@ const Joi = require('joi');
 const baseString = () => Joi.string().trim().allow('').optional();
 
 const create = Joi.object({
+    accountCompanyName: Joi.string().trim().required(),   // NEW & REQUIRED
+
     vendorName: Joi.string().trim().required(),
     name: Joi.string().trim().allow('').optional(),
 
@@ -16,7 +18,7 @@ const create = Joi.object({
     companyName: Joi.string().trim().allow('').optional(),
     gstType: Joi.string().valid('Regular', 'Composition', 'Unregistered').optional(),
 
-    // Billing Details
+    // Billing
     billingAddress: baseString(),
     billingPinCode: baseString(),
     billingVillage: baseString(),
@@ -25,7 +27,7 @@ const create = Joi.object({
     billingState: baseString(),
     billingCountry: baseString(),
 
-    // Shipping Details
+    // Shipping
     sameAsBilling: Joi.boolean().optional(),
     shippingAddress: baseString(),
     shippingPinCode: baseString(),
@@ -37,12 +39,16 @@ const create = Joi.object({
 
     // Opening Balance
     openingBalanceType: Joi.string().valid('Credit', 'Debit').optional(),
-    openingBalanceAmount: Joi.alternatives().try(Joi.number(), Joi.string().trim().allow(''), Joi.allow(null)).optional(),
+    openingBalanceAmount: Joi.alternatives()
+        .try(Joi.number(), Joi.string().trim().allow(''), Joi.allow(null))
+        .optional(),
 
     isActive: Joi.boolean().optional(),
 });
 
 const update = Joi.object({
+    accountCompanyName: Joi.string().trim().optional(),  // INCLUDED
+
     vendorName: Joi.string().trim().optional(),
     name: Joi.string().trim().allow('').optional(),
 
@@ -71,7 +77,9 @@ const update = Joi.object({
     shippingCountry: baseString(),
 
     openingBalanceType: Joi.string().valid('Credit', 'Debit').optional(),
-    openingBalanceAmount: Joi.alternatives().try(Joi.number(), Joi.string().trim().allow(''), Joi.allow(null)).optional(),
+    openingBalanceAmount: Joi.alternatives()
+        .try(Joi.number(), Joi.string().trim().allow(''), Joi.allow(null))
+        .optional(),
 
     isActive: Joi.boolean().optional(),
 });

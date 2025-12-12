@@ -2,7 +2,8 @@
 const mongoose = require('mongoose');
 
 const UnitSchema = new mongoose.Schema({
-    ownerId: { type: mongoose.Schema.Types.ObjectId, required: true, index: true }, // main-app user id
+    ownerId: { type: mongoose.Schema.Types.ObjectId, required: true, index: true },
+    accountCompanyName: { type: String, required: true, index: true },
     fullName: { type: String, required: true, trim: true },   // e.g., Kilogram
     aliasName: { type: String, trim: true, default: '' },     // e.g., kg
 
@@ -14,7 +15,7 @@ const UnitSchema = new mongoose.Schema({
 
 // Unique per owner (ignore deleted) on fullName
 UnitSchema.index(
-    { ownerId: 1, fullName: 1 },
+    { ownerId: 1, accountCompanyName: 1, fullName: 1 },
     { unique: true, partialFilterExpression: { isDeleted: false } }
 );
 

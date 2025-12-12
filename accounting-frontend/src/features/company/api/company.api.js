@@ -1,7 +1,3 @@
-// src/features/company/api/company.api.js
-// Company API - Placeholder implementation
-// These functions can be implemented when the backend endpoints are available.
-// Currently returns null/empty to allow graceful degradation.
 
 import apiClient from "src/services/apiClient";
 

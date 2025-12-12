@@ -2,7 +2,8 @@
 const mongoose = require('mongoose');
 
 const BrandSchema = new mongoose.Schema({
-    ownerId: { type: mongoose.Schema.Types.ObjectId, required: true, index: true }, // main-app user id
+    ownerId: { type: mongoose.Schema.Types.ObjectId, required: true, index: true },
+    accountCompanyName: { type: String, required: true, index: true },
     brandName: { type: String, required: true, trim: true },
     isActive: { type: Boolean, default: true },
     isDeleted: { type: Boolean, default: false },
@@ -12,8 +13,9 @@ const BrandSchema = new mongoose.Schema({
 
 // Optional: ensure same rate isn't inserted twice for same owner (ignore deleted)
 BrandSchema.index(
-    { ownerId: 1, brandName: 1 },
+    { ownerId: 1, accountCompanyName: 1, brandName: 1 },
     { unique: true, partialFilterExpression: { isDeleted: false } }
 );
+
 
 module.exports = mongoose.model('Brand', BrandSchema);

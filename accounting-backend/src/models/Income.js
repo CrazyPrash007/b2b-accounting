@@ -3,6 +3,7 @@ const mongoose = require('mongoose');
 
 const IncomeSchema = new mongoose.Schema({
     ownerId: { type: mongoose.Schema.Types.ObjectId, required: true, index: true },
+    accountCompanyName: { type: String, required: true, index: true },
     date: { type: Date, default: Date.now },
     billName: { type: String, required: true, trim: true },
     incomeAmount: { type: Number, required: true, default: 0 },
@@ -26,6 +27,6 @@ const IncomeSchema = new mongoose.Schema({
     updatedBy: { type: mongoose.Schema.Types.ObjectId },
 }, { timestamps: true });
 
-IncomeSchema.index({ ownerId: 1, createdAt: -1 });
+IncomeSchema.index({ ownerId: 1, accountCompanyName: 1, createdAt: -1 });
 
 module.exports = mongoose.model('Income', IncomeSchema);

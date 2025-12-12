@@ -2,8 +2,10 @@
 const mongoose = require('mongoose');
 
 const BankSchema = new mongoose.Schema({
-    ownerId: { type: mongoose.Schema.Types.ObjectId, required: true, index: true }, // main-app user id
-    accountDisplayName: { type: String, required: true, trim: true }, // NOT unique
+    ownerId: { type: mongoose.Schema.Types.ObjectId, required: true, index: true },
+    companyName: { type: String, required: true, index: true },  // <-- NEW
+
+    accountDisplayName: { type: String, required: true, trim: true },
     shortAliasName: { type: String, trim: true, default: "" },
     emailAddress: { type: String, trim: true, default: "" },
     phoneNo: { type: String, trim: true, default: "" },
@@ -17,20 +19,17 @@ const BankSchema = new mongoose.Schema({
     openingBalanceType: { type: String, enum: ['Credit', 'Debit'], default: 'Credit' },
 
     status: { type: String, enum: ['Active', 'Inactive'], default: 'Active' },
-    isActive: { type: Boolean, default: true }, // convenience flag (derived from status when created/updated)
+    isActive: { type: Boolean, default: true },
     isDeleted: { type: Boolean, default: false },
 
     createdBy: { type: mongoose.Schema.Types.ObjectId },
     updatedBy: { type: mongoose.Schema.Types.ObjectId },
 }, { timestamps: true });
 
-// Unique per owner: only accountNumber should be unique (ignore deleted docs)
+// Unique per owner + company + accountNumber
 BankSchema.index(
-    { ownerId: 1, accountNumber: 1 },
+    { ownerId: 1, companyName: 1, accountNumber: 1 },
     { unique: true, partialFilterExpression: { isDeleted: false } }
 );
-
-// NOTE: intentionally NOT creating any unique index on accountDisplayName.
-// If you had created such an index in the past in the DB, drop it (see migration below).
 
 module.exports = mongoose.model('Bank', BankSchema);

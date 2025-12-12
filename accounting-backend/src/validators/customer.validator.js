@@ -4,6 +4,7 @@ const Joi = require('joi');
 const baseString = () => Joi.string().trim().allow('').optional();
 
 const create = Joi.object({
+    accountCompanyName: Joi.string().trim().required(),
     customerName: Joi.string().trim().required(),
     name: Joi.string().trim().allow('').optional(),
 
@@ -45,6 +46,7 @@ const create = Joi.object({
 });
 
 const update = Joi.object({
+    accountCompanyName: Joi.string().trim().optional(),
     customerName: Joi.string().trim().optional(),
     name: Joi.string().trim().allow('').optional(),
 

@@ -9,6 +9,7 @@ function normalizeString(v) {
 
 const CustomerSchema = new mongoose.Schema({
     ownerId: { type: mongoose.Schema.Types.ObjectId, required: true, index: true },
+    accountCompanyName: { type: String, required: true, index: true },
 
     // Basic Details
     customerName: { type: String, required: true, trim: true },
@@ -58,9 +59,10 @@ const CustomerSchema = new mongoose.Schema({
 
 // Create unique index on normalized fields (scoped to ownerId) and ignore soft-deleted docs
 CustomerSchema.index(
-    { ownerId: 1, customerNameNorm: 1, companyNameNorm: 1 },
-    { unique: true, partialFilterExpression: { isDeleted: false }, name: "ownerId_customerNameNorm_companyNameNorm_unique" }
+    { ownerId: 1, accountCompanyName: 1, customerNameNorm: 1, companyNameNorm: 1 },
+    { unique: true, partialFilterExpression: { isDeleted: false } }
 );
+
 
 // Mongoose middleware to populate normalized fields on save
 CustomerSchema.pre('save', function (next) {
