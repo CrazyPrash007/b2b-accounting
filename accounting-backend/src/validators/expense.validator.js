@@ -1,6 +1,7 @@
 const Joi = require('joi');
 
 const create = Joi.object({
+    accountCompanyName: Joi.string().trim().required(),
     date: Joi.date().iso().optional(),
     billName: Joi.string().trim().required(),
     expenseAmount: Joi.number().precision(2).min(0).required(),
@@ -11,6 +12,7 @@ const create = Joi.object({
 });
 
 const update = Joi.object({
+    accountCompanyName: Joi.string().trim().optional(),
     date: Joi.date().iso().optional(),
     billName: Joi.string().trim().optional(),
     expenseAmount: Joi.number().precision(2).min(0).optional(),

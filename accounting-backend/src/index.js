@@ -2,7 +2,7 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-const { connect } = require('./db/mongo');
+const { connect, connectChatStarter } = require('./db/mongo');
 const itemCategoryRoutes = require('./routes/itemCategory.routes');
 const unitRoutes = require('./routes/unit.routes');
 const customerRoutes = require('./routes/customer.routes');
@@ -15,6 +15,7 @@ const incomeRoutes = require('./routes/income.routes');
 const expenseRoutes = require('./routes/expense.routes');
 const saleRoutes = require('./routes/sale.routes');
 const purchaseRoutes = require('./routes/purchase.routes');
+const companyRoutes = require('./routes/company.routes');
 const receiptRoutes = require('./routes/receipt.routes');
 const errorHandler = require('./middlewares/errorHandler');
 
@@ -22,15 +23,17 @@ const PORT = process.env.PORT || 4000;
 
 async function start() {
     await connect(process.env.MONGO_URI);
+    await connectChatStarter(process.env.CHAT_STARTER_MONGO_URI);
     const app = express();
 
-    app.use(cors());
+    app.use(cors({ origin: true, credentials: true }));
     app.use(express.json());
 
     // Health
     app.get('/health', (req, res) => res.json({ ok: true, env: process.env.NODE_ENV || 'development' }));
 
     // API routes
+    app.use('/api/companies', companyRoutes);
     app.use('/api/item-categories', itemCategoryRoutes);
     app.use('/api/unit', unitRoutes);
     app.use('/api/customers', customerRoutes);

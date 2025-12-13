@@ -4,6 +4,7 @@ const Joi = require('joi');
 const objectId = Joi.string().hex().length(24);
 
 const base = {
+    accountCompanyName: Joi.string().trim().required(),
     partyId: objectId.optional().allow(null, ''),
     party: Joi.string().trim().optional().allow(''),
 
@@ -27,6 +28,7 @@ const create = Joi.object({
 
 // Update: allow partial update
 const update = Joi.object({
+    accountCompanyName: Joi.string().trim().optional(),
     partyId: base.partyId,
     party: base.party,
     invoiceId: base.invoiceId,
