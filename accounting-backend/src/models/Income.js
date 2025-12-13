@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 
 const IncomeSchema = new mongoose.Schema({
     ownerId: { type: mongoose.Schema.Types.ObjectId, required: true, index: true },
-    accountCompanyName: { type: String, required: true, index: true },
+    accountCompanyName: { type: mongoose.Schema.Types.ObjectId, ref: 'Company', required: true, index: true },
     date: { type: Date, default: Date.now },
     billName: { type: String, required: true, trim: true },
     incomeAmount: { type: Number, required: true, default: 0 },

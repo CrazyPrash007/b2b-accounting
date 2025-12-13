@@ -1,7 +1,9 @@
 // ExpensePage.jsx
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useContext } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import useExpense from "./hooks/useExpense";
+import expenseApi from "./api/expense.api";
+import { CompanyContext } from "src/App";
 
 /**
  * ExpenseModal - Modal for creating/editing expenses
@@ -353,68 +355,50 @@ export default function ExpensePage() {
         setEditingExpense(null);
     };
 
-    // expenseData shape comes from your modal (has uploadBill file in uploadBill, uploadBillName, etc.)
+    const { selectedCompany } = useContext(CompanyContext); // ADD THIS AT TOP
+
     const handleSaveExpense = async (expenseData, isEdit) => {
         try {
-            // Basic client-side validation — keep as-is if modal already validates
-            if (!expenseData.billName || !String(expenseData.billName).trim()) {
-                alert("Bill Name is required");
-                return;
-            }
-            if (!expenseData.expenseAmount || Number(expenseData.expenseAmount) <= 0) {
-                alert("Valid Expense Amount is required");
-                return;
-            }
-            if (!expenseData.category || !String(expenseData.category).trim()) {
-                alert("Category is required");
-                return;
-            }
-
-            // Build FormData for multipart upload (controller expects 'uploadBill' field)
             const fd = new FormData();
-            if (expenseData.date) fd.append("date", new Date(expenseData.date).toISOString());
-            fd.append("billName", String(expenseData.billName || "").trim());
-            fd.append("expenseAmount", String(Number(expenseData.expenseAmount || 0)));
-            fd.append("paymentMethod", String(expenseData.paymentMethod || ""));
-            fd.append("category", String(expenseData.category || ""));
-            fd.append("notes", String(expenseData.notes || ""));
 
-            // If modal provided a File object in uploadBill, append it
+            // REQUIRED: company scope
+            fd.append("accountCompanyName", selectedCompany);
+
+            // Basic fields
+            fd.append("billName", expenseData.billName.trim());
+            fd.append("expenseAmount", String(Number(expenseData.expenseAmount)));
+            fd.append("category", expenseData.category);
+            fd.append("paymentMethod", expenseData.paymentMethod || "");
+            fd.append("notes", expenseData.notes || "");
+
+            // Date
+            if (expenseData.date) {
+                fd.append("date", new Date(expenseData.date).toISOString());
+            }
+
+            // IMPORTANT: backend expects "receipt" (same as income)
             if (expenseData.uploadBill instanceof File) {
-                fd.append("uploadBill", expenseData.uploadBill, expenseData.uploadBill.name);
+                fd.append("receipt", expenseData.uploadBill, expenseData.uploadBill.name);
             }
 
-            const backendBase = "http://localhost:4000";
+            // CREATE vs UPDATE
             if (isEdit) {
-                const id = expenseData.id ?? expenseData._id;
-                const res = await fetch(`${backendBase}/api/expense/${id}`, {
-                    method: 'PUT',
-                    body: fd,
-                    credentials: 'same-origin',
-                });
-                if (!res.ok) throw new Error(`Failed to update: ${res.status}`);
+                await expenseApi.update(expenseData._id ?? expenseData.id, fd);
             } else {
-                const res = await fetch(`${backendBase}/api/expense`, {
-                    method: 'POST',
-                    body: fd,
-                    credentials: 'same-origin',
-                });
-                if (!res.ok) throw new Error(`Failed to create: ${res.status}`);
+                await expenseApi.create(fd);
             }
+
+            // reload after save
             await reload();
-
-
-            // close modal and refresh canonical data
             setIsModalOpen(false);
             setEditingExpense(null);
-            await reload();
+
         } catch (err) {
-            console.error("Failed to save expense:", err);
-            // surface helpful message if present
-            const msg = err?.response?.data?.error?.message || err?.message || "Failed to save expense";
-            alert(msg);
+            console.error("Failed to save expense", err);
+            alert(err?.message || "Failed to save expense");
         }
     };
+
 
     const handleDeleteExpense = async (id) => {
         if (!window.confirm("Are you sure you want to delete this expense entry?")) return;
