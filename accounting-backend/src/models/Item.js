@@ -2,7 +2,8 @@
 const mongoose = require('mongoose');
 
 const ItemSchema = new mongoose.Schema({
-    ownerId: { type: mongoose.Schema.Types.ObjectId, required: true, index: true }, // main-app user id
+    ownerId: { type: mongoose.Schema.Types.ObjectId, required: true, index: true },
+    accountCompanyName: { type: String, required: true, index: true },
     name: { type: String, required: true, trim: true }, // canonical name (same as itemName)
     itemName: { type: String, trim: true }, // optional duplicate field if front-end uses itemName
     description: { type: String, default: '' },
@@ -33,7 +34,7 @@ const ItemSchema = new mongoose.Schema({
 
 // Unique per owner (ignore deleted)
 ItemSchema.index(
-    { ownerId: 1, name: 1 },
+    { ownerId: 1, accountCompanyName: 1, name: 1 },
     { unique: true, partialFilterExpression: { isDeleted: false } }
 );
 

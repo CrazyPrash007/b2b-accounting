@@ -1,9 +1,5 @@
-// src/features/items/unit/api/unit.api.js
-import resourceApiFactory from "src/services/resourceApiFactory";
+import createResourceApi from "src/services/resourceApiFactory";
 
-const api = resourceApiFactory("/api/unit");
+const unitApi = createResourceApi("/api/unit");
 
-export const listUnits = api.list;
-export const createUnit = api.create;
-export const updateUnit = api.update;
-export const deleteUnit = api.remove;
+export default unitApi;

@@ -3,6 +3,7 @@ const Joi = require('joi');
 
 // Common validators
 const base = {
+    accountCompanyName: Joi.string().trim().required(),
     name: Joi.string().trim().required(),
     itemName: Joi.string().trim().optional(),
     description: Joi.string().allow('').optional(),
@@ -33,7 +34,7 @@ const create = Joi.object({
 });
 
 const update = Joi.object({
-    // allow partial updates
+    accountCompanyName: Joi.string().trim().optional(),
     name: Joi.string().trim().optional(),
     itemName: Joi.string().trim().optional(),
     description: Joi.string().allow('').optional(),
