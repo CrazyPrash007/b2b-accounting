@@ -1,31 +1,26 @@
-// src/features/items/unit/api/expense.api.js
-import resourceApiFactory from "src/services/resourceApiFactory";
-const api = resourceApiFactory("/api/expense");
+import apiClient from "src/services/apiClient";
+import createResourceApi from "src/services/resourceApiFactory";
 
-// keep defaults
-export const listExpenses = api.list;
+const baseApi = createResourceApi("/api/expense");
 
-// Override create to support FormData
-export async function createExpense(payload) {
-    if (payload instanceof FormData) {
-        const apiClient = require("src/services/apiClient").default;
-        const res = await apiClient.post("/api/expense", payload, {
-            withCredentials: true,
+const expenseApi = {
+    ...baseApi,
+
+    // override CREATE → multipart/form-data
+    create: async (formData) => {
+        const res = await apiClient.post("/api/expense", formData, {
+            headers: { "Content-Type": "multipart/form-data" }
         });
-        return res.data;
-    }
-    return api.create(payload);
-}
+        return res?.data?.data;
+    },
 
-export async function updateExpense(id, payload) {
-    if (payload instanceof FormData) {
-        const apiClient = require("src/services/apiClient").default;
-        const res = await apiClient.put(`/api/expense/${id}`, payload, {
-            withCredentials: true,
+    // override UPDATE → multipart/form-data
+    update: async (id, formData) => {
+        const res = await apiClient.put(`/api/expense/${id}`, formData, {
+            headers: { "Content-Type": "multipart/form-data" }
         });
-        return res.data;
-    }
-    return api.update(id, payload);
-}
+        return res?.data?.data;
+    },
+};
 
-export const deleteExpense = api.remove;
+export default expenseApi;
