@@ -9,7 +9,7 @@ function normalizeString(v) {
 
 const CustomerSchema = new mongoose.Schema({
     ownerId: { type: mongoose.Schema.Types.ObjectId, required: true, index: true },
-    accountCompanyName: { type: String, required: true, index: true },
+    accountCompanyName: { type: mongoose.Schema.Types.ObjectId, ref: 'Company', required: true, index: true },
 
     // Basic Details
     customerName: { type: String, required: true, trim: true },

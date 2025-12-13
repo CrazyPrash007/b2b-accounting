@@ -2,9 +2,10 @@
 const Joi = require('joi');
 
 const baseString = () => Joi.string().trim().allow('').optional();
+const objectId = Joi.string().regex(/^[0-9a-fA-F]{24}$/);
 
 const create = Joi.object({
-    accountCompanyName: Joi.string().trim().required(),
+    accountCompanyName: objectId.required(),
     customerName: Joi.string().trim().required(),
     name: Joi.string().trim().allow('').optional(),
 
@@ -45,39 +46,6 @@ const create = Joi.object({
     isActive: Joi.boolean().optional(),
 });
 
-const update = Joi.object({
-    accountCompanyName: Joi.string().trim().optional(),
-    customerName: Joi.string().trim().optional(),
-    name: Joi.string().trim().allow('').optional(),
-
-    mobileNumber: Joi.string().trim().allow('').optional(),
-    emailAddress: Joi.string().trim().email().allow('').optional(),
-    websiteLink: Joi.string().trim().uri().allow('').optional(),
-
-    companyName: Joi.string().trim().allow('').optional(),
-    gstType: Joi.string().valid('Regular', 'Composition', 'Unregistered').optional(),
-
-    billingAddress: baseString(),
-    billingPinCode: baseString(),
-    billingVillage: baseString(),
-    billingTehsil: baseString(),
-    billingDistrict: baseString(),
-    billingState: baseString(),
-    billingCountry: baseString(),
-
-    sameAsBilling: Joi.boolean().optional(),
-    shippingAddress: baseString(),
-    shippingPinCode: baseString(),
-    shippingVillage: baseString(),
-    shippingTehsil: baseString(),
-    shippingDistrict: baseString(),
-    shippingState: baseString(),
-    shippingCountry: baseString(),
-
-    openingBalanceType: Joi.string().valid('Credit', 'Debit').optional(),
-    openingBalanceAmount: Joi.alternatives().try(Joi.number(), Joi.string().trim().allow(''), Joi.allow(null)).optional(),
-
-    isActive: Joi.boolean().optional(),
-});
+const update = create.fork(['accountCompanyName'], (s) => s.optional());
 
 module.exports = { create, update };

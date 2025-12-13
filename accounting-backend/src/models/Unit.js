@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 
 const UnitSchema = new mongoose.Schema({
     ownerId: { type: mongoose.Schema.Types.ObjectId, required: true, index: true },
-    accountCompanyName: { type: String, required: true, index: true },
+    accountCompanyName: { type: mongoose.Schema.Types.ObjectId, ref: 'Company', required: true, index: true },
     fullName: { type: String, required: true, trim: true },   // e.g., Kilogram
     aliasName: { type: String, trim: true, default: '' },     // e.g., kg
 

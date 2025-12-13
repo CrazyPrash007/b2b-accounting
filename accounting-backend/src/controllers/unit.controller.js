@@ -1,29 +1,39 @@
 // src/controllers/unit.controller.js
-const Unit = require('../models/Unit');
+const Unit = require("../models/Unit");
+const mongoose = require("mongoose");
+
+function toObjectId(id) {
+    if (!id || !mongoose.isValidObjectId(id)) return null;
+    return new mongoose.Types.ObjectId(id);
+}
 
 /**
- * All controllers enforce:
- * - owner scoping via req.user.ownerId
- * - company scoping via accountCompanyName
+ * LIST UNITS
  */
-
 async function list(req, res, next) {
     try {
         const ownerId = req.user.ownerId;
-        const accountCompanyName = req.query.accountCompanyName;
 
-        if (!accountCompanyName) {
-            return res.status(400).json({ message: "accountCompanyName is required" });
+        const companyId = toObjectId(req.query.accountCompanyName);
+        if (!companyId) {
+            return res
+                .status(400)
+                .json({ message: "Valid accountCompanyName (companyId) is required" });
         }
 
         const { page = 1, limit = 50, search, sort } = req.query;
 
-        const q = { ownerId, accountCompanyName, isDeleted: false };
+        const q = {
+            ownerId,
+            accountCompanyName: companyId,
+            isDeleted: false,
+        };
 
         if (search) {
+            const s = search.trim();
             q.$or = [
-                { fullName: { $regex: search, $options: 'i' } },
-                { shortName: { $regex: search, $options: 'i' } }
+                { fullName: { $regex: s, $options: "i" } },
+                { aliasName: { $regex: s, $options: "i" } },
             ];
         }
 
@@ -42,119 +52,170 @@ async function list(req, res, next) {
             Unit.countDocuments(q),
         ]);
 
-        return res.json({
+        res.json({
             success: true,
             data: items,
-            meta: { page: Number(page), limit: Number(limit), total }
+            meta: { page: Number(page), limit: Number(limit), total },
         });
-
     } catch (err) {
         next(err);
     }
 }
 
+/**
+ * GET ONE UNIT
+ */
 async function getOne(req, res, next) {
     try {
         const ownerId = req.user.ownerId;
-        const accountCompanyName = req.query.accountCompanyName;
 
-        if (!accountCompanyName) {
-            return res.status(400).json({ message: "accountCompanyName is required" });
+        const companyId = toObjectId(req.query.accountCompanyName);
+        if (!companyId) {
+            return res
+                .status(400)
+                .json({ message: "Valid accountCompanyName (companyId) is required" });
         }
 
         const doc = await Unit.findOne({
             _id: req.params.id,
             ownerId,
-            accountCompanyName,
-            isDeleted: false
+            accountCompanyName: companyId,
+            isDeleted: false,
         });
 
         if (!doc) {
-            return res.status(404).json({ success: false, error: { message: "Not found" } });
+            return res
+                .status(404)
+                .json({ success: false, error: { message: "Not found" } });
         }
 
-        return res.json({ success: true, data: doc });
-
+        res.json({ success: true, data: doc });
     } catch (err) {
         next(err);
     }
 }
 
+/**
+ * CREATE UNIT
+ */
 async function create(req, res, next) {
     try {
         const ownerId = req.user.ownerId;
 
-        if (!req.body.accountCompanyName) {
-            return res.status(400).json({ message: "accountCompanyName is required" });
+        const companyId = toObjectId(req.body.accountCompanyName);
+        if (!companyId) {
+            return res
+                .status(400)
+                .json({ message: "Valid accountCompanyName (companyId) is required" });
         }
 
         const payload = {
             ...req.body,
             ownerId,
-            createdBy: req.user.id
+            accountCompanyName: companyId,
+            createdBy: req.user.id,
         };
 
-        const doc = await Unit.create(payload);
-        return res.status(201).json({ success: true, data: doc });
+        // Unique fullName per owner + company
+        const exists = await Unit.findOne({
+            ownerId,
+            accountCompanyName: companyId,
+            fullName: payload.fullName,
+            isDeleted: false,
+        });
 
+        if (exists) {
+            return res.status(409).json({
+                success: false,
+                error: { message: "Unit already exists" },
+            });
+        }
+
+        const doc = await Unit.create(payload);
+
+        res.status(201).json({ success: true, data: doc });
     } catch (err) {
+        if (err.code === 11000) {
+            return res
+                .status(409)
+                .json({ success: false, error: { message: "Unit already exists" } });
+        }
         next(err);
     }
 }
 
+/**
+ * UPDATE UNIT
+ */
 async function update(req, res, next) {
     try {
         const ownerId = req.user.ownerId;
 
-        if (!req.body.accountCompanyName) {
-            return res.status(400).json({ message: "accountCompanyName is required" });
+        const companyId = toObjectId(req.body.accountCompanyName);
+        if (!companyId) {
+            return res
+                .status(400)
+                .json({ message: "Valid accountCompanyName (companyId) is required" });
         }
 
         const id = req.params.id;
 
         const payload = {
             ...req.body,
-            updatedBy: req.user.id
+            accountCompanyName: companyId,
+            updatedBy: req.user.id,
         };
 
         const doc = await Unit.findOneAndUpdate(
-            { _id: id, ownerId, accountCompanyName: req.body.accountCompanyName },
+            { _id: id, ownerId, accountCompanyName: companyId },
             payload,
             { new: true, runValidators: true }
         );
 
         if (!doc) {
-            return res.status(404).json({ success: false, error: { message: "Not found" } });
+            return res
+                .status(404)
+                .json({ success: false, error: { message: "Not found" } });
         }
 
-        return res.json({ success: true, data: doc });
-
+        res.json({ success: true, data: doc });
     } catch (err) {
+        if (err.code === 11000) {
+            return res
+                .status(409)
+                .json({ success: false, error: { message: "Unit already exists" } });
+        }
         next(err);
     }
 }
 
+/**
+ * DELETE UNIT (SOFT DELETE)
+ */
 async function remove(req, res, next) {
     try {
         const ownerId = req.user.ownerId;
-        const accountCompanyName = req.query.accountCompanyName;
 
-        if (!accountCompanyName) {
-            return res.status(400).json({ message: "accountCompanyName is required" });
+        const companyId = toObjectId(req.query.accountCompanyName);
+        if (!companyId) {
+            return res
+                .status(400)
+                .json({ message: "Valid accountCompanyName (companyId) is required" });
         }
 
         const doc = await Unit.findOneAndUpdate(
-            { _id: req.params.id, ownerId, accountCompanyName },
+            { _id: req.params.id, ownerId, accountCompanyName: companyId },
             { isDeleted: true, updatedBy: req.user.id },
             { new: true }
         );
 
         if (!doc) {
-            return res.status(404).json({ success: false, error: { message: "Not found" } });
+            return res
+                .status(404)
+                .json({ success: false, error: { message: "Not found" } });
         }
 
-        return res.json({ success: true, data: doc });
-
+        res.json({ success: true, data: doc });
     } catch (err) {
         next(err);
     }

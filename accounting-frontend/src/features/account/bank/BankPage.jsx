@@ -1,7 +1,8 @@
 // BankPage.jsx
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useContext } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import useBank from "./hooks/useBank";
+import { CompanyContext } from "src/App";
 
 /**
  * BankModal - Compact centered modal for creating/editing a bank account
@@ -79,20 +80,16 @@ function BankModal({ isOpen, onClose, onSave, onDelete, editData }) {
         }
 
         const bankData = {
-            id: isEditMode ? editData.id : String(Date.now()),
             ...formData,
-            accountDisplayName: formData.accountDisplayName.trim(),
-            shortAliasName: formData.shortAliasName.trim(),
-            emailAddress: formData.emailAddress.trim(),
-            phoneNo: formData.phoneNo.trim(),
-            accountHolderName: formData.accountHolderName.trim(),
-            accountNumber: formData.accountNumber.trim(),
-            ifscCode: formData.ifscCode.trim(),
-            bankName: formData.bankName.trim(),
         };
+
+        if (isEditMode) {
+            bankData.id = editData.id || editData._id;   // <— FIX
+        }
 
         onSave(bankData, isEditMode);
     };
+
 
     const handleBackdropClick = (e) => {
         if (e.target === e.currentTarget) {
@@ -106,7 +103,7 @@ function BankModal({ isOpen, onClose, onSave, onDelete, editData }) {
             e.preventDefault();
             const container = e.target.closest('[data-form-container]');
             if (!container) return;
-            
+
             const focusable = Array.from(container.querySelectorAll('input:not([type="radio"]), select, textarea'));
             const idx = focusable.indexOf(e.target);
             if (idx >= 0 && idx < focusable.length - 1) {
@@ -355,7 +352,7 @@ function BankModal({ isOpen, onClose, onSave, onDelete, editData }) {
                     {isEditMode ? (
                         <button
                             type="button"
-                            onClick={() => onDelete && onDelete(editData.id)}
+                            onClick={() => onDelete && onDelete(editData.id || editData._id)}
                             className="px-3 py-1.5 text-sm text-red-600 hover:text-red-800 border border-red-300 rounded hover:bg-red-50 transition-colors"
                         >
                             Delete
@@ -395,8 +392,21 @@ export default function BankPage() {
     const navigate = useNavigate();
     const location = useLocation();
 
-    const { rows: bankAccounts = [], loading, error, reload, create, update, remove } =
-        useBank({ useLocalFallback: true });
+    const { selectedCompany } = useContext(CompanyContext);
+
+    const {
+        rows: bankAccounts = [],
+        loading,
+        error,
+        reload,
+        create,
+        update,
+        remove
+    } = useBank({
+        useLocalFallback: false,
+        params: { accountCompanyName: selectedCompany }
+    });
+
 
     const [selectedCell, setSelectedCell] = useState(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -427,7 +437,7 @@ export default function BankPage() {
     const handleSaveAccount = async (accountData, isEdit) => {
         try {
             if (isEdit) {
-                await update(accountData.id, {
+                await update(accountData.id || accountData._id, {
                     accountDisplayName: accountData.accountDisplayName,
                     shortAliasName: accountData.shortAliasName,
                     emailAddress: accountData.emailAddress,
@@ -594,184 +604,184 @@ export default function BankPage() {
             >
                 <div className="border border-gray-400 rounded overflow-hidden h-full">
                     <div className="overflow-x-auto h-full">
-                    <table className="min-w-[1400px] w-full border-collapse text-sm" style={{ borderSpacing: 0 }}>
-                        <thead className="sticky top-0 z-10 bg-white">
-                            <tr className="border-b border-gray-400">
-                                <th className="min-w-[180px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-gray-400 cursor-grab">⋮⋮</span>
-                                        <span>Account Display Name</span>
-                                    </div>
-                                </th>
-                                <th className="min-w-[140px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-gray-400 cursor-grab">⋮⋮</span>
-                                        <span>Alias Name</span>
-                                    </div>
-                                </th>
-                                <th className="min-w-[180px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-gray-400 cursor-grab">⋮⋮</span>
-                                        <span>Email Address</span>
-                                    </div>
-                                </th>
-                                <th className="min-w-[120px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-gray-400 cursor-grab">⋮⋮</span>
-                                        <span>Phone No</span>
-                                    </div>
-                                </th>
-                                <th className="min-w-[160px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-gray-400 cursor-grab">⋮⋮</span>
-                                        <span>Account Holder</span>
-                                    </div>
-                                </th>
-                                <th className="min-w-[150px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-gray-400 cursor-grab">⋮⋮</span>
-                                        <span>Account Number</span>
-                                    </div>
-                                </th>
-                                <th className="min-w-[120px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-gray-400 cursor-grab">⋮⋮</span>
-                                        <span>IFSC Code</span>
-                                    </div>
-                                </th>
-                                <th className="min-w-[140px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-gray-400 cursor-grab">⋮⋮</span>
-                                        <span>Bank Name</span>
-                                    </div>
-                                </th>
-                                <th className="min-w-[150px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-gray-400 cursor-grab">⋮⋮</span>
-                                        <span>Opening Balance</span>
-                                    </div>
-                                </th>
-                                <th className="min-w-[100px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-gray-400 cursor-grab">⋮⋮</span>
-                                        <span>Status</span>
-                                    </div>
-                                </th>
-                                <th className="min-w-[100px] h-9 px-4 text-left text-sm font-medium text-gray-700 sticky right-0 z-20 bg-gray-100 border-l border-gray-400" style={{ boxShadow: '-4px 0 8px -2px rgba(0, 0, 0, 0.15)' }}>
-                                    Actions
-                                </th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {/* Data rows */}
-                            {bankAccounts.map((account, rowIndex) => (
-                                <tr
-                                    key={account.id || account._id || rowIndex}
-                                    className={`border-b border-gray-400 hover:bg-blue-100 transition-colors ${rowIndex % 2 === 0 ? 'bg-blue-50/40' : 'bg-white'}`}
-                                >
-                                    <td
-                                        className={getCellClasses(rowIndex, 0) + " text-left text-blue-600"}
-                                        onClick={() => handleCellClick(rowIndex, 0)}
-                                    >
-                                        {account.accountDisplayName}
-                                    </td>
-                                    <td
-                                        className={getCellClasses(rowIndex, 1) + " text-left text-gray-600"}
-                                        onClick={() => handleCellClick(rowIndex, 1)}
-                                    >
-                                        {account.shortAliasName || "-"}
-                                    </td>
-                                    <td
-                                        className={getCellClasses(rowIndex, 2) + " text-left text-gray-600"}
-                                        onClick={() => handleCellClick(rowIndex, 2)}
-                                    >
-                                        {account.emailAddress || "-"}
-                                    </td>
-                                    <td
-                                        className={getCellClasses(rowIndex, 3) + " text-left text-gray-600"}
-                                        onClick={() => handleCellClick(rowIndex, 3)}
-                                    >
-                                        {account.phoneNo || "-"}
-                                    </td>
-                                    <td
-                                        className={getCellClasses(rowIndex, 4) + " text-left text-gray-600"}
-                                        onClick={() => handleCellClick(rowIndex, 4)}
-                                    >
-                                        {account.accountHolderName || "-"}
-                                    </td>
-                                    <td
-                                        className={getCellClasses(rowIndex, 5) + " text-left text-gray-600"}
-                                        onClick={() => handleCellClick(rowIndex, 5)}
-                                    >
-                                        {account.accountNumber}
-                                    </td>
-                                    <td
-                                        className={getCellClasses(rowIndex, 6) + " text-left text-gray-600"}
-                                        onClick={() => handleCellClick(rowIndex, 6)}
-                                    >
-                                        {account.ifscCode || "-"}
-                                    </td>
-                                    <td
-                                        className={getCellClasses(rowIndex, 7) + " text-left text-gray-600"}
-                                        onClick={() => handleCellClick(rowIndex, 7)}
-                                    >
-                                        {account.bankName}
-                                    </td>
-                                    <td
-                                        className={getCellClasses(rowIndex, 8) + " text-left text-gray-600"}
-                                        onClick={() => handleCellClick(rowIndex, 8)}
-                                    >
-                                        {account.openingBalance ? `₹${account.openingBalance} (${account.openingBalanceType})` : "-"}
-                                    </td>
-                                    <td
-                                        className={getCellClasses(rowIndex, 9) + " text-left"}
-                                        onClick={() => handleCellClick(rowIndex, 9)}
-                                    >
-                                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${account.status === 'Active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
-                                            {account.status}
-                                        </span>
-                                    </td>
-                                    <td className={`h-8 px-4 text-left sticky right-0 z-10 border-l border-gray-400 ${rowIndex % 2 === 0 ? 'bg-blue-50' : 'bg-white'}`} style={{ boxShadow: '-4px 0 8px -2px rgba(0, 0, 0, 0.1)' }}>
-                                        <div className="flex items-center justify-end gap-2">
-                                            <button
-                                                onClick={() => handleEditAccount(account)}
-                                                className="text-blue-600 hover:underline text-sm"
-                                            >
-                                                Edit
-                                            </button>
-                                            <button className="text-gray-400 hover:text-gray-600">
-                                                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                                                    <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z" />
-                                                </svg>
-                                            </button>
+                        <table className="min-w-[1400px] w-full border-collapse text-sm" style={{ borderSpacing: 0 }}>
+                            <thead className="sticky top-0 z-10 bg-white">
+                                <tr className="border-b border-gray-400">
+                                    <th className="min-w-[180px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-gray-400 cursor-grab">⋮⋮</span>
+                                            <span>Account Display Name</span>
                                         </div>
-                                    </td>
+                                    </th>
+                                    <th className="min-w-[140px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-gray-400 cursor-grab">⋮⋮</span>
+                                            <span>Alias Name</span>
+                                        </div>
+                                    </th>
+                                    <th className="min-w-[180px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-gray-400 cursor-grab">⋮⋮</span>
+                                            <span>Email Address</span>
+                                        </div>
+                                    </th>
+                                    <th className="min-w-[120px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-gray-400 cursor-grab">⋮⋮</span>
+                                            <span>Phone No</span>
+                                        </div>
+                                    </th>
+                                    <th className="min-w-[160px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-gray-400 cursor-grab">⋮⋮</span>
+                                            <span>Account Holder</span>
+                                        </div>
+                                    </th>
+                                    <th className="min-w-[150px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-gray-400 cursor-grab">⋮⋮</span>
+                                            <span>Account Number</span>
+                                        </div>
+                                    </th>
+                                    <th className="min-w-[120px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-gray-400 cursor-grab">⋮⋮</span>
+                                            <span>IFSC Code</span>
+                                        </div>
+                                    </th>
+                                    <th className="min-w-[140px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-gray-400 cursor-grab">⋮⋮</span>
+                                            <span>Bank Name</span>
+                                        </div>
+                                    </th>
+                                    <th className="min-w-[150px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-gray-400 cursor-grab">⋮⋮</span>
+                                            <span>Opening Balance</span>
+                                        </div>
+                                    </th>
+                                    <th className="min-w-[100px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-gray-400 cursor-grab">⋮⋮</span>
+                                            <span>Status</span>
+                                        </div>
+                                    </th>
+                                    <th className="min-w-[100px] h-9 px-4 text-left text-sm font-medium text-gray-700 sticky right-0 z-20 bg-gray-100 border-l border-gray-400" style={{ boxShadow: '-4px 0 8px -2px rgba(0, 0, 0, 0.15)' }}>
+                                        Actions
+                                    </th>
                                 </tr>
-                            ))}
-                            {/* Empty rows to fill the display */}
-                            {emptyRows.map((_, idx) => {
-                                const rowIndex = bankAccounts.length + idx;
-                                return (
+                            </thead>
+                            <tbody>
+                                {/* Data rows */}
+                                {bankAccounts.map((account, rowIndex) => (
                                     <tr
-                                        key={`empty-${idx}`}
+                                        key={account.id || account._id || rowIndex}
                                         className={`border-b border-gray-400 hover:bg-blue-100 transition-colors ${rowIndex % 2 === 0 ? 'bg-blue-50/40' : 'bg-white'}`}
                                     >
-                                        <td className={getCellClasses(rowIndex, 0)} onClick={() => handleCellClick(rowIndex, 0)}></td>
-                                        <td className={getCellClasses(rowIndex, 1)} onClick={() => handleCellClick(rowIndex, 1)}></td>
-                                        <td className={getCellClasses(rowIndex, 2)} onClick={() => handleCellClick(rowIndex, 2)}></td>
-                                        <td className={getCellClasses(rowIndex, 3)} onClick={() => handleCellClick(rowIndex, 3)}></td>
-                                        <td className={getCellClasses(rowIndex, 4)} onClick={() => handleCellClick(rowIndex, 4)}></td>
-                                        <td className={getCellClasses(rowIndex, 5)} onClick={() => handleCellClick(rowIndex, 5)}></td>
-                                        <td className={getCellClasses(rowIndex, 6)} onClick={() => handleCellClick(rowIndex, 6)}></td>
-                                        <td className={getCellClasses(rowIndex, 7)} onClick={() => handleCellClick(rowIndex, 7)}></td>
-                                        <td className={getCellClasses(rowIndex, 8)} onClick={() => handleCellClick(rowIndex, 8)}></td>
-                                        <td className={getCellClasses(rowIndex, 9)} onClick={() => handleCellClick(rowIndex, 9)}></td>
-                                        <td className={`h-8 px-4 sticky right-0 z-10 border-l border-gray-400 ${rowIndex % 2 === 0 ? 'bg-blue-50' : 'bg-white'}`} style={{ boxShadow: '-4px 0 8px -2px rgba(0, 0, 0, 0.1)' }}></td>
+                                        <td
+                                            className={getCellClasses(rowIndex, 0) + " text-left text-blue-600"}
+                                            onClick={() => handleCellClick(rowIndex, 0)}
+                                        >
+                                            {account.accountDisplayName}
+                                        </td>
+                                        <td
+                                            className={getCellClasses(rowIndex, 1) + " text-left text-gray-600"}
+                                            onClick={() => handleCellClick(rowIndex, 1)}
+                                        >
+                                            {account.shortAliasName || "-"}
+                                        </td>
+                                        <td
+                                            className={getCellClasses(rowIndex, 2) + " text-left text-gray-600"}
+                                            onClick={() => handleCellClick(rowIndex, 2)}
+                                        >
+                                            {account.emailAddress || "-"}
+                                        </td>
+                                        <td
+                                            className={getCellClasses(rowIndex, 3) + " text-left text-gray-600"}
+                                            onClick={() => handleCellClick(rowIndex, 3)}
+                                        >
+                                            {account.phoneNo || "-"}
+                                        </td>
+                                        <td
+                                            className={getCellClasses(rowIndex, 4) + " text-left text-gray-600"}
+                                            onClick={() => handleCellClick(rowIndex, 4)}
+                                        >
+                                            {account.accountHolderName || "-"}
+                                        </td>
+                                        <td
+                                            className={getCellClasses(rowIndex, 5) + " text-left text-gray-600"}
+                                            onClick={() => handleCellClick(rowIndex, 5)}
+                                        >
+                                            {account.accountNumber}
+                                        </td>
+                                        <td
+                                            className={getCellClasses(rowIndex, 6) + " text-left text-gray-600"}
+                                            onClick={() => handleCellClick(rowIndex, 6)}
+                                        >
+                                            {account.ifscCode || "-"}
+                                        </td>
+                                        <td
+                                            className={getCellClasses(rowIndex, 7) + " text-left text-gray-600"}
+                                            onClick={() => handleCellClick(rowIndex, 7)}
+                                        >
+                                            {account.bankName}
+                                        </td>
+                                        <td
+                                            className={getCellClasses(rowIndex, 8) + " text-left text-gray-600"}
+                                            onClick={() => handleCellClick(rowIndex, 8)}
+                                        >
+                                            {account.openingBalance ? `₹${account.openingBalance} (${account.openingBalanceType})` : "-"}
+                                        </td>
+                                        <td
+                                            className={getCellClasses(rowIndex, 9) + " text-left"}
+                                            onClick={() => handleCellClick(rowIndex, 9)}
+                                        >
+                                            <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${account.status === 'Active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
+                                                {account.status}
+                                            </span>
+                                        </td>
+                                        <td className={`h-8 px-4 text-left sticky right-0 z-10 border-l border-gray-400 ${rowIndex % 2 === 0 ? 'bg-blue-50' : 'bg-white'}`} style={{ boxShadow: '-4px 0 8px -2px rgba(0, 0, 0, 0.1)' }}>
+                                            <div className="flex items-center justify-end gap-2">
+                                                <button
+                                                    onClick={() => handleEditAccount(account)}
+                                                    className="text-blue-600 hover:underline text-sm"
+                                                >
+                                                    Edit
+                                                </button>
+                                                <button className="text-gray-400 hover:text-gray-600">
+                                                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                                                        <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z" />
+                                                    </svg>
+                                                </button>
+                                            </div>
+                                        </td>
                                     </tr>
-                                );
-                            })}
-                        </tbody>
-                    </table>
+                                ))}
+                                {/* Empty rows to fill the display */}
+                                {emptyRows.map((_, idx) => {
+                                    const rowIndex = bankAccounts.length + idx;
+                                    return (
+                                        <tr
+                                            key={`empty-${idx}`}
+                                            className={`border-b border-gray-400 hover:bg-blue-100 transition-colors ${rowIndex % 2 === 0 ? 'bg-blue-50/40' : 'bg-white'}`}
+                                        >
+                                            <td className={getCellClasses(rowIndex, 0)} onClick={() => handleCellClick(rowIndex, 0)}></td>
+                                            <td className={getCellClasses(rowIndex, 1)} onClick={() => handleCellClick(rowIndex, 1)}></td>
+                                            <td className={getCellClasses(rowIndex, 2)} onClick={() => handleCellClick(rowIndex, 2)}></td>
+                                            <td className={getCellClasses(rowIndex, 3)} onClick={() => handleCellClick(rowIndex, 3)}></td>
+                                            <td className={getCellClasses(rowIndex, 4)} onClick={() => handleCellClick(rowIndex, 4)}></td>
+                                            <td className={getCellClasses(rowIndex, 5)} onClick={() => handleCellClick(rowIndex, 5)}></td>
+                                            <td className={getCellClasses(rowIndex, 6)} onClick={() => handleCellClick(rowIndex, 6)}></td>
+                                            <td className={getCellClasses(rowIndex, 7)} onClick={() => handleCellClick(rowIndex, 7)}></td>
+                                            <td className={getCellClasses(rowIndex, 8)} onClick={() => handleCellClick(rowIndex, 8)}></td>
+                                            <td className={getCellClasses(rowIndex, 9)} onClick={() => handleCellClick(rowIndex, 9)}></td>
+                                            <td className={`h-8 px-4 sticky right-0 z-10 border-l border-gray-400 ${rowIndex % 2 === 0 ? 'bg-blue-50' : 'bg-white'}`} style={{ boxShadow: '-4px 0 8px -2px rgba(0, 0, 0, 0.1)' }}></td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             </div>

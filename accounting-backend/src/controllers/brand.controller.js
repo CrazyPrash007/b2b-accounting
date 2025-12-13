@@ -1,5 +1,11 @@
 // src/controllers/brand.controller.js
-const Brand = require('../models/Brand');
+const Brand = require("../models/Brand");
+const mongoose = require("mongoose");
+
+function toObjectId(id) {
+    if (!id || !mongoose.isValidObjectId(id)) return null;
+    return new mongoose.Types.ObjectId(id);
+}
 
 /**
  * LIST BRANDS
@@ -7,21 +13,25 @@ const Brand = require('../models/Brand');
 async function list(req, res, next) {
     try {
         const ownerId = req.user.ownerId;
-        const { page = 1, limit = 50, search, sort } = req.query;
 
-        const accountCompanyName = req.query.accountCompanyName;
-        if (!accountCompanyName) {
-            return res.status(400).json({ message: "accountCompanyName is required" });
+        const companyId = toObjectId(req.query.accountCompanyName);
+        if (!companyId) {
+            return res
+                .status(400)
+                .json({ message: "Valid accountCompanyName (companyId) is required" });
         }
+
+        const { page = 1, limit = 50, search, sort } = req.query;
 
         const q = {
             ownerId,
-            accountCompanyName,
-            isDeleted: false
+            accountCompanyName: companyId,
+            isDeleted: false,
         };
 
         if (search) {
-            q.brandName = { $regex: search, $options: "i" };
+            const s = search.trim();
+            q.brandName = { $regex: s, $options: "i" };
         }
 
         const sortObj = {};
@@ -36,15 +46,14 @@ async function list(req, res, next) {
 
         const [items, total] = await Promise.all([
             Brand.find(q).sort(sortObj).skip(skip).limit(Number(limit)).lean(),
-            Brand.countDocuments(q)
+            Brand.countDocuments(q),
         ]);
 
         res.json({
             success: true,
             data: items,
-            meta: { page: Number(page), limit: Number(limit), total }
+            meta: { page: Number(page), limit: Number(limit), total },
         });
-
     } catch (err) {
         next(err);
     }
@@ -57,27 +66,27 @@ async function getOne(req, res, next) {
     try {
         const ownerId = req.user.ownerId;
 
-        const accountCompanyName = req.query.accountCompanyName;
-        if (!accountCompanyName) {
-            return res.status(400).json({ message: "accountCompanyName is required" });
+        const companyId = toObjectId(req.query.accountCompanyName);
+        if (!companyId) {
+            return res
+                .status(400)
+                .json({ message: "Valid accountCompanyName (companyId) is required" });
         }
 
         const doc = await Brand.findOne({
             _id: req.params.id,
             ownerId,
-            accountCompanyName,
-            isDeleted: false
+            accountCompanyName: companyId,
+            isDeleted: false,
         });
 
         if (!doc) {
-            return res.status(404).json({
-                success: false,
-                error: { message: "Not found" }
-            });
+            return res
+                .status(404)
+                .json({ success: false, error: { message: "Not found" } });
         }
 
         res.json({ success: true, data: doc });
-
     } catch (err) {
         next(err);
     }
@@ -90,30 +99,41 @@ async function create(req, res, next) {
     try {
         const ownerId = req.user.ownerId;
 
-        if (!req.body.accountCompanyName) {
-            return res.status(400).json({ message: "accountCompanyName is required" });
+        const companyId = toObjectId(req.body.accountCompanyName);
+        if (!companyId) {
+            return res
+                .status(400)
+                .json({ message: "Valid accountCompanyName (companyId) is required" });
         }
 
         const payload = {
             ...req.body,
             ownerId,
-            accountCompanyName: req.body.accountCompanyName,
-            createdBy: req.user.id
+            accountCompanyName: companyId,
+            createdBy: req.user.id,
         };
+
+        const exists = await Brand.findOne({
+            ownerId,
+            accountCompanyName: companyId,
+            brandName: payload.brandName,
+            isDeleted: false,
+        });
+
+        if (exists) {
+            return res
+                .status(409)
+                .json({ success: false, error: { message: "brand already exists" } });
+        }
 
         const doc = await Brand.create(payload);
 
-        res.status(201).json({
-            success: true,
-            data: doc
-        });
-
+        res.status(201).json({ success: true, data: doc });
     } catch (err) {
-        if (err && err.code === 11000) {
-            return res.status(409).json({
-                success: false,
-                error: { message: "brand already exists" }
-            });
+        if (err.code === 11000) {
+            return res
+                .status(409)
+                .json({ success: false, error: { message: "brand already exists" } });
         }
         next(err);
     }
@@ -127,40 +147,37 @@ async function update(req, res, next) {
         const ownerId = req.user.ownerId;
         const id = req.params.id;
 
-        if (!req.body.accountCompanyName) {
-            return res.status(400).json({ message: "accountCompanyName is required" });
+        const companyId = toObjectId(req.body.accountCompanyName);
+        if (!companyId) {
+            return res
+                .status(400)
+                .json({ message: "Valid accountCompanyName (companyId) is required" });
         }
 
         const payload = {
             ...req.body,
-            updatedBy: req.user.id
+            accountCompanyName: companyId,
+            updatedBy: req.user.id,
         };
 
         const doc = await Brand.findOneAndUpdate(
-            {
-                _id: id,
-                ownerId,
-                accountCompanyName: req.body.accountCompanyName
-            },
+            { _id: id, ownerId, accountCompanyName: companyId },
             payload,
             { new: true, runValidators: true }
         );
 
         if (!doc) {
-            return res.status(404).json({
-                success: false,
-                error: { message: "Not found" }
-            });
+            return res
+                .status(404)
+                .json({ success: false, error: { message: "Not found" } });
         }
 
         res.json({ success: true, data: doc });
-
     } catch (err) {
-        if (err && err.code === 11000) {
-            return res.status(409).json({
-                success: false,
-                error: { message: "brand already exists" }
-            });
+        if (err.code === 11000) {
+            return res
+                .status(409)
+                .json({ success: false, error: { message: "brand already exists" } });
         }
         next(err);
     }
@@ -173,30 +190,26 @@ async function remove(req, res, next) {
     try {
         const ownerId = req.user.ownerId;
 
-        const accountCompanyName = req.query.accountCompanyName;
-        if (!accountCompanyName) {
-            return res.status(400).json({ message: "accountCompanyName is required" });
+        const companyId = toObjectId(req.query.accountCompanyName);
+        if (!companyId) {
+            return res
+                .status(400)
+                .json({ message: "Valid accountCompanyName (companyId) is required" });
         }
 
         const doc = await Brand.findOneAndUpdate(
-            {
-                _id: req.params.id,
-                ownerId,
-                accountCompanyName
-            },
-            { isDeleted: true },
+            { _id: req.params.id, ownerId, accountCompanyName: companyId },
+            { isDeleted: true, updatedBy: req.user.id },
             { new: true }
         );
 
         if (!doc) {
-            return res.status(404).json({
-                success: false,
-                error: { message: "Not found" }
-            });
+            return res
+                .status(404)
+                .json({ success: false, error: { message: "Not found" } });
         }
 
         res.json({ success: true, data: doc });
-
     } catch (err) {
         next(err);
     }

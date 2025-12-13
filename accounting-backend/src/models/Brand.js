@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 
 const BrandSchema = new mongoose.Schema({
     ownerId: { type: mongoose.Schema.Types.ObjectId, required: true, index: true },
-    accountCompanyName: { type: String, required: true, index: true },
+    accountCompanyName: { type: mongoose.Schema.Types.ObjectId, ref: 'Company', required: true, index: true },
     brandName: { type: String, required: true, trim: true },
     isActive: { type: Boolean, default: true },
     isDeleted: { type: Boolean, default: false },

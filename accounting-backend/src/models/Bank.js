@@ -3,8 +3,7 @@ const mongoose = require('mongoose');
 
 const BankSchema = new mongoose.Schema({
     ownerId: { type: mongoose.Schema.Types.ObjectId, required: true, index: true },
-    companyName: { type: String, required: true, index: true },  // <-- NEW
-
+    accountCompanyName: { type: mongoose.Schema.Types.ObjectId, ref: 'Company', required: true, index: true },
     accountDisplayName: { type: String, required: true, trim: true },
     shortAliasName: { type: String, trim: true, default: "" },
     emailAddress: { type: String, trim: true, default: "" },
@@ -26,9 +25,9 @@ const BankSchema = new mongoose.Schema({
     updatedBy: { type: mongoose.Schema.Types.ObjectId },
 }, { timestamps: true });
 
-// Unique per owner + company + accountNumber
+// 🔥 Unique per owner + company + account number
 BankSchema.index(
-    { ownerId: 1, companyName: 1, accountNumber: 1 },
+    { ownerId: 1, accountCompanyName: 1, accountNumber: 1 },
     { unique: true, partialFilterExpression: { isDeleted: false } }
 );
 
