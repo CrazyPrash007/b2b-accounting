@@ -1,196 +1,295 @@
 // src/controllers/income.controller.js
-const Income = require('../models/Income');
-const multer = require('multer');
+const Income = require("../models/Income");
+const mongoose = require("mongoose");
+const multer = require("multer");
 
-// multer memory storage (small files)
-// adjust limits.fileSize as needed (here 5 MB)
+// -------------------------------------------------------------
+// Helper: ObjectId converter
+// -------------------------------------------------------------
+function toObjectId(id) {
+    if (!id || !mongoose.isValidObjectId(id)) return null;
+    return new mongoose.Types.ObjectId(id);
+}
+
+// -------------------------------------------------------------
+// Multer Middleware (same as before)
+// -------------------------------------------------------------
+const storage = multer.memoryStorage();
+
 const upload = multer({
-    storage: multer.memoryStorage(),
-    limits: { fileSize: 5 * 1024 * 1024 },
-    fileFilter: (req, file, cb) => {
-        const allowed = [
-            'image/png',
-            'image/jpeg',
-            'image/jpg',
-            'application/pdf',
-            'application/vnd.ms-excel',
-            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-        ];
-        if (allowed.includes(file.mimetype)) cb(null, true);
-        else cb(new Error('Only PNG, JPG, PDF and Excel files are allowed.'));
-    },
-});
+    storage,
+    limits: {
+        fileSize: 15 * 1024 * 1024, // 15MB max
+    }
+}).single("receipt");
 
-// middleware to use in routes: field name 'uploadBill'
-const uploadSingle = upload.single('uploadBill');
+exports.uploadMiddleware = (req, res, next) => {
+    upload(req, res, function (err) {
+        if (err) {
+            return res.status(400).json({
+                success: false,
+                error: { message: err.message || "File upload error" }
+            });
+        }
+        next();
+    });
+};
 
-/**
- * All controllers enforce owner scoping: ownerId from req.user.ownerId
- */
-
-async function list(req, res, next) {
+// -------------------------------------------------------------
+// LIST INCOMES
+// -------------------------------------------------------------
+exports.list = async (req, res, next) => {
     try {
         const ownerId = req.user.ownerId;
-        const { page = 1, limit = 50, search, sort } = req.query;
-        const q = { ownerId, isDeleted: false };
 
-        if (search) q.billName = { $regex: search, $options: 'i' };
+        const companyId = toObjectId(req.query.accountCompanyName);
+        if (!companyId) {
+            return res.status(400).json({
+                message: "Valid accountCompanyName (companyId) is required"
+            });
+        }
+
+        const { page = 1, limit = 50, search, sort } = req.query;
+
+        const q = {
+            ownerId,
+            accountCompanyName: companyId,
+            isDeleted: false
+        };
+
+        if (search?.trim()) {
+            const s = search.trim();
+            q.$or = [
+                { billName: { $regex: s, $options: "i" } },
+                { category: { $regex: s, $options: "i" } },
+                { paymentMethod: { $regex: s, $options: "i" } }
+            ];
+        }
 
         const sortObj = {};
         if (sort) {
-            const [k, dir] = sort.split(':');
-            sortObj[k || 'createdAt'] = dir === 'desc' ? -1 : 1;
+            const [k, dir] = sort.split(":");
+            sortObj[k || "createdAt"] = dir === "desc" ? -1 : 1;
         } else {
             sortObj.createdAt = -1;
         }
 
         const skip = (Number(page) - 1) * Number(limit);
+
         const [items, total] = await Promise.all([
-            Income.find(q).sort(sortObj).skip(skip).limit(Number(limit)).lean(),
-            Income.countDocuments(q),
+            Income.find(q)
+                .sort(sortObj)
+                .skip(skip)
+                .limit(Number(limit))
+                .select("-receipt") // don't send heavy file data in list
+                .lean(),
+            Income.countDocuments(q)
         ]);
 
-        res.json({ success: true, data: items, meta: { page: Number(page), limit: Number(limit), total } });
+        return res.json({
+            success: true,
+            data: items,
+            meta: {
+                page: Number(page),
+                limit: Number(limit),
+                total
+            }
+        });
+
     } catch (err) {
         next(err);
     }
-}
+};
 
-async function getOne(req, res, next) {
+// -------------------------------------------------------------
+// GET ONE INCOME
+// -------------------------------------------------------------
+exports.getOne = async (req, res, next) => {
     try {
         const ownerId = req.user.ownerId;
-        const doc = await Income.findOne({ _id: req.params.id, ownerId, isDeleted: false }).lean();
-        if (!doc) return res.status(404).json({ success: false, error: { message: 'Not found' } });
-        res.json({ success: true, data: doc });
-    } catch (err) {
-        next(err);
-    }
-}
 
-async function create(req, res, next) {
-    try {
-        const ownerId = req.user.ownerId;
-        const payload = {
+        const companyId = toObjectId(req.query.accountCompanyName);
+        if (!companyId) {
+            return res.status(400).json({
+                message: "Valid accountCompanyName is required"
+            });
+        }
+
+        const doc = await Income.findOne({
+            _id: req.params.id,
             ownerId,
-            createdBy: req.user.id,
-            date: req.body.date ? new Date(req.body.date) : new Date(),
-            billName: String(req.body.billName || '').trim(),
-            incomeAmount: Number(req.body.incomeAmount || 0),
-            paymentMethod: String(req.body.paymentMethod || ''),
-            category: String(req.body.category || ''),
-            notes: String(req.body.notes || ''),
+            accountCompanyName: companyId,
+            isDeleted: false
+        }).lean();
+
+        if (!doc)
+            return res.status(404).json({ success: false, error: { message: "Not found" } });
+
+        return res.json({ success: true, data: doc });
+
+    } catch (err) {
+        next(err);
+    }
+};
+
+// -------------------------------------------------------------
+// CREATE INCOME
+// -------------------------------------------------------------
+exports.create = async (req, res, next) => {
+    try {
+        const ownerId = req.user.ownerId;
+
+        const companyId = toObjectId(req.body.accountCompanyName);
+        if (!companyId) {
+            return res.status(400).json({
+                message: "Valid accountCompanyName (companyId) is required"
+            });
+        }
+
+        const payload = {
+            ...req.body,
+            ownerId,
+            accountCompanyName: companyId,
+            createdBy: req.user.id
         };
 
+        // Handle file upload (if any)
         if (req.file) {
             payload.receipt = {
                 data: req.file.buffer,
-                contentType: req.file.mimetype,
                 fileName: req.file.originalname,
-                size: req.file.size
+                size: req.file.size,
+                contentType: req.file.mimetype
             };
         }
 
         const doc = await Income.create(payload);
-        res.status(201).json({ success: true, data: doc });
+
+        return res.status(201).json({ success: true, data: doc });
+
     } catch (err) {
         next(err);
     }
-}
+};
 
-async function update(req, res, next) {
+// -------------------------------------------------------------
+// UPDATE INCOME
+// -------------------------------------------------------------
+exports.update = async (req, res, next) => {
     try {
         const ownerId = req.user.ownerId;
+
+        const companyId = toObjectId(req.body.accountCompanyName);
+        if (!companyId) {
+            return res.status(400).json({
+                message: "Valid accountCompanyName (companyId) is required"
+            });
+        }
+
         const id = req.params.id;
-        const payload = { ...req.body, updatedBy: req.user.id };
 
-        if (payload.date) payload.date = new Date(payload.date);
-        if (payload.incomeAmount != null) payload.incomeAmount = Number(payload.incomeAmount);
+        const payload = {
+            ...req.body,
+            updatedBy: req.user.id
+        };
 
+        // Handle file upload (replace receipt)
         if (req.file) {
             payload.receipt = {
                 data: req.file.buffer,
-                contentType: req.file.mimetype,
                 fileName: req.file.originalname,
-                size: req.file.size
+                size: req.file.size,
+                contentType: req.file.mimetype
             };
         }
 
-        const doc = await Income.findOneAndUpdate({ _id: id, ownerId }, payload, { new: true });
-        if (!doc) return res.status(404).json({ success: false, error: { message: 'Not found' } });
-        res.json({ success: true, data: doc });
+        const doc = await Income.findOneAndUpdate(
+            {
+                _id: id,
+                ownerId,
+                accountCompanyName: companyId
+            },
+            payload,
+            { new: true, runValidators: true }
+        );
+
+        if (!doc)
+            return res.status(404).json({ success: false, error: { message: "Not found" } });
+
+        return res.json({ success: true, data: doc });
+
     } catch (err) {
         next(err);
     }
-}
+};
 
-async function remove(req, res, next) {
+// -------------------------------------------------------------
+// DELETE INCOME (Soft Delete)
+// -------------------------------------------------------------
+exports.remove = async (req, res, next) => {
     try {
         const ownerId = req.user.ownerId;
-        const id = req.params.id;
-        const doc = await Income.findOneAndUpdate({ _id: id, ownerId }, { isDeleted: true, updatedBy: req.user.id }, { new: true });
-        if (!doc) return res.status(404).json({ success: false, error: { message: 'Not found' } });
-        res.json({ success: true, data: doc });
+
+        const companyId = toObjectId(req.query.accountCompanyName);
+        if (!companyId) {
+            return res.status(400).json({
+                message: "Valid accountCompanyName (companyId) is required"
+            });
+        }
+
+        const doc = await Income.findOneAndUpdate(
+            {
+                _id: req.params.id,
+                ownerId,
+                accountCompanyName: companyId
+            },
+            { isDeleted: true, updatedBy: req.user.id },
+            { new: true }
+        );
+
+        if (!doc)
+            return res.status(404).json({ success: false, error: { message: "Not found" } });
+
+        return res.json({ success: true, data: doc });
+
     } catch (err) {
         next(err);
     }
-}
+};
 
-// robust download handler — replace your current downloadReceipt function with this
-async function downloadReceipt(req, res, next) {
+// -------------------------------------------------------------
+// DOWNLOAD RECEIPT FILE
+// -------------------------------------------------------------
+exports.downloadReceipt = async (req, res, next) => {
     try {
         const ownerId = req.user.ownerId;
-        const id = req.params.id;
-        // Use your Income model name (I used Income)
-        const doc = await Income.findOne({ _id: id, ownerId, isDeleted: false }).lean();
-        if (!doc || !doc.receipt || !doc.receipt.data) {
-            return res.status(404).json({ success: false, error: { message: 'Receipt not found' } });
+
+        const companyId = toObjectId(req.query.accountCompanyName);
+        if (!companyId) {
+            return res.status(400).json({
+                message: "Valid accountCompanyName (companyId) is required"
+            });
         }
 
-        // Normalize stored value to a Buffer
-        const d = doc.receipt.data;
-        let buffer;
+        const doc = await Income.findOne({
+            _id: req.params.id,
+            ownerId,
+            accountCompanyName: companyId,
+            isDeleted: false
+        }).lean();
 
-        if (Buffer.isBuffer(d)) {
-            buffer = d;
-        } else if (d && d.buffer) {
-            // Common driver shape: { buffer: <Uint8Array> }
-            buffer = Buffer.from(d.buffer);
-        } else if (typeof d === "string") {
-            // Stored as base64 string
-            buffer = Buffer.from(d, "base64");
-        } else if (d && d._bsontype === "Binary" && d.buffer) {
-            buffer = Buffer.from(d.buffer);
-        } else {
-            // fallback attempt
-            try {
-                buffer = Buffer.from(d);
-            } catch (err) {
-                return res.status(500).json({ success: false, error: { message: "Unsupported receipt format" } });
-            }
+        if (!doc || !doc.receipt?.data) {
+            return res.status(404).json({
+                success: false,
+                error: { message: "Receipt not found" }
+            });
         }
 
-        const filename = (doc.receipt.fileName || `receipt-${id}`).replace(/["']/g, "");
-        const contentType = doc.receipt.contentType || "application/octet-stream";
+        res.set("Content-Type", doc.receipt.contentType || "application/octet-stream");
+        res.set("Content-Disposition", `attachment; filename="${doc.receipt.fileName || "receipt"}"`);
+        res.send(doc.receipt.data);
 
-        res.setHeader("Content-Type", contentType);
-        res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
-        res.setHeader("Content-Length", buffer.length);
-
-        // send raw binary
-        return res.send(buffer);
     } catch (err) {
         next(err);
     }
-}
-
-
-
-module.exports = {
-    list,
-    getOne,
-    create,
-    update,
-    remove,
-    downloadReceipt,
-    uploadMiddleware: uploadSingle
 };

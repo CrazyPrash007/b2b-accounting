@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 
 const ReceiptSchema = new mongoose.Schema({
     ownerId: { type: mongoose.Schema.Types.ObjectId, required: true, index: true },
-
+    accountCompanyName: { type: String, required: true, index: true },
     // Party details (customer/vendor). Frontend passes display name; we also allow optional reference id.
     partyId: { type: mongoose.Schema.Types.ObjectId, ref: 'Customer', default: null },
     party: { type: String, trim: true, default: '' },
@@ -27,6 +27,6 @@ const ReceiptSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 // index to help lookup receipts by owner/date
-ReceiptSchema.index({ ownerId: 1, date: -1 });
+ReceiptSchema.index({ ownerId: 1, accountCompanyName: 1, date: -1 });
 
 module.exports = mongoose.model('Receipt', ReceiptSchema);

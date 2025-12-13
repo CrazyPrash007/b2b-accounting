@@ -1,6 +1,9 @@
 const Joi = require('joi');
 
+const objectId = Joi.string().regex(/^[0-9a-fA-F]{24}$/);
+
 const create = Joi.object({
+    accountCompanyName: objectId.required(),
     date: Joi.date().iso().optional(),
     billName: Joi.string().trim().required(),
     expenseAmount: Joi.number().precision(2).min(0).required(),
@@ -10,14 +13,6 @@ const create = Joi.object({
     // file is handled by multer (multipart) — validator checks textual fields only
 });
 
-const update = Joi.object({
-    date: Joi.date().iso().optional(),
-    billName: Joi.string().trim().optional(),
-    expenseAmount: Joi.number().precision(2).min(0).optional(),
-    paymentMethod: Joi.string().allow('').optional(),
-    category: Joi.string().trim().optional(),
-    notes: Joi.string().allow('').optional(),
-    isActive: Joi.boolean().optional()
-});
+const update = create.fork(['accountCompanyName'], (s) => s.optional());
 
 module.exports = { create, update };
