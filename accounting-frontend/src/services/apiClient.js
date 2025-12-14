@@ -1,9 +1,11 @@
 // src/services/apiClient.js
 import axios from "axios";
+import { getCurrentCompany } from "./companyContextAccessor";
 
-const baseURL = process.env.REACT_APP_API_BASE_URL && process.env.REACT_APP_API_BASE_URL.length
-    ? process.env.REACT_APP_API_BASE_URL
-    : (typeof window !== "undefined" ? window.location.origin : "");
+const baseURL =
+    import.meta.env.VITE_API_BASE_URL && import.meta.env.VITE_API_BASE_URL.length
+        ? import.meta.env.VITE_API_BASE_URL
+        : (typeof window !== "undefined" ? window.location.origin : "");
 
 const apiClient = axios.create({
     baseURL,
@@ -14,7 +16,27 @@ const apiClient = axios.create({
     },
 });
 
+// ---------------------------------------------------------
+// ADD REQUEST INTERCEPTOR → inject selectedCompany globally
+// ---------------------------------------------------------
+apiClient.interceptors.request.use(
+    config => {
+        const company = getCurrentCompany();
 
+        if (company) {
+            // Ensure params object exists
+            config.params = config.params || {};
+            config.params.accountCompanyName = company;
+        }
+
+        return config;
+    },
+    error => Promise.reject(error)
+);
+
+// ---------------------------------------------------------
+// RESPONSE ERROR HANDLER
+// ---------------------------------------------------------
 apiClient.interceptors.response.use(
     res => res,
     err => {

@@ -1,7 +1,10 @@
 // IncomePage.jsx
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useContext } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import useIncome from "./hooks/useIncome";
+import incomeApi from "./api/income.api";
+import { CompanyContext } from "src/App";
+
 
 /**
  * IncomeModal - Modal for creating/editing income entries
@@ -343,68 +346,43 @@ export default function IncomePage() {
         setEditingIncome(null);
     };
 
-    // incomeData shape comes from your modal (has uploadBill file in uploadBill, uploadBillName, etc.)
+    const { selectedCompany } = useContext(CompanyContext); // ADD THIS AT TOP
+
     const handleSaveIncome = async (incomeData, isEdit) => {
         try {
-            // Basic client-side validation — keep as-is if modal already validates
-            if (!incomeData.billName || !String(incomeData.billName).trim()) {
-                alert("Bill Name is required");
-                return;
-            }
-            if (!incomeData.incomeAmount || Number(incomeData.incomeAmount) <= 0) {
-                alert("Valid Income Amount is required");
-                return;
-            }
-            if (!incomeData.category || !String(incomeData.category).trim()) {
-                alert("Category is required");
-                return;
-            }
-
-            // Build FormData for multipart upload (controller expects 'uploadBill' field)
             const fd = new FormData();
-            if (incomeData.date) fd.append("date", new Date(incomeData.date).toISOString());
-            fd.append("billName", String(incomeData.billName || "").trim());
-            fd.append("incomeAmount", String(Number(incomeData.incomeAmount || 0)));
-            fd.append("paymentMethod", String(incomeData.paymentMethod || ""));
-            fd.append("category", String(incomeData.category || ""));
-            fd.append("notes", String(incomeData.notes || ""));
 
-            // If modal provided a File object in uploadBill, append it
+            fd.append("accountCompanyName", selectedCompany);
+            fd.append("billName", incomeData.billName.trim());
+            fd.append("incomeAmount", String(Number(incomeData.incomeAmount)));
+            fd.append("category", incomeData.category);
+            fd.append("paymentMethod", incomeData.paymentMethod || "");
+            fd.append("notes", incomeData.notes || "");
+
+            if (incomeData.date)
+                fd.append("date", new Date(incomeData.date).toISOString());
+
+            // FIX: backend expects "receipt"
             if (incomeData.uploadBill instanceof File) {
-                fd.append("uploadBill", incomeData.uploadBill, incomeData.uploadBill.name);
+                fd.append("receipt", incomeData.uploadBill, incomeData.uploadBill.name);
             }
 
-            const backendBase = "http://localhost:4000";
             if (isEdit) {
-                const id = incomeData.id ?? incomeData._id;
-                const res = await fetch(`${backendBase}/api/income/${id}`, {
-                    method: 'PUT',
-                    body: fd,
-                    credentials: 'same-origin',
-                });
-                if (!res.ok) throw new Error(`Failed to update: ${res.status}`);
+                await incomeApi.update(incomeData._id ?? incomeData.id, fd);
             } else {
-                const res = await fetch(`${backendBase}/api/income`, {
-                    method: 'POST',
-                    body: fd,
-                    credentials: 'same-origin',
-                });
-                if (!res.ok) throw new Error(`Failed to create: ${res.status}`);
+                await incomeApi.create(fd);
             }
+
             await reload();
-
-
-            // close modal and refresh canonical data
             setIsModalOpen(false);
             setEditingIncome(null);
-            await reload();
+
         } catch (err) {
-            console.error("Failed to save income:", err);
-            // surface helpful message if present
-            const msg = err?.response?.data?.error?.message || err?.message || "Failed to save income";
-            alert(msg);
+            console.error("Failed to save income", err);
+            alert(err?.message || "Failed to save income");
         }
     };
+
 
     const handleDeleteIncome = async (id) => {
         if (!window.confirm("Are you sure you want to delete this income entry?")) return;

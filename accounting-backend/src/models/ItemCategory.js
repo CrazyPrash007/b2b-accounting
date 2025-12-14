@@ -2,7 +2,8 @@
 const mongoose = require('mongoose');
 
 const ItemCategorySchema = new mongoose.Schema({
-    ownerId: { type: mongoose.Schema.Types.ObjectId, required: true, index: true }, // main-app user id
+    ownerId: { type: mongoose.Schema.Types.ObjectId, required: true, index: true },
+    accountCompanyName: { type: mongoose.Schema.Types.ObjectId, ref: 'Company', required: true, index: true },
     name: { type: String, required: true, trim: true },
     subcategories: { type: [String], default: [] },
 
@@ -14,7 +15,7 @@ const ItemCategorySchema = new mongoose.Schema({
 
 // Unique per owner (ignore deleted)
 ItemCategorySchema.index(
-    { ownerId: 1, name: 1 },
+    { ownerId: 1, accountCompanyName: 1, name: 1 },
     { unique: true, partialFilterExpression: { isDeleted: false } }
 );
 

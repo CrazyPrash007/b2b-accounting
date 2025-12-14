@@ -1,33 +1,51 @@
-// src/features/items/unit/api/income.api.js
+import apiClient from "src/services/apiClient";
 import resourceApiFactory from "src/services/resourceApiFactory";
-const api = resourceApiFactory("/api/income");
+import { getCurrentCompany } from "src/services/companyContextAccessor";
 
-// keep defaults
-export const listIncomes = api.list;
+const baseApi = resourceApiFactory("/api/income");
 
-// Override create to support FormData
-export async function createIncome(payload) {
-    if (payload instanceof FormData) {
-        const apiClient = require("src/services/apiClient").default;
-        const res = await apiClient.post("/api/income", payload, {
-            withCredentials: true,
+const incomeApi = {
+    ...baseApi,
+
+    // override create to use multipart
+    create: async (formData, accountCompanyName) => {
+        // Get company from parameter or from global context
+        const companyId = accountCompanyName || getCurrentCompany();
+        
+        // If formData is a FormData object, delete existing and set accountCompanyName
+        if (formData instanceof FormData) {
+            formData.delete("accountCompanyName");
+            formData.append("accountCompanyName", companyId);
+        } else {
+            // If it's a plain object, add the property
+            formData.accountCompanyName = companyId;
+        }
+        
+        const res = await apiClient.post("/api/income", formData, {
+            headers: { "Content-Type": "multipart/form-data" }
         });
-        return res.data;
+        return res?.data?.data;
+    },
 
-    }
-    return api.create(payload);
-}
-
-export async function updateIncome(id, payload) {
-    if (payload instanceof FormData) {
-        const apiClient = require("src/services/apiClient").default;
-        const res = await apiClient.put(`/api/income/${id}`, payload, {
-            withCredentials: true,
+    // override update
+    update: async (id, formData, accountCompanyName) => {
+        // Get company from parameter or from global context
+        const companyId = accountCompanyName || getCurrentCompany();
+        
+        // If formData is a FormData object, delete existing and set accountCompanyName
+        if (formData instanceof FormData) {
+            formData.delete("accountCompanyName");
+            formData.append("accountCompanyName", companyId);
+        } else {
+            // If it's a plain object, add the property
+            formData.accountCompanyName = companyId;
+        }
+        
+        const res = await apiClient.put(`/api/income/${id}`, formData, {
+            headers: { "Content-Type": "multipart/form-data" }
         });
-        return res.data;
+        return res?.data?.data;
+    },
+};
 
-    }
-    return api.update(id, payload);
-}
-
-export const deleteIncome = api.remove;
+export default incomeApi;

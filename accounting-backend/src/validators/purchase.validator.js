@@ -1,57 +1,69 @@
 // src/validators/purchase.validator.js
 const Joi = require('joi');
 
-// Helper schemas
+// --- Helper Schemas ---------------------------------------------------------
+
+const objectId = Joi.string().hex().length(24);
+const objectnewId = Joi.string().regex(/^[0-9a-fA-F]{24}$/);
+
 const itemLine = Joi.object({
     id: Joi.any().optional(),
-    itemId: Joi.string().optional().allow(null, ''),
-    // accept canonical `name` and also allow legacy `goodsService`
+
+    itemId: objectId.allow(null, ''),
+
+    // canonical name + legacy goodsService
     name: Joi.string().allow('').optional(),
     goodsService: Joi.string().allow('').optional(),
-    qty: Joi.number().min(0).optional().allow('', null),
-    rate: Joi.number().min(0).optional().allow('', null),
-    gstPercent: Joi.number().min(0).max(100).optional().allow('', null),
+
+    qty: Joi.alternatives().try(Joi.number().min(0), Joi.string().allow(''), Joi.allow(null)).optional(),
+    rate: Joi.alternatives().try(Joi.number().min(0), Joi.string().allow(''), Joi.allow(null)).optional(),
+    gstPercent: Joi.alternatives().try(Joi.number().min(0).max(100), Joi.string().allow(''), Joi.allow(null)).optional(),
     gstType: Joi.string().valid('Excluded', 'Included').optional(),
-    actualAmount: Joi.number().min(0).optional().allow('', null),
-    finalAmount: Joi.number().min(0).optional().allow('', null),
+
+    actualAmount: Joi.alternatives().try(Joi.number().min(0), Joi.string().allow(''), Joi.allow(null)).optional(),
+    finalAmount: Joi.alternatives().try(Joi.number().min(0), Joi.string().allow(''), Joi.allow(null)).optional(),
 });
 
 const additionalCharge = Joi.object({
     name: Joi.string().allow('').optional(),
-    amount: Joi.number().min(0).optional().allow('', null),
+    amount: Joi.alternatives().try(Joi.number().min(0), Joi.string().allow(''), Joi.allow(null)).optional(),
 });
 
 const paymentSplit = Joi.object({
     mode: Joi.string().allow('').optional(),
-    amount: Joi.number().min(0).optional().allow('', null),
+    amount: Joi.alternatives().try(Joi.number().min(0), Joi.string().allow(''), Joi.allow(null)).optional(),
 });
 
-const base = {
-    supplier: Joi.string().trim().optional().allow(''),
-    invoicePrefix: Joi.string().trim().optional().allow(''),
-    invoiceNumber: Joi.string().trim().optional().allow(''),
-    invoiceSuffix: Joi.string().trim().optional().allow(''),
-    invoiceDate: Joi.date().iso().optional().allow(null, ''),
+// --- Base Schema ------------------------------------------------------------
 
-    supplierInvoiceNumber: Joi.string().trim().optional().allow(''),
-    supplierInvoiceDate: Joi.date().iso().optional().allow(null, ''),
+const base = {
+    accountCompanyName: objectnewId.required(),
+
+    supplier: Joi.string().trim().allow('').optional(),
+    invoicePrefix: Joi.string().trim().allow('').optional(),
+    invoiceNumber: Joi.string().trim().allow('').optional(),
+    invoiceSuffix: Joi.string().trim().allow('').optional(),
+    invoiceDate: Joi.date().iso().allow(null, '').optional(),
+
+    supplierInvoiceNumber: Joi.string().trim().allow('').optional(),
+    supplierInvoiceDate: Joi.date().iso().allow(null, '').optional(),
 
     items: Joi.array().items(itemLine).optional(),
 
     withGst: Joi.boolean().optional(),
 
     isPaymentMade: Joi.boolean().optional(),
-    paymentMode: Joi.string().trim().optional().allow(''),
-    refNo: Joi.string().trim().optional().allow(''),
-    paidFrom: Joi.string().trim().optional().allow(''),
-    paymentAmount: Joi.number().min(0).optional().allow(null, ''),
+    paymentMode: Joi.string().trim().allow('').optional(),
+    refNo: Joi.string().trim().allow('').optional(),
+    paidFrom: Joi.string().trim().allow('').optional(),
+    paymentAmount: Joi.alternatives().try(Joi.number().min(0), Joi.string().allow(''), Joi.allow(null)).optional(),
     payFull: Joi.boolean().optional(),
 
-    discount: Joi.number().min(0).optional().allow(null, ''),
+    discount: Joi.alternatives().try(Joi.number().min(0), Joi.string().allow(''), Joi.allow(null)).optional(),
     autoRoundOff: Joi.boolean().optional(),
-    totalAmount: Joi.number().min(0).optional().allow(null, ''),
-    taxableAmount: Joi.number().min(0).optional().allow(null, ''),
-    gstAmount: Joi.number().min(0).optional().allow(null, ''),
+    totalAmount: Joi.alternatives().try(Joi.number().min(0), Joi.string().allow(''), Joi.allow(null)).optional(),
+    taxableAmount: Joi.alternatives().try(Joi.number().min(0), Joi.string().allow(''), Joi.allow(null)).optional(),
+    gstAmount: Joi.alternatives().try(Joi.number().min(0), Joi.string().allow(''), Joi.allow(null)).optional(),
 
     additionalCharges: Joi.array().items(additionalCharge).optional(),
     payments: Joi.array().items(paymentSplit).optional(),
@@ -59,17 +71,14 @@ const base = {
     description: Joi.string().allow('').optional(),
 };
 
+// --- Create Schema ----------------------------------------------------------
+
 const create = Joi.object({
-    ...base,
-    // invoiceNumber might be required depending on your server rules — keep optional here
+    ...base
 });
 
-const update = Joi.object({
-    // allow partial updates
-    ...Object.keys(base).reduce((acc, k) => {
-        acc[k] = base[k];
-        return acc;
-    }, {}),
-});
+// --- Update Schema ----------------------------------------------------------
+
+const update = create.fork(['accountCompanyName'], (s) => s.optional());
 
 module.exports = { create, update };

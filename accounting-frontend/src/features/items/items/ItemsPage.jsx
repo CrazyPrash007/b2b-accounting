@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import useItem from "./hooks/useItem";
 import ItemTable from "./ItemTable";
+import { getCurrentCompany } from "../../../services/companyContextAccessor";
 
 /**
  * Helper to safely parse backend JSON that might be { success, data, meta } or raw array
@@ -95,11 +96,12 @@ function ItemModal({ isOpen, onClose, onSave, onDelete, editData }) {
         setListsLoading(true);
         setListsError(null);
         try {
+            const companyId = getCurrentCompany();
             const [unitsRes, catsRes, brandsRes, gstRes] = await Promise.allSettled([
-                fetch(`${API_BASE}/api/unit`),
-                fetch(`${API_BASE}/api/item-categories`),
-                fetch(`${API_BASE}/api/brand`),
-                fetch(`${API_BASE}/api/gst`),
+                fetch(`${API_BASE}/api/unit?accountCompanyName=${companyId}`),
+                fetch(`${API_BASE}/api/item-categories?accountCompanyName=${companyId}`),
+                fetch(`${API_BASE}/api/brand?accountCompanyName=${companyId}`),
+                fetch(`${API_BASE}/api/gst?accountCompanyName=${companyId}`),
             ]);
 
             const parseSettled = async (s) => {

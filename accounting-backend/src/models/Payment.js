@@ -1,18 +1,19 @@
-// src/models/Receipt.js
+// src/models/Payment.js
 const mongoose = require('mongoose');
 
-const ReceiptSchema = new mongoose.Schema({
+const PaymentSchema = new mongoose.Schema({
     ownerId: { type: mongoose.Schema.Types.ObjectId, required: true, index: true },
     accountCompanyName: { type: mongoose.Schema.Types.ObjectId, ref: 'Company', required: true, index: true },
-    // Party details (customer/vendor). Frontend passes display name; we also allow optional reference id.
-    partyId: { type: mongoose.Schema.Types.ObjectId, ref: 'Customer', default: null },
+    
+    // Party details (vendor). Frontend passes display name; we also allow optional reference id.
+    partyId: { type: mongoose.Schema.Types.ObjectId, ref: 'Vendor', default: null },
     party: { type: String, trim: true, default: '' },
 
-    // Receipt/invoice linking (optional)
-    invoiceId: { type: mongoose.Schema.Types.ObjectId, ref: 'Sale', default: null },
-    invoiceLabel: { type: String, trim: true, default: '' }, // e.g., INV00000290
+    // Payment/invoice linking (optional)
+    invoiceId: { type: mongoose.Schema.Types.ObjectId, ref: 'Purchase', default: null },
+    invoiceLabel: { type: String, trim: true, default: '' }, // e.g., PINV00000123
 
-    // Receipt fields
+    // Payment fields
     date: { type: Date, default: Date.now },
     amount: { type: Number, default: 0 },
     paymentMethod: { type: String, trim: true, default: 'Cash' },
@@ -26,7 +27,7 @@ const ReceiptSchema = new mongoose.Schema({
     isDeleted: { type: Boolean, default: false },
 }, { timestamps: true });
 
-// index to help lookup receipts by owner/date
-ReceiptSchema.index({ ownerId: 1, accountCompanyName: 1, date: -1 });
+// index to help lookup payments by owner/date
+PaymentSchema.index({ ownerId: 1, accountCompanyName: 1, date: -1 });
 
-module.exports = mongoose.model('Receipt', ReceiptSchema);
+module.exports = mongoose.model('Payment', PaymentSchema);

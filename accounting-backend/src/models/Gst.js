@@ -2,7 +2,8 @@
 const mongoose = require('mongoose');
 
 const GstSchema = new mongoose.Schema({
-    ownerId: { type: mongoose.Schema.Types.ObjectId, required: true, index: true }, // main-app user id
+    ownerId: { type: mongoose.Schema.Types.ObjectId, required: true, index: true },
+    accountCompanyName: { type: mongoose.Schema.Types.ObjectId, ref: 'Company', required: true, index: true },
     rate: { type: Number, required: true },
 
     isActive: { type: Boolean, default: true },
@@ -13,8 +14,9 @@ const GstSchema = new mongoose.Schema({
 
 // Optional: ensure same rate isn't inserted twice for same owner (ignore deleted)
 GstSchema.index(
-    { ownerId: 1, rate: 1 },
+    { ownerId: 1, accountCompanyName: 1, rate: 1 },
     { unique: true, partialFilterExpression: { isDeleted: false } }
 );
+
 
 module.exports = mongoose.model('Gst', GstSchema);

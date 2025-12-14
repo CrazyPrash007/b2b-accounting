@@ -1,15 +1,7 @@
-import createUseResource from "src/services/useResourceFactory";
-import * as api from "../api/expense.api";
+import createResourceHook from "src/services/useResourceFactory";
+import expenseApi from "src/features/transactions/expense/api/expense.api";
 
-const STORAGE_KEY = "munim_expense_v1_demo";
-
-const expenseApi = {
-    list: api.listExpenses,
-    create: api.createExpense,
-    update: api.updateExpense,
-    remove: api.deleteExpense,
-};
-
-const useExpense = createUseResource(expenseApi, STORAGE_KEY);
+const useExpense = createResourceHook(expenseApi);
 
 export default useExpense;
+

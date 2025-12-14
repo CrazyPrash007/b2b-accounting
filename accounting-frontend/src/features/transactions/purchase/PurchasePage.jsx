@@ -1,6 +1,7 @@
 // PurchasePage.jsx
 import React, { useState, useEffect, useRef } from "react";
 import usePurchase from "./hooks/usePurchase";
+import { getCurrentCompany } from "../../../services/companyContextAccessor";
 
 /**
  * PurchaseInvoiceModal - Modal for creating/editing purchase invoices
@@ -33,7 +34,7 @@ function PurchaseInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, wit
         invoiceDate: new Date().toISOString().split('T')[0],
         supplierInvoiceNumber: "",
         supplierInvoiceDate: "",
-        items: [{ id: 1, goodsService: "", qty: "", rate: "", gstPercent: "", gstType: "Excluded", actualAmount: "", finalAmount: "" }],
+        items: [{ id: 1, goodsService: "", qty: "", rate: "", gstPercent: "", gstType: "Included", actualAmount: "", finalAmount: "" }],
         isPaymentMade: true,
         paymentMode: "Cash",
         refNo: "",
@@ -88,12 +89,13 @@ function PurchaseInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, wit
         setListsLoading(true);
         setListsError(null);
         try {
+            const companyId = getCurrentCompany();
             const promises = await Promise.allSettled([
-                fetch(`${API_BASE}/api/customers`),
-                fetch(`${API_BASE}/api/vendors`),
-                fetch(`${API_BASE}/api/items`),
-                fetch(`${API_BASE}/api/gst`),
-                fetch(`${API_BASE}/api/bank`)
+                fetch(`${API_BASE}/api/customers?accountCompanyName=${companyId}`),
+                fetch(`${API_BASE}/api/vendors?accountCompanyName=${companyId}`),
+                fetch(`${API_BASE}/api/items?accountCompanyName=${companyId}`),
+                fetch(`${API_BASE}/api/gst?accountCompanyName=${companyId}`),
+                fetch(`${API_BASE}/api/bank?accountCompanyName=${companyId}`)
             ]);
 
             const parseSettled = async (s) => {
@@ -181,11 +183,11 @@ function PurchaseInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, wit
                         qty: it.qty ?? (it.quantity ?? ""),
                         rate: it.rate ?? it.sellPrice ?? it.price ?? it.buyPrice ?? "",
                         gstPercent: it.gstPercent ?? (it.gstRate ?? ""),
-                        gstType: it.gstType || "Excluded",
+                        gstType: it.gstType || "Included",
                         actualAmount: it.actualAmount ?? it.actualAmount,
                         finalAmount: it.finalAmount ?? it.finalAmount,
                         itemId: it.itemId || it._id || null
-                    })) : [{ id: 1, goodsService: "", qty: "", rate: "", gstPercent: "", gstType: "Excluded", actualAmount: "", finalAmount: "" }],
+                    })) : [{ id: 1, goodsService: "", qty: "", rate: "", gstPercent: "", gstType: "Included", actualAmount: "", finalAmount: "" }],
                     isPaymentMade: editData.isPaymentMade ?? true,
                     paymentMode: editData.paymentMode || "Cash",
                     refNo: editData.refNo || "",
@@ -208,7 +210,7 @@ function PurchaseInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, wit
                     invoiceDate: new Date().toISOString().split('T')[0],
                     supplierInvoiceNumber: "",
                     supplierInvoiceDate: "",
-                    items: [{ id: 1, goodsService: "", qty: "", rate: "", gstPercent: "", gstType: "Excluded", actualAmount: "", finalAmount: "" }],
+                    items: [{ id: 1, goodsService: "", qty: "", rate: "", gstPercent: "", gstType: "Included", actualAmount: "", finalAmount: "" }],
                     isPaymentMade: true,
                     paymentMode: "Cash",
                     refNo: "",
@@ -246,7 +248,41 @@ function PurchaseInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, wit
 
     // Handlers (reuse your original functions but add auto-fill on goodsService)
     const handleChange = (field, value) => {
-        setFormData((prev) => ({ ...prev, [field]: value }));
+        setFormData((prev) => {
+            const updated = { ...prev, [field]: value };
+            
+            // If Pay Full checkbox is checked, auto-fill payment amount with total amount
+            if (field === "payFull" && value === true) {
+                // Calculate total based on current state
+                let taxableAmt = 0;
+                let totalGst = 0;
+                let totalFinalAmt = 0;
+
+                updated.items.forEach(item => {
+                    const actualAmount = parseFloat(item.actualAmount) || 0;
+                    const finalAmount = parseFloat(item.finalAmount) || 0;
+                    taxableAmt += actualAmount;
+                    totalFinalAmt += finalAmount;
+                    totalGst += (finalAmount - actualAmount);
+                });
+
+                let subTotal = totalFinalAmt;
+                const discountAmount = parseFloat(updated.discount) || 0;
+                let total = subTotal - discountAmount;
+
+                additionalCharges.forEach(c => {
+                    total += parseFloat(c.amount) || 0;
+                });
+
+                if (updated.autoRoundOff) {
+                    total = Math.round(total);
+                }
+
+                updated.paymentAmount = String(total);
+            }
+            
+            return updated;
+        });
         if (error) setError("");
     };
 
@@ -266,7 +302,7 @@ function PurchaseInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, wit
         const qty = parseFloat(newItems[index].qty) || 0;
         const rate = parseFloat(newItems[index].rate) || 0;
         const gstPercent = parseFloat(newItems[index].gstPercent) || 0;
-        const gstType = newItems[index].gstType || "Excluded";
+        const gstType = newItems[index].gstType || "Included";
 
         let actualAmount = 0; // Pre-tax amount
         let finalAmount = 0;  // Amount with tax
@@ -396,7 +432,7 @@ function PurchaseInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, wit
         const newId = formData.items.length + 1;
         setFormData((prev) => ({
             ...prev,
-            items: [...prev.items, { id: newId, goodsService: "", qty: "", rate: "", gstPercent: "", gstType: "Excluded", actualAmount: "", finalAmount: "" }]
+            items: [...prev.items, { id: newId, goodsService: "", qty: "", rate: "", gstPercent: "", gstType: "Included", actualAmount: "", finalAmount: "" }]
         }));
         if (error) setError("");
         return true;
@@ -464,7 +500,7 @@ function PurchaseInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, wit
                 rate: it.rate === "" || it.rate == null ? 0 : Number(it.rate),
                 buyPrice: it.buyPrice ?? it.buyPrice ?? null,
                 gstPercent: it.gstPercent === "" || it.gstPercent == null ? null : Number(it.gstPercent),
-                gstType: it.gstType || "Excluded",
+                gstType: it.gstType || "Included",
                 actualAmount: it.actualAmount === "" || it.actualAmount == null ? null : Number(it.actualAmount),
                 finalAmount: it.finalAmount === "" || it.finalAmount == null ? null : Number(it.finalAmount),
                 hsnNo: it.hsnNo || "",
@@ -1168,7 +1204,7 @@ export default function PurchasePage() {
             rate: it.rate === "" || it.rate == null ? 0 : Number(it.rate),
             buyPrice: it.buyPrice === "" || it.buyPrice == null ? null : Number(it.buyPrice),
             gstPercent: (it.gstPercent === "" || it.gstPercent == null) ? null : Number(it.gstPercent),
-            gstType: it.gstType || "Excluded",
+            gstType: it.gstType || "Included",
             actualAmount: (it.actualAmount === "" || it.actualAmount == null) ? null : Number(it.actualAmount),
             finalAmount: (it.finalAmount === "" || it.finalAmount == null) ? null : Number(it.finalAmount),
             hsnNo: it.hsnNo || "",
@@ -1380,6 +1416,12 @@ export default function PurchasePage() {
                                             <span>Payment</span>
                                         </div>
                                     </th>
+                                    <th className="min-w-[120px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-gray-400 cursor-grab">⋮⋮</span>
+                                            <span>Status</span>
+                                        </div>
+                                    </th>
                                     <th className="min-w-[100px] h-9 px-4 text-left text-sm font-medium text-gray-700 sticky right-0 z-20 bg-gray-100 border-l border-gray-400" style={{ boxShadow: '-4px 0 8px -2px rgba(0, 0, 0, 0.15)' }}>
                                         Actions
                                     </th>
@@ -1440,6 +1482,25 @@ export default function PurchasePage() {
                                                 <span className="text-yellow-600 text-xs">Pending</span>
                                             )}
                                         </td>
+                                        <td
+                                            className={getCellClasses(rowIndex, 7) + " text-left"}
+                                            onClick={() => handleCellClick(rowIndex, 7)}
+                                        >
+                                            {(() => {
+                                                const status = invoice.paymentStatus || 'unpaid';
+                                                const badges = {
+                                                    'paid': { bg: 'bg-green-100', text: 'text-green-700', label: 'Paid' },
+                                                    'partial': { bg: 'bg-yellow-100', text: 'text-yellow-700', label: 'Partial' },
+                                                    'unpaid': { bg: 'bg-red-100', text: 'text-red-700', label: 'Unpaid' },
+                                                };
+                                                const badge = badges[status] || badges['unpaid'];
+                                                return (
+                                                    <span className={`inline-flex items-center px-2 py-0.5 rounded ${badge.bg} ${badge.text} text-xs font-medium`}>
+                                                        {badge.label}
+                                                    </span>
+                                                );
+                                            })()}
+                                        </td>
                                         <td className={`h-8 px-4 text-left sticky right-0 z-10 border-l border-gray-400 ${rowIndex % 2 === 0 ? 'bg-blue-50' : 'bg-white'}`} style={{ boxShadow: '-4px 0 8px -2px rgba(0, 0, 0, 0.1)' }}>
                                             <div className="flex items-center justify-end gap-2">
                                                 <button
@@ -1472,6 +1533,7 @@ export default function PurchasePage() {
                                             <td className={getCellClasses(rowIndex, 4)} onClick={() => handleCellClick(rowIndex, 4)}></td>
                                             <td className={getCellClasses(rowIndex, 5)} onClick={() => handleCellClick(rowIndex, 5)}></td>
                                             <td className={getCellClasses(rowIndex, 6)} onClick={() => handleCellClick(rowIndex, 6)}></td>
+                                            <td className={getCellClasses(rowIndex, 7)} onClick={() => handleCellClick(rowIndex, 7)}></td>
                                             <td className={`h-8 px-4 sticky right-0 z-10 border-l border-gray-400 ${rowIndex % 2 === 0 ? 'bg-blue-50' : 'bg-white'}`} style={{ boxShadow: '-4px 0 8px -2px rgba(0, 0, 0, 0.1)' }}></td>
                                         </tr>
                                     );
