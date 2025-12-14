@@ -62,6 +62,11 @@ const PurchaseSchema = new mongoose.Schema({
     taxableAmount: { type: Number, default: 0 },
     gstAmount: { type: Number, default: 0 },
 
+    // Payment tracking for partial payments
+    paidAmount: { type: Number, default: 0 },
+    dueAmount: { type: Number, default: 0 },
+    paymentStatus: { type: String, enum: ['unpaid', 'partial', 'paid'], default: 'unpaid' },
+
     additionalCharges: { type: [AdditionalChargeSchema], default: [] },
     payments: { type: [PaymentSplitSchema], default: [] },
 

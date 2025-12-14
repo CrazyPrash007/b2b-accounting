@@ -143,6 +143,20 @@ async function create(req, res, next) {
             amount: Number(p.amount || 0)
         }));
 
+        // Initialize payment tracking
+        const paymentMade = Number(payload.paymentAmount || 0);
+        payload.paidAmount = payload.isPaymentMade ? paymentMade : 0;
+        payload.dueAmount = Math.max(0, (Number(payload.totalAmount) || 0) - payload.paidAmount);
+        
+        // Calculate payment status
+        if (payload.dueAmount === 0 && payload.paidAmount > 0) {
+            payload.paymentStatus = 'paid';
+        } else if (payload.paidAmount > 0 && payload.dueAmount > 0) {
+            payload.paymentStatus = 'partial';
+        } else {
+            payload.paymentStatus = 'unpaid';
+        }
+
         const doc = await Purchase.create(payload);
 
         res.status(201).json({ success: true, data: doc });

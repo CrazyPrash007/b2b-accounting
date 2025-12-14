@@ -78,6 +78,10 @@ function BankModal({ isOpen, onClose, onSave, onDelete, editData }) {
             setError("Bank Name is required");
             return;
         }
+        if (!formData.openingBalance || formData.openingBalance === "") {
+            setError("Opening Balance is required");
+            return;
+        }
 
         const bankData = {
             ...formData,
@@ -283,7 +287,7 @@ function BankModal({ isOpen, onClose, onSave, onDelete, editData }) {
                         <div className="grid grid-cols-2 gap-4">
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    Opening Balance
+                                    Opening Balance<span className="text-red-500">*</span>
                                 </label>
                                 <input
                                     type="number"

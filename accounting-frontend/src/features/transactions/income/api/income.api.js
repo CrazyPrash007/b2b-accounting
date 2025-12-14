@@ -12,8 +12,9 @@ const incomeApi = {
         // Get company from parameter or from global context
         const companyId = accountCompanyName || getCurrentCompany();
         
-        // If formData is a FormData object, append accountCompanyName
+        // If formData is a FormData object, delete existing and set accountCompanyName
         if (formData instanceof FormData) {
+            formData.delete("accountCompanyName");
             formData.append("accountCompanyName", companyId);
         } else {
             // If it's a plain object, add the property
@@ -31,8 +32,9 @@ const incomeApi = {
         // Get company from parameter or from global context
         const companyId = accountCompanyName || getCurrentCompany();
         
-        // If formData is a FormData object, append accountCompanyName
+        // If formData is a FormData object, delete existing and set accountCompanyName
         if (formData instanceof FormData) {
+            formData.delete("accountCompanyName");
             formData.append("accountCompanyName", companyId);
         } else {
             // If it's a plain object, add the property

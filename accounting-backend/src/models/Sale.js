@@ -66,6 +66,11 @@ const SaleSchema = new mongoose.Schema({
     subTotal: { type: Number, default: 0 },
     totalAmount: { type: Number, default: 0 },
 
+    // Payment tracking for partial payments
+    paidAmount: { type: Number, default: 0 },
+    dueAmount: { type: Number, default: 0 },
+    paymentStatus: { type: String, enum: ['unpaid', 'partial', 'paid'], default: 'unpaid' },
+
     autoRoundOff: { type: Boolean, default: true },
 
     description: { type: String, default: '' },
