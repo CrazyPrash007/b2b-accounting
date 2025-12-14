@@ -43,6 +43,7 @@ function ItemModal({ isOpen, onClose, onSave, onDelete, editData }) {
 
     const [listsLoading, setListsLoading] = useState(false);
     const [listsError, setListsError] = useState(null);
+    const navigate = useNavigate();
 
     const isEditMode = !!editData;
 
@@ -264,7 +265,13 @@ function ItemModal({ isOpen, onClose, onSave, onDelete, editData }) {
                             <label className="block text-sm font-medium text-gray-700 mb-1">Unit</label>
                             <select
                                 value={unit}
-                                onChange={(e) => setUnit(e.target.value)}
+                                onChange={(e) => {
+                                    if (e.target.value === "__ADD_NEW__") {
+                                        navigate("/unit");
+                                    } else {
+                                        setUnit(e.target.value);
+                                    }
+                                }}
                                 className={baseInput}
                             >
                                 <option value="">-- Select Unit --</option>
@@ -273,6 +280,7 @@ function ItemModal({ isOpen, onClose, onSave, onDelete, editData }) {
                                         {u}
                                     </option>
                                 ))}
+                                <option value="__ADD_NEW__" style={{color: '#2563eb', fontWeight: '600'}}>+ Add New Unit</option>
                             </select>
                         </div>
 
@@ -281,7 +289,14 @@ function ItemModal({ isOpen, onClose, onSave, onDelete, editData }) {
                             <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
                             <select
                                 value={category}
-                                onChange={(e) => setCategory(e.target.value)}
+                                onChange={(e) => {
+                                    if (e.target.value === "__ADD_NEW__") {
+                                        navigate("/item-category");
+                                    } else {
+                                        setCategory(e.target.value);
+                                        setSubCategory(""); // Reset subcategory when category changes
+                                    }
+                                }}
                                 className={baseInput}
                             >
                                 <option value="">-- Select Category --</option>
@@ -290,6 +305,7 @@ function ItemModal({ isOpen, onClose, onSave, onDelete, editData }) {
                                         {c.name}
                                     </option>
                                 ))}
+                                <option value="__ADD_NEW__" style={{color: '#2563eb', fontWeight: '600'}}>+ Add New Category</option>
                             </select>
                         </div>
 
@@ -299,20 +315,18 @@ function ItemModal({ isOpen, onClose, onSave, onDelete, editData }) {
                             <select
                                 value={subCategory}
                                 onChange={(e) => setSubCategory(e.target.value)}
-                                className={baseInput}
+                                disabled={!category}
+                                className={`${baseInput} ${!category ? 'bg-gray-100 cursor-not-allowed' : ''}`}
                             >
-                                <option value="">-- Select Sub-Category --</option>
-                                {(activeSubcategories.current || []).map((s, idx) => (
-                                    <option key={`active-sub-${idx}`} value={s}>
-                                        {s}
-                                    </option>
-                                ))}
-                                {/* fallback: show all known subcategories */}
-                                {categoriesList.flatMap(c => (Array.isArray(c.subcategories) ? c.subcategories : [])).filter(Boolean).map((s, idx) => (
-                                    <option key={`all-sub-${idx}`} value={s}>
-                                        {s}
-                                    </option>
-                                ))}
+                                <option value="">{!category ? "Select a category first" : "-- Select Sub-Category --"}</option>
+                                {category && categoriesList
+                                    .find(c => c.name === category)?.subcategories
+                                    ?.filter(Boolean)
+                                    .map((s, idx) => (
+                                        <option key={`sub-${idx}`} value={s}>
+                                            {s}
+                                        </option>
+                                    ))}
                             </select>
                         </div>
 
@@ -324,7 +338,13 @@ function ItemModal({ isOpen, onClose, onSave, onDelete, editData }) {
                             <label className="block text-sm font-medium text-gray-700 mb-1">Brand Name</label>
                             <select
                                 value={brandName}
-                                onChange={(e) => setBrandName(e.target.value)}
+                                onChange={(e) => {
+                                    if (e.target.value === "__ADD_NEW__") {
+                                        navigate("/brand");
+                                    } else {
+                                        setBrandName(e.target.value);
+                                    }
+                                }}
                                 className={baseInput}
                             >
                                 <option value="">-- Select Brand --</option>
@@ -333,6 +353,7 @@ function ItemModal({ isOpen, onClose, onSave, onDelete, editData }) {
                                         {b}
                                     </option>
                                 ))}
+                                <option value="__ADD_NEW__" style={{color: '#2563eb', fontWeight: '600'}}>+ Add New Brand</option>
                             </select>
                         </div>
 
@@ -344,15 +365,30 @@ function ItemModal({ isOpen, onClose, onSave, onDelete, editData }) {
 
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">GST Rate (%)</label>
-                            <select value={gstRate} onChange={(e) => setGstRate(e.target.value)} className={baseInput}>
+                            <select
+                                value={gstRate}
+                                onChange={(e) => {
+                                    if (e.target.value === "__ADD_NEW__") {
+                                        navigate("/gst");
+                                    } else {
+                                        setGstRate(e.target.value);
+                                    }
+                                }}
+                                className={baseInput}
+                            >
                                 <option value="">Select GST Rate</option>
-                                {gstList.map((g, idx) => <option key={"gst-" + idx} value={String(g)}>{String(g)}%</option>)}
+                                {gstList.map((g, idx) => (
+                                    <option key={"gst-" + idx} value={String(g)}>
+                                        {String(g)}%
+                                    </option>
+                                ))}
+                                <option value="__ADD_NEW__" style={{ color: '#2563eb', fontWeight: '600' }}>+ Add New GST</option>
                             </select>
                         </div>
 
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">Buy Price</label>
-                            <input type="number" value={buyPrice} onChange={(e) => setBuyPrice(e.target.value)} className={baseInput} placeholder="0.00" />
+                            <input type="number" value={buyPrice} onChange={(e) => setBuyPrice(e.target.value)} className={baseInput} placeholder="0.00" min="0" step="0.01" />
                         </div>
                     </div>
 
@@ -360,15 +396,15 @@ function ItemModal({ isOpen, onClose, onSave, onDelete, editData }) {
                     <div className="grid grid-cols-4 gap-3 mb-3">
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">Sell Price</label>
-                            <input type="number" value={sellPrice} onChange={(e) => setSellPrice(e.target.value)} className={baseInput} placeholder="0.00" />
+                            <input type="number" value={sellPrice} onChange={(e) => setSellPrice(e.target.value)} className={baseInput} placeholder="0.00" min="0" step="0.01" />
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">Opening Stock</label>
-                            <input type="number" value={openingStock} onChange={(e) => setOpeningStock(e.target.value)} className={baseInput} placeholder="0" />
+                            <input type="number" value={openingStock} onChange={(e) => setOpeningStock(e.target.value)} className={baseInput} placeholder="0" min="0" step="1" />
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">Min Stock</label>
-                            <input type="number" value={minStock} onChange={(e) => setMinStock(e.target.value)} className={baseInput} placeholder="0" />
+                            <input type="number" value={minStock} onChange={(e) => setMinStock(e.target.value)} className={baseInput} placeholder="0" min="0" step="1" />
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">Opening Date</label>

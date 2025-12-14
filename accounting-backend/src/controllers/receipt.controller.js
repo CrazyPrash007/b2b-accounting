@@ -152,6 +152,10 @@ async function create(req, res, next) {
         payload.partyId = payload.partyId ? toObjectId(payload.partyId) : null;
         payload.invoiceId = payload.invoiceId ? toObjectId(payload.invoiceId) : null;
 
+        // Initialize advance tracking fields
+        payload.usedAmount = 0;
+        payload.remainingAmount = payload.amount; // Initially, full amount is available
+
         // If linked to an invoice, update the sale's due amount
         if (payload.invoiceId && payload.amount > 0) {
             const sale = await Sale.findOne({
@@ -195,6 +199,10 @@ async function create(req, res, next) {
                 paymentStatus: paymentStatus,
                 updatedBy: req.user.id
             });
+
+            // If receipt is linked to invoice, mark it as fully used
+            payload.usedAmount = payload.amount;
+            payload.remainingAmount = 0;
         }
 
         const doc = await Receipt.create(payload);

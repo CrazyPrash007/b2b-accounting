@@ -21,7 +21,7 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
         invoiceSuffix: "",
         invoiceDate: new Date().toISOString().split('T')[0],
         // <-- make sure new items have both goodsService and name
-        items: [{ id: 1, goodsService: "", name: "", qty: "", rate: "", gstPercent: "", gstType: "Included", actualAmount: "", finalAmount: "" }],
+        items: [{ id: 1, goodsService: "", name: "", qty: "1", rate: "", gstPercent: "", gstType: "Included", actualAmount: "", finalAmount: "" }],
         isPaymentReceived: true,
         paymentMode: "Cash",
         refNo: "",
@@ -34,6 +34,12 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
     });
 
     const [error, setError] = useState("");
+
+    // Advance payment state
+    const [availableAdvances, setAvailableAdvances] = useState([]);
+    const [selectedAdvance, setSelectedAdvance] = useState(null);
+    const [applyAdvance, setApplyAdvance] = useState(false);
+    const [advanceAmount, setAdvanceAmount] = useState("");
 
     // Additional charges state
     const [additionalCharges, setAdditionalCharges] = useState([]);
@@ -124,7 +130,7 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
                     invoiceNumber: String(nextCounter).padStart(6, '0'),
                     invoiceSuffix: "",
                     invoiceDate: new Date().toISOString().split('T')[0],
-                    items: [{ id: 1, goodsService: "", name: "", qty: "", rate: "", gstPercent: "", gstType: "Included", actualAmount: "", finalAmount: "" }],
+                    items: [{ id: 1, goodsService: "", name: "", qty: "1", rate: "", gstPercent: "", gstType: "Included", actualAmount: "", finalAmount: "" }],
                     isPaymentReceived: true,
                     paymentMode: "Cash",
                     refNo: "",
@@ -258,6 +264,49 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
         return rateVal != null ? String(rateVal) : "";
     };
 
+    // Fetch advance payments for the selected customer
+    const fetchAdvancePayments = async (customerName) => {
+        if (!customerName || !customerName.trim()) {
+            setAvailableAdvances([]);
+            setSelectedAdvance(null);
+            setApplyAdvance(false);
+            setAdvanceAmount("");
+            return;
+        }
+
+        try {
+            const companyId = getCurrentCompany();
+            const res = await fetch(`${API_BASE}/api/receipts?search=${encodeURIComponent(customerName)}&accountCompanyName=${companyId}`);
+            if (!res.ok) {
+                setAvailableAdvances([]);
+                return;
+            }
+            const body = await parseJsonSafe(res);
+            const receipts = Array.isArray(body) ? body : [];
+
+            // Filter for advance payments with remaining balance
+            const normalizedCustomer = customerName.toString().trim().toLowerCase();
+            const advances = receipts.filter(r => {
+                const matchesCustomer = (r.party || "").toString().trim().toLowerCase() === normalizedCustomer;
+                // Check if has remaining amount (for new receipts, remainingAmount might not be set, so fallback to amount - usedAmount)
+                const remaining = r.remainingAmount !== undefined ? Number(r.remainingAmount) : (Number(r.amount || 0) - Number(r.usedAmount || 0));
+                const hasBalance = remaining > 0;
+                return matchesCustomer && hasBalance;
+            });
+
+            // Add calculated remaining amount to each advance for display
+            const advancesWithBalance = advances.map(adv => ({
+                ...adv,
+                _remainingAmount: adv.remainingAmount !== undefined ? Number(adv.remainingAmount) : (Number(adv.amount || 0) - Number(adv.usedAmount || 0))
+            }));
+
+            setAvailableAdvances(advancesWithBalance);
+        } catch (err) {
+            console.error("Failed to fetch advance payments", err);
+            setAvailableAdvances([]);
+        }
+    };
+
 
     // existing helpers (handleItemChange, addRow, etc.) reused with a tweak to auto-fill rate when goodsService set
     const handleChange = (field, value) => {
@@ -293,6 +342,11 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
 
                 updated.paymentAmount = String(total);
             }
+
+            // When customer changes, fetch advance payments
+            if (field === "customer" && value && value.trim()) {
+                setTimeout(() => fetchAdvancePayments(value), 300);
+            }
             
             return updated;
         });
@@ -303,13 +357,25 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
         const newItems = [...formData.items];
         newItems[index] = { ...newItems[index], [field]: value };
 
-        // If goodsService changed, try to autofill rate synchronously
+        // If goodsService changed, try to autofill rate and GST synchronously
         if (field === "goodsService") {
             // set the canonical name too so payload and later editing remain consistent
             newItems[index].name = value;
-            const autoRate = tryAutoFillRate(value);
-            if (autoRate !== "") {
-                newItems[index].rate = autoRate;
+            const match = itemsList.find(i => {
+                const name = (i._displayName || i.itemName || i.name || "").toString().trim().toLowerCase();
+                return name && name === value.toString().trim().toLowerCase();
+            });
+            if (match) {
+                // Auto-fill rate
+                const autoRate = match.sellPrice ?? match.rate ?? match.price ?? match.buyPrice ?? "";
+                if (autoRate !== "") {
+                    newItems[index].rate = autoRate;
+                }
+                // Auto-fill and lock GST
+                if (match.gstRate != null) {
+                    newItems[index].gstPercent = String(match.gstRate);
+                    newItems[index].gstLocked = true; // Mark GST as locked
+                }
             }
         }
 
@@ -502,6 +568,28 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
             setError("Customer is required");
             return;
         }
+
+        // Validate advance application if selected
+        if (applyAdvance) {
+            if (!selectedAdvance) {
+                setError("Please select an advance payment to apply");
+                return;
+            }
+            if (!advanceAmount || Number(advanceAmount) <= 0) {
+                setError("Please enter a valid advance amount");
+                return;
+            }
+            const maxAdvance = Number(selectedAdvance._remainingAmount || 0);
+            if (Number(advanceAmount) > maxAdvance) {
+                setError(`Advance amount cannot exceed available balance of ₹${maxAdvance.toFixed(2)}`);
+                return;
+            }
+            if (Number(advanceAmount) > totals.total) {
+                setError("Advance amount cannot exceed invoice total");
+                return;
+            }
+        }
+
         const salesData = {
             id: isEditMode ? editData.id : String(Date.now()),
             ...formData,
@@ -514,6 +602,13 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
             payments,
         };
 
+        // Add advance payment information if applicable
+        if (applyAdvance && selectedAdvance && advanceAmount) {
+            salesData.advancePayment = {
+                receiptId: selectedAdvance._id,
+                amount: Number(advanceAmount)
+            };
+        }
 
         if (!isEditMode) {
             const currentCounter = getNextInvoiceCounter();
@@ -699,6 +794,8 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
                                                 onChange={(e) => handleItemChange(index, "qty", e.target.value)}
                                                 onKeyDown={(e) => handleItemInputKeyDown(e, index, 1)}
                                                 className="w-full border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                                min="0"
+                                                step="1"
                                             />
                                         </td>
                                         <td className="px-1 py-1">
@@ -708,20 +805,31 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
                                                 onChange={(e) => handleItemChange(index, "rate", e.target.value)}
                                                 onKeyDown={(e) => handleItemInputKeyDown(e, index, 2, !withGst)}
                                                 className="w-full border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                                min="0"
+                                                step="0.01"
                                             />
                                         </td>
                                         {withGst && (
                                             <>
                                                 <td className="px-1 py-1">
-                                                    <select
-                                                        value={item.gstPercent}
-                                                        onChange={(e) => handleItemChange(index, "gstPercent", e.target.value)}
-                                                        onKeyDown={(e) => handleItemInputKeyDown(e, index, 3)}
-                                                        className="w-full border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-                                                    >
-                                                        <option value="">GST</option>
-                                                        {gstOptions.map(g => <option key={g} value={g}>{g}%</option>)}
-                                                    </select>
+                                                    {item.gstLocked ? (
+                                                        <input
+                                                            type="text"
+                                                            value={item.gstPercent ? `${item.gstPercent}%` : ''}
+                                                            readOnly
+                                                            className="w-full border border-gray-300 rounded px-2 py-1 text-sm bg-gray-100 cursor-not-allowed"
+                                                        />
+                                                    ) : (
+                                                        <select
+                                                            value={item.gstPercent}
+                                                            onChange={(e) => handleItemChange(index, "gstPercent", e.target.value)}
+                                                            onKeyDown={(e) => handleItemInputKeyDown(e, index, 3)}
+                                                            className="w-full border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                                        >
+                                                            <option value="">GST</option>
+                                                            {gstOptions.map(g => <option key={g} value={g}>{g}%</option>)}
+                                                        </select>
+                                                    )}
                                                 </td>
                                                 <td className="px-1 py-1">
                                                     <select
@@ -869,6 +977,92 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
                                             ))}
                                         </div>
                                     )}
+                                </div>
+                            )}
+
+                            {/* Advance Payment Section */}
+                            {availableAdvances.length > 0 && !isEditMode && (
+                                <div className="mt-3 pt-3 border-t border-gray-200">
+                                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                                        <div className="flex items-start gap-2">
+                                            <svg className="w-5 h-5 text-blue-600 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                            </svg>
+                                            <div className="flex-1">
+                                                <p className="text-sm font-medium text-blue-900 mb-2">
+                                                    Advance Payment Available
+                                                </p>
+                                                <p className="text-xs text-blue-700 mb-2">
+                                                    This customer has {availableAdvances.length} advance payment{availableAdvances.length > 1 ? 's' : ''} with total available balance of ₹{availableAdvances.reduce((sum, adv) => sum + Number(adv._remainingAmount || 0), 0).toFixed(2)}
+                                                </p>
+                                                <label className="flex items-center gap-2 mb-2">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={applyAdvance}
+                                                        onChange={(e) => {
+                                                            setApplyAdvance(e.target.checked);
+                                                            if (!e.target.checked) {
+                                                                setSelectedAdvance(null);
+                                                                setAdvanceAmount("");
+                                                            }
+                                                        }}
+                                                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                                    />
+                                                    <span className="text-sm font-medium text-blue-900">Apply advance to this sale</span>
+                                                </label>
+
+                                                {applyAdvance && (
+                                                    <div className="space-y-2 pl-6">
+                                                        <div>
+                                                            <label className="block text-xs text-blue-700 mb-1">Select Advance</label>
+                                                            <select
+                                                                value={selectedAdvance?._id || ""}
+                                                                onChange={(e) => {
+                                                                    const adv = availableAdvances.find(a => a._id === e.target.value);
+                                                                    setSelectedAdvance(adv || null);
+                                                                    if (adv) {
+                                                                        setAdvanceAmount(String(adv._remainingAmount));
+                                                                    } else {
+                                                                        setAdvanceAmount("");
+                                                                    }
+                                                                }}
+                                                                className="w-full border border-blue-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                                            >
+                                                                <option value="">Select an advance payment...</option>
+                                                                {availableAdvances.map(adv => (
+                                                                    <option key={adv._id} value={adv._id}>
+                                                                        {new Date(adv.date).toLocaleDateString()} - Available: ₹{Number(adv._remainingAmount || 0).toFixed(2)} ({adv.paymentMethod})
+                                                                    </option>
+                                                                ))}
+                                                            </select>
+                                                        </div>
+                                                        {selectedAdvance && (
+                                                            <div>
+                                                                <label className="block text-xs text-blue-700 mb-1">
+                                                                    Amount to apply (max: ₹{Number(selectedAdvance._remainingAmount).toFixed(2)})
+                                                                </label>
+                                                                <input
+                                                                    type="number"
+                                                                    value={advanceAmount}
+                                                                    onChange={(e) => {
+                                                                        const val = Number(e.target.value);
+                                                                        const max = Number(selectedAdvance._remainingAmount);
+                                                                        if (val <= max && val >= 0) {
+                                                                            setAdvanceAmount(e.target.value);
+                                                                        }
+                                                                    }}
+                                                                    max={selectedAdvance._remainingAmount}
+                                                                    min="0"
+                                                                    step="0.01"
+                                                                    className="w-full border border-blue-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                                                />
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             )}
                         </div>

@@ -37,7 +37,7 @@ function PurchaseInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, wit
         invoiceDate: new Date().toISOString().split('T')[0],
         supplierInvoiceNumber: "",
         supplierInvoiceDate: "",
-        items: [{ id: 1, goodsService: "", qty: "", rate: "", gstPercent: "", gstType: "Included", actualAmount: "", finalAmount: "" }],
+        items: [{ id: 1, goodsService: "", qty: "1", rate: "", gstPercent: "", gstType: "Included", actualAmount: "", finalAmount: "" }],
         isPaymentMade: true,
         paymentMode: "Cash",
         refNo: "",
@@ -297,10 +297,24 @@ function PurchaseInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, wit
         const newItems = [...formData.items];
         newItems[index] = { ...newItems[index], [field]: value };
 
-        // If goodsService changed, try to autofill rate synchronously (Sales parity)
+        // If goodsService changed, try to autofill rate and GST synchronously
         if (field === "goodsService") {
-            const autoRate = tryAutoFillRate(value);
-            if (autoRate !== "") newItems[index].rate = autoRate;
+            const match = itemsList.find(i => {
+                const name = (i._displayName || i.itemName || i.name || "").toString().trim().toLowerCase();
+                return name && name === value.toString().trim().toLowerCase();
+            });
+            if (match) {
+                // Auto-fill rate
+                const autoRate = match.sellPrice ?? match.rate ?? match.price ?? match.buyPrice ?? "";
+                if (autoRate !== "") {
+                    newItems[index].rate = autoRate;
+                }
+                // Auto-fill and lock GST
+                if (match.gstRate != null) {
+                    newItems[index].gstPercent = String(match.gstRate);
+                    newItems[index].gstLocked = true; // Mark GST as locked
+                }
+            }
             // optional: also set a canonical name field used by backend
             newItems[index].name = value;
         }
@@ -751,6 +765,8 @@ function PurchaseInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, wit
                                                 onChange={(e) => handleItemChange(index, "qty", e.target.value)}
                                                 onKeyDown={(e) => handleItemInputKeyDown(e, index, 1)}
                                                 className="w-full border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                                min="0"
+                                                step="1"
                                             />
                                         </td>
                                         <td className="px-1 py-1">
@@ -760,20 +776,31 @@ function PurchaseInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, wit
                                                 onChange={(e) => handleItemChange(index, "rate", e.target.value)}
                                                 onKeyDown={(e) => handleItemInputKeyDown(e, index, 2, !withGst)}
                                                 className="w-full border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                                min="0"
+                                                step="0.01"
                                             />
                                         </td>
                                         {withGst && (
                                             <>
                                                 <td className="px-1 py-1">
-                                                    <select
-                                                        value={item.gstPercent}
-                                                        onChange={(e) => handleItemChange(index, "gstPercent", e.target.value)}
-                                                        onKeyDown={(e) => handleItemInputKeyDown(e, index, 3)}
-                                                        className="w-full border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-                                                    >
-                                                        <option value="">GST</option>
-                                                        {gstOptions.map(g => <option key={g} value={g}>{g}%</option>)}
-                                                    </select>
+                                                    {item.gstLocked ? (
+                                                        <input
+                                                            type="text"
+                                                            value={item.gstPercent ? `${item.gstPercent}%` : ''}
+                                                            readOnly
+                                                            className="w-full border border-gray-300 rounded px-2 py-1 text-sm bg-gray-100 cursor-not-allowed"
+                                                        />
+                                                    ) : (
+                                                        <select
+                                                            value={item.gstPercent}
+                                                            onChange={(e) => handleItemChange(index, "gstPercent", e.target.value)}
+                                                            onKeyDown={(e) => handleItemInputKeyDown(e, index, 3)}
+                                                            className="w-full border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                                        >
+                                                            <option value="">GST</option>
+                                                            {gstOptions.map(g => <option key={g} value={g}>{g}%</option>)}
+                                                        </select>
+                                                    )}
                                                 </td>
                                                 <td className="px-1 py-1">
                                                     <select
