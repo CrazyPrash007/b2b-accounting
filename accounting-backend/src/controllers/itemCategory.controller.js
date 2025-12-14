@@ -1,16 +1,31 @@
 // src/controllers/itemCategory.controller.js
-const ItemCategory = require('../models/ItemCategory');
+const ItemCategory = require("../models/ItemCategory");
+const mongoose = require("mongoose");
 
-// ============================= LIST =============================
+/* --------------------------- Helper --------------------------- */
+function toObjectId(id) {
+    if (!id) return null;
+    try {
+        return new mongoose.Types.ObjectId(id);
+    } catch (err) {
+        return null;
+    }
+}
+
+/* ============================= LIST ============================= */
 async function list(req, res, next) {
     try {
         const ownerId = req.user.ownerId;
-        const { page = 1, limit = 50, search, sort } = req.query;
 
-        const accountCompanyName = req.query.accountCompanyName;
+        const accountCompanyName = toObjectId(req.query.accountCompanyName);
         if (!accountCompanyName) {
-            return res.status(400).json({ message: "accountCompanyName is required" });
+            return res.status(400).json({
+                success: false,
+                error: { message: "accountCompanyName is required and must be valid" }
+            });
         }
+
+        const { page = 1, limit = 50, search, sort } = req.query;
 
         const q = {
             ownerId,
@@ -19,13 +34,13 @@ async function list(req, res, next) {
         };
 
         if (search) {
-            q.name = { $regex: search, $options: "i" };
+            q.name = { $regex: search.trim(), $options: "i" };
         }
 
         const sortObj = {};
         if (sort) {
-            const [k, dir] = sort.split(":");
-            sortObj[k || "createdAt"] = dir === "desc" ? -1 : 1;
+            const [key, dir] = sort.split(":");
+            sortObj[key || "createdAt"] = dir === "desc" ? -1 : 1;
         } else {
             sortObj.createdAt = -1;
         }
@@ -34,10 +49,10 @@ async function list(req, res, next) {
 
         const [items, total] = await Promise.all([
             ItemCategory.find(q).sort(sortObj).skip(skip).limit(Number(limit)).lean(),
-            ItemCategory.countDocuments(q)
+            ItemCategory.countDocuments(q),
         ]);
 
-        return res.json({
+        res.json({
             success: true,
             data: items,
             meta: { page: Number(page), limit: Number(limit), total }
@@ -48,14 +63,17 @@ async function list(req, res, next) {
     }
 }
 
-// ============================= GET ONE =============================
+/* ============================= GET ONE ============================= */
 async function getOne(req, res, next) {
     try {
         const ownerId = req.user.ownerId;
 
-        const accountCompanyName = req.query.accountCompanyName;
+        const accountCompanyName = toObjectId(req.query.accountCompanyName);
         if (!accountCompanyName) {
-            return res.status(400).json({ message: "accountCompanyName is required" });
+            return res.status(400).json({
+                success: false,
+                error: { message: "accountCompanyName is required and must be valid" }
+            });
         }
 
         const doc = await ItemCategory.findOne({
@@ -66,38 +84,53 @@ async function getOne(req, res, next) {
         });
 
         if (!doc) {
-            return res.status(404).json({ success: false, error: { message: "Not found" } });
+            return res.status(404).json({
+                success: false,
+                error: { message: "Not found" }
+            });
         }
 
-        return res.json({ success: true, data: doc });
+        res.json({ success: true, data: doc });
 
     } catch (err) {
         next(err);
     }
 }
 
-// ============================= CREATE =============================
+/* ============================= CREATE ============================= */
 async function create(req, res, next) {
     try {
         const ownerId = req.user.ownerId;
 
-        if (!req.body.accountCompanyName) {
-            return res.status(400).json({ message: "accountCompanyName is required" });
+        const accountCompanyName = toObjectId(req.body.accountCompanyName);
+        if (!accountCompanyName) {
+            return res.status(400).json({
+                success: false,
+                error: { message: "accountCompanyName is required and must be valid" }
+            });
+        }
+
+        if (!req.body.name || !req.body.name.trim()) {
+            return res.status(400).json({
+                success: false,
+                error: { message: "name is required" }
+            });
         }
 
         const payload = {
             ...req.body,
+            name: req.body.name.trim(),
             ownerId,
-            accountCompanyName: req.body.accountCompanyName,
+            accountCompanyName,
             createdBy: req.user.id
         };
 
         const doc = await ItemCategory.create(payload);
 
-        return res.status(201).json({ success: true, data: doc });
+        res.status(201).json({ success: true, data: doc });
 
     } catch (err) {
-        if (err && err.code === 11000) {
+        if (err?.code === 11000) {
             return res.status(409).json({
                 success: false,
                 error: { message: "category already exists for this company" }
@@ -107,14 +140,18 @@ async function create(req, res, next) {
     }
 }
 
-// ============================= UPDATE =============================
+/* ============================= UPDATE ============================= */
 async function update(req, res, next) {
     try {
         const ownerId = req.user.ownerId;
         const id = req.params.id;
 
-        if (!req.body.accountCompanyName) {
-            return res.status(400).json({ message: "accountCompanyName is required" });
+        const accountCompanyName = toObjectId(req.body.accountCompanyName);
+        if (!accountCompanyName) {
+            return res.status(400).json({
+                success: false,
+                error: { message: "accountCompanyName is required and must be valid" }
+            });
         }
 
         const payload = {
@@ -122,24 +159,27 @@ async function update(req, res, next) {
             updatedBy: req.user.id
         };
 
+        if (payload.name) {
+            payload.name = payload.name.trim();
+        }
+
         const doc = await ItemCategory.findOneAndUpdate(
-            {
-                _id: id,
-                ownerId,
-                accountCompanyName: req.body.accountCompanyName
-            },
+            { _id: id, ownerId, accountCompanyName },
             payload,
             { new: true, runValidators: true }
         );
 
         if (!doc) {
-            return res.status(404).json({ success: false, error: { message: "Not found" } });
+            return res.status(404).json({
+                success: false,
+                error: { message: "Not found" }
+            });
         }
 
-        return res.json({ success: true, data: doc });
+        res.json({ success: true, data: doc });
 
     } catch (err) {
-        if (err && err.code === 11000) {
+        if (err?.code === 11000) {
             return res.status(409).json({
                 success: false,
                 error: { message: "category already exists for this company" }
@@ -149,33 +189,35 @@ async function update(req, res, next) {
     }
 }
 
-// ============================= DELETE =============================
+/* ============================= DELETE (SOFT) ============================= */
 async function remove(req, res, next) {
     try {
         const ownerId = req.user.ownerId;
 
-        const accountCompanyName = req.query.accountCompanyName;
+        const accountCompanyName = toObjectId(req.query.accountCompanyName);
         if (!accountCompanyName) {
-            return res.status(400).json({ message: "accountCompanyName is required" });
+            return res.status(400).json({
+                success: false,
+                error: { message: "accountCompanyName is required and must be valid" }
+            });
         }
 
         const id = req.params.id;
 
         const doc = await ItemCategory.findOneAndUpdate(
-            {
-                _id: id,
-                ownerId,
-                accountCompanyName
-            },
+            { _id: id, ownerId, accountCompanyName },
             { isDeleted: true, updatedBy: req.user.id },
             { new: true }
         );
 
         if (!doc) {
-            return res.status(404).json({ success: false, error: { message: "Not found" } });
+            return res.status(404).json({
+                success: false,
+                error: { message: "Not found" }
+            });
         }
 
-        return res.json({ success: true, data: doc });
+        res.json({ success: true, data: doc });
 
     } catch (err) {
         next(err);

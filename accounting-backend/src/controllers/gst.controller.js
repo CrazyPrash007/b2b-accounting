@@ -1,20 +1,32 @@
 // src/controllers/gst.controller.js
-const Gst = require('../models/Gst');
+const Gst = require("../models/Gst");
+const mongoose = require("mongoose");
 
-/**
- * All controllers enforce owner scoping: ownerId from req.user.ownerId
- */
+/* ---------------------------- Helpers ---------------------------- */
 
-// ====================== LIST ======================
+function toObjectId(id) {
+    if (!id) return null;
+    try {
+        return new mongoose.Types.ObjectId(id);
+    } catch (err) {
+        return null;
+    }
+}
+
+/* =========================== LIST =========================== */
 async function list(req, res, next) {
     try {
         const ownerId = req.user.ownerId;
-        const { page = 1, limit = 50, search, sort } = req.query;
 
-        const accountCompanyName = req.query.accountCompanyName;
+        const accountCompanyName = toObjectId(req.query.accountCompanyName);
         if (!accountCompanyName) {
-            return res.status(400).json({ message: "accountCompanyName is required" });
+            return res.status(400).json({
+                success: false,
+                error: { message: "accountCompanyName is required and must be valid" }
+            });
         }
+
+        const { page = 1, limit = 50, search, sort } = req.query;
 
         const q = {
             ownerId,
@@ -22,11 +34,13 @@ async function list(req, res, next) {
             isDeleted: false
         };
 
+        // Search by rate
         if (search) {
             const maybeNum = parseFloat(search);
             if (!isNaN(maybeNum)) q.rate = maybeNum;
         }
 
+        // Sorting
         const sortObj = {};
         if (sort) {
             const [k, dir] = sort.split(":");
@@ -42,21 +56,28 @@ async function list(req, res, next) {
             Gst.countDocuments(q)
         ]);
 
-        res.json({ success: true, data: items, meta: { page: Number(page), limit: Number(limit), total } });
+        res.json({
+            success: true,
+            data: items,
+            meta: { page: Number(page), limit: Number(limit), total }
+        });
 
     } catch (err) {
         next(err);
     }
 }
 
-// ====================== GET ONE ======================
+/* =========================== GET ONE =========================== */
 async function getOne(req, res, next) {
     try {
         const ownerId = req.user.ownerId;
 
-        const accountCompanyName = req.query.accountCompanyName;
+        const accountCompanyName = toObjectId(req.query.accountCompanyName);
         if (!accountCompanyName) {
-            return res.status(400).json({ message: "accountCompanyName is required" });
+            return res.status(400).json({
+                success: false,
+                error: { message: "accountCompanyName is required and must be valid" }
+            });
         }
 
         const doc = await Gst.findOne({
@@ -67,7 +88,10 @@ async function getOne(req, res, next) {
         });
 
         if (!doc) {
-            return res.status(404).json({ success: false, error: { message: "Not found" } });
+            return res.status(404).json({
+                success: false,
+                error: { message: "Not found" }
+            });
         }
 
         res.json({ success: true, data: doc });
@@ -77,28 +101,41 @@ async function getOne(req, res, next) {
     }
 }
 
-// ====================== CREATE ======================
+/* =========================== CREATE =========================== */
 async function create(req, res, next) {
     try {
         const ownerId = req.user.ownerId;
 
-        if (!req.body.accountCompanyName) {
-            return res.status(400).json({ message: "accountCompanyName is required" });
+        const accountCompanyName = toObjectId(req.body.accountCompanyName);
+        if (!accountCompanyName) {
+            return res.status(400).json({
+                success: false,
+                error: { message: "accountCompanyName is required and must be valid" }
+            });
         }
 
         const payload = {
             ...req.body,
             ownerId,
-            accountCompanyName: req.body.accountCompanyName,
+            accountCompanyName,
             createdBy: req.user.id
         };
+
+        if (!payload.rate && payload.rate !== 0) {
+            return res.status(400).json({
+                success: false,
+                error: { message: "rate is required" }
+            });
+        }
+
+        payload.rate = Number(payload.rate);
 
         const doc = await Gst.create(payload);
 
         res.status(201).json({ success: true, data: doc });
 
     } catch (err) {
-        if (err && err.code === 11000) {
+        if (err?.code === 11000) {
             return res.status(409).json({
                 success: false,
                 error: { message: "rate already exists for this company" }
@@ -108,24 +145,32 @@ async function create(req, res, next) {
     }
 }
 
-// ====================== UPDATE ======================
+/* =========================== UPDATE =========================== */
 async function update(req, res, next) {
     try {
         const ownerId = req.user.ownerId;
-        const id = req.params.id;
 
-        if (!req.body.accountCompanyName) {
-            return res.status(400).json({ message: "accountCompanyName is required" });
+        const accountCompanyName = toObjectId(req.body.accountCompanyName);
+        if (!accountCompanyName) {
+            return res.status(400).json({
+                success: false,
+                error: { message: "accountCompanyName is required and must be valid" }
+            });
         }
 
-        const payload = { ...req.body, updatedBy: req.user.id };
+        const id = req.params.id;
+
+        const payload = {
+            ...req.body,
+            updatedBy: req.user.id
+        };
+
+        if (payload.rate !== undefined) {
+            payload.rate = Number(payload.rate);
+        }
 
         const doc = await Gst.findOneAndUpdate(
-            {
-                _id: id,
-                ownerId,
-                accountCompanyName: req.body.accountCompanyName
-            },
+            { _id: id, ownerId, accountCompanyName },
             payload,
             { new: true, runValidators: true }
         );
@@ -140,7 +185,7 @@ async function update(req, res, next) {
         res.json({ success: true, data: doc });
 
     } catch (err) {
-        if (err && err.code === 11000) {
+        if (err?.code === 11000) {
             return res.status(409).json({
                 success: false,
                 error: { message: "rate already exists for this company" }
@@ -150,14 +195,17 @@ async function update(req, res, next) {
     }
 }
 
-// ====================== DELETE ======================
+/* =========================== DELETE (SOFT) =========================== */
 async function remove(req, res, next) {
     try {
         const ownerId = req.user.ownerId;
 
-        const accountCompanyName = req.query.accountCompanyName;
+        const accountCompanyName = toObjectId(req.query.accountCompanyName);
         if (!accountCompanyName) {
-            return res.status(400).json({ message: "accountCompanyName is required" });
+            return res.status(400).json({
+                success: false,
+                error: { message: "accountCompanyName is required and must be valid" }
+            });
         }
 
         const id = req.params.id;

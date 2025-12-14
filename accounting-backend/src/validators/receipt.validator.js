@@ -2,9 +2,10 @@
 const Joi = require('joi');
 
 const objectId = Joi.string().hex().length(24);
+const objectnewId = Joi.string().regex(/^[0-9a-fA-F]{24}$/);
 
 const base = {
-    accountCompanyName: Joi.string().trim().required(),
+    accountCompanyName: objectnewId.required(),
     partyId: objectId.optional().allow(null, ''),
     party: Joi.string().trim().optional().allow(''),
 
@@ -27,18 +28,6 @@ const create = Joi.object({
 });
 
 // Update: allow partial update
-const update = Joi.object({
-    accountCompanyName: Joi.string().trim().optional(),
-    partyId: base.partyId,
-    party: base.party,
-    invoiceId: base.invoiceId,
-    invoiceLabel: base.invoiceLabel,
-    date: base.date,
-    amount: Joi.number().min(0).optional(),
-    paymentMethod: Joi.string().trim().optional(),
-    referenceNumber: base.referenceNumber,
-    description: base.description,
-    isDeleted: base.isDeleted,
-});
+const update = create.fork(['accountCompanyName'], (s) => s.optional());
 
 module.exports = { create, update };

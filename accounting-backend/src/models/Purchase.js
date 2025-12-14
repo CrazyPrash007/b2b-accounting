@@ -31,9 +31,7 @@ const PaymentSplitSchema = new mongoose.Schema({
 
 const PurchaseSchema = new mongoose.Schema({
     ownerId: { type: mongoose.Schema.Types.ObjectId, required: true, index: true },
-
-    // 🔥 Required for multi-company separation
-    accountCompanyName: { type: String, required: true, trim: true, index: true },
+    accountCompanyName: { type: mongoose.Schema.Types.ObjectId, ref: 'Company', required: true, index: true },
 
     supplier: { type: String, trim: true, default: '' },
 

@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 
 const ItemSchema = new mongoose.Schema({
     ownerId: { type: mongoose.Schema.Types.ObjectId, required: true, index: true },
-    accountCompanyName: { type: String, required: true, index: true },
+    accountCompanyName: { type: mongoose.Schema.Types.ObjectId, ref: 'Company', required: true, index: true },
     name: { type: String, required: true, trim: true }, // canonical name (same as itemName)
     itemName: { type: String, trim: true }, // optional duplicate field if front-end uses itemName
     description: { type: String, default: '' },

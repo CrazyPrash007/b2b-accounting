@@ -1,45 +1,55 @@
 // src/controllers/receipt.controller.js
-const Receipt = require('../models/Receipt');
+const Receipt = require("../models/Receipt");
+const mongoose = require("mongoose");
 
-/**
- * Controllers enforce owner scoping: ownerId + accountCompanyName
- */
+/* ---------------------------- Helper ---------------------------- */
+function toObjectId(v) {
+    if (!v) return null;
+    try {
+        return new mongoose.Types.ObjectId(v);
+    } catch {
+        return null;
+    }
+}
 
-// ============================ LIST ============================
+/* ============================ LIST ============================ */
 async function list(req, res, next) {
     try {
         const ownerId = req.user.ownerId;
-        const { page = 1, limit = 50, search, sort, fromDate, toDate } = req.query;
 
-        const accountCompanyName = req.query.accountCompanyName;
-        if (!accountCompanyName) {
-            return res.status(400).json({ message: "accountCompanyName is required" });
-        }
+        const companyId = toObjectId(req.query.accountCompanyName);
+        if (!companyId)
+            return res.status(400).json({
+                success: false,
+                error: { message: "Valid accountCompanyName is required" }
+            });
+
+        const { page = 1, limit = 50, search, sort, fromDate, toDate } = req.query;
 
         const q = {
             ownerId,
-            accountCompanyName,
+            accountCompanyName: companyId,
             isDeleted: false
         };
 
-        // search conditions
+        // Search
         if (search) {
+            const s = search.trim();
             q.$or = [
-                { party: { $regex: search, $options: 'i' } },
-                { referenceNumber: { $regex: search, $options: 'i' } },
-                { invoiceLabel: { $regex: search, $options: 'i' } },
+                { party: { $regex: s, $options: "i" } },
+                { referenceNumber: { $regex: s, $options: "i" } },
+                { invoiceLabel: { $regex: s, $options: "i" } }
             ];
         }
 
-        // date filter
+        // Date filter
         if (fromDate || toDate) {
             q.date = {};
             if (fromDate) q.date.$gte = new Date(fromDate);
             if (toDate) q.date.$lte = new Date(toDate);
-            if (Object.keys(q.date).length === 0) delete q.date;
         }
 
-        // sort
+        // Sort
         const sortObj = {};
         if (sort) {
             const [k, dir] = sort.split(":");
@@ -66,56 +76,60 @@ async function list(req, res, next) {
     }
 }
 
-// ============================ GET ONE ============================
+/* ============================ GET ONE ============================ */
 async function getOne(req, res, next) {
     try {
         const ownerId = req.user.ownerId;
 
-        const accountCompanyName = req.query.accountCompanyName;
-        if (!accountCompanyName) {
-            return res.status(400).json({ message: "accountCompanyName is required" });
-        }
+        const companyId = toObjectId(req.query.accountCompanyName);
+        if (!companyId)
+            return res.status(400).json({
+                success: false,
+                error: { message: "Valid accountCompanyName is required" }
+            });
 
         const doc = await Receipt.findOne({
             _id: req.params.id,
             ownerId,
-            accountCompanyName,
+            accountCompanyName: companyId,
             isDeleted: false
         });
 
-        if (!doc) {
+        if (!doc)
             return res.status(404).json({
                 success: false,
                 error: { message: "Not found" }
             });
-        }
 
-        return res.json({ success: true, data: doc });
+        res.json({ success: true, data: doc });
 
     } catch (err) {
         next(err);
     }
 }
 
-// ============================ CREATE ============================
+/* ============================ CREATE ============================ */
 async function create(req, res, next) {
     try {
         const ownerId = req.user.ownerId;
 
-        if (!req.body.accountCompanyName) {
-            return res.status(400).json({ message: "accountCompanyName is required" });
-        }
+        const companyId = toObjectId(req.body.accountCompanyName);
+        if (!companyId)
+            return res.status(400).json({
+                success: false,
+                error: { message: "Valid accountCompanyName is required" }
+            });
 
         const payload = {
             ...req.body,
             ownerId,
-            accountCompanyName: req.body.accountCompanyName,
-            createdBy: req.user.id,
+            accountCompanyName: companyId,
+            createdBy: req.user.id
         };
 
-        // Normalize types
+        // Normalize incoming fields
         if (payload.date) payload.date = new Date(payload.date);
-        payload.amount = payload.amount != null ? Number(payload.amount) : 0;
+        payload.amount = Number(payload.amount || 0);
 
         payload.party = payload.party ? String(payload.party) : "";
         payload.paymentMethod = payload.paymentMethod ? String(payload.paymentMethod) : "Cash";
@@ -123,8 +137,8 @@ async function create(req, res, next) {
         payload.description = payload.description ? String(payload.description) : "";
         payload.invoiceLabel = payload.invoiceLabel ? String(payload.invoiceLabel) : "";
 
-        if (!payload.partyId) payload.partyId = null;
-        if (!payload.invoiceId) payload.invoiceId = null;
+        payload.partyId = payload.partyId ? toObjectId(payload.partyId) : null;
+        payload.invoiceId = payload.invoiceId ? toObjectId(payload.invoiceId) : null;
 
         const doc = await Receipt.create(payload);
 
@@ -135,15 +149,18 @@ async function create(req, res, next) {
     }
 }
 
-// ============================ UPDATE ============================
+/* ============================ UPDATE ============================ */
 async function update(req, res, next) {
     try {
         const ownerId = req.user.ownerId;
         const id = req.params.id;
 
-        if (!req.body.accountCompanyName) {
-            return res.status(400).json({ message: "accountCompanyName is required" });
-        }
+        const companyId = toObjectId(req.body.accountCompanyName);
+        if (!companyId)
+            return res.status(400).json({
+                success: false,
+                error: { message: "Valid accountCompanyName is required" }
+            });
 
         const payload = {
             ...req.body,
@@ -153,28 +170,30 @@ async function update(req, res, next) {
         if (payload.date) payload.date = new Date(payload.date);
         if (payload.amount != null) payload.amount = Number(payload.amount);
 
-        payload.party = payload.party !== undefined ? String(payload.party || "") : undefined;
-        payload.paymentMethod = payload.paymentMethod !== undefined ? String(payload.paymentMethod || "Cash") : undefined;
-        payload.referenceNumber = payload.referenceNumber !== undefined ? String(payload.referenceNumber || "") : undefined;
-        payload.description = payload.description !== undefined ? String(payload.description || "") : undefined;
-        payload.invoiceLabel = payload.invoiceLabel !== undefined ? String(payload.invoiceLabel || "") : undefined;
+        if (payload.party !== undefined) payload.party = String(payload.party || "");
+        if (payload.paymentMethod !== undefined) payload.paymentMethod = String(payload.paymentMethod || "Cash");
+        if (payload.referenceNumber !== undefined) payload.referenceNumber = String(payload.referenceNumber || "");
+        if (payload.description !== undefined) payload.description = String(payload.description || "");
+        if (payload.invoiceLabel !== undefined) payload.invoiceLabel = String(payload.invoiceLabel || "");
 
-        if (payload.partyId === "" || payload.partyId == null) payload.partyId = null;
-        if (payload.invoiceId === "" || payload.invoiceId == null) payload.invoiceId = null;
+        payload.partyId = payload.partyId ? toObjectId(payload.partyId) : null;
+        payload.invoiceId = payload.invoiceId ? toObjectId(payload.invoiceId) : null;
 
         const doc = await Receipt.findOneAndUpdate(
             {
                 _id: id,
                 ownerId,
-                accountCompanyName: req.body.accountCompanyName
+                accountCompanyName: companyId
             },
             payload,
             { new: true, runValidators: true }
         );
 
-        if (!doc) {
-            return res.status(404).json({ success: false, error: { message: "Not found" } });
-        }
+        if (!doc)
+            return res.status(404).json({
+                success: false,
+                error: { message: "Not found" }
+            });
 
         return res.json({ success: true, data: doc });
 
@@ -183,28 +202,35 @@ async function update(req, res, next) {
     }
 }
 
-// ============================ DELETE ============================
+/* ============================ DELETE ============================ */
 async function remove(req, res, next) {
     try {
         const ownerId = req.user.ownerId;
-        const id = req.params.id;
 
-        const accountCompanyName = req.query.accountCompanyName;
-        if (!accountCompanyName) {
-            return res.status(400).json({ message: "accountCompanyName is required" });
-        }
+        const companyId = toObjectId(req.query.accountCompanyName);
+        if (!companyId)
+            return res.status(400).json({
+                success: false,
+                error: { message: "Valid accountCompanyName is required" }
+            });
 
         const doc = await Receipt.findOneAndUpdate(
-            { _id: id, ownerId, accountCompanyName },
+            {
+                _id: req.params.id,
+                ownerId,
+                accountCompanyName: companyId
+            },
             { isDeleted: true, updatedBy: req.user.id },
             { new: true }
         );
 
-        if (!doc) {
-            return res.status(404).json({ success: false, error: { message: "Not found" } });
-        }
+        if (!doc)
+            return res.status(404).json({
+                success: false,
+                error: { message: "Not found" }
+            });
 
-        return res.json({ success: true, data: doc });
+        res.json({ success: true, data: doc });
 
     } catch (err) {
         next(err);

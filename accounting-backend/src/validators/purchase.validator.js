@@ -4,6 +4,7 @@ const Joi = require('joi');
 // --- Helper Schemas ---------------------------------------------------------
 
 const objectId = Joi.string().hex().length(24);
+const objectnewId = Joi.string().regex(/^[0-9a-fA-F]{24}$/);
 
 const itemLine = Joi.object({
     id: Joi.any().optional(),
@@ -36,7 +37,7 @@ const paymentSplit = Joi.object({
 // --- Base Schema ------------------------------------------------------------
 
 const base = {
-    accountCompanyName: Joi.string().trim().required(),   // 🔥 REQUIRED FOR MULTI-COMPANY
+    accountCompanyName: objectnewId.required(),
 
     supplier: Joi.string().trim().allow('').optional(),
     invoicePrefix: Joi.string().trim().allow('').optional(),
@@ -78,8 +79,6 @@ const create = Joi.object({
 
 // --- Update Schema ----------------------------------------------------------
 
-const update = Joi.object({
-    ...base
-});
+const update = create.fork(['accountCompanyName'], (s) => s.optional());
 
 module.exports = { create, update };

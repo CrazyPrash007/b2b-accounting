@@ -35,8 +35,7 @@ const SaleSchema = new mongoose.Schema({
 
     ownerId: { type: mongoose.Schema.Types.ObjectId, required: true, index: true },
 
-    // REQUIRED business association
-    accountCompanyName: { type: String, required: true, index: true },
+    accountCompanyName: { type: mongoose.Schema.Types.ObjectId, ref: 'Company', required: true, index: true },
 
     customerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Customer', default: null },
     customer: { type: String, required: true, trim: true },

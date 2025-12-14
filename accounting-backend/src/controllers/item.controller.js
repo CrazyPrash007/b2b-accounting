@@ -1,40 +1,57 @@
 // src/controllers/item.controller.js
-const Item = require('../models/Item');
+const Item = require("../models/Item");
+const mongoose = require("mongoose");
 
-/**
- * Multi-company + owner-based scoping.
- * Requires: ownerId from auth middleware AND accountCompanyName from body/query.
- */
+/* --------------------------- Helper --------------------------- */
+function toObjectId(id) {
+    if (!id) return null;
+    try {
+        return new mongoose.Types.ObjectId(id);
+    } catch (e) {
+        return null;
+    }
+}
 
+/* ============================= LIST ============================= */
 async function list(req, res, next) {
     try {
         const ownerId = req.user.ownerId;
-        const accountCompanyName = req.query.accountCompanyName;
 
-        if (!accountCompanyName) {
-            return res.status(400).json({ message: "accountCompanyName is required" });
+        const companyId = toObjectId(req.query.accountCompanyName);
+        if (!companyId) {
+            return res.status(400).json({
+                success: false,
+                error: { message: "Valid accountCompanyName (companyId) is required" }
+            });
         }
 
         const { page = 1, limit = 50, search, sort, category, brand } = req.query;
 
-        const q = { ownerId, accountCompanyName, isDeleted: false };
+        const q = {
+            ownerId,
+            accountCompanyName: companyId,
+            isDeleted: false
+        };
 
-        // search by itemName, name, hsnNo
+        // Search: item name + alias name + hsn
         if (search) {
+            const s = search.trim();
             q.$or = [
-                { name: { $regex: search, $options: 'i' } },
-                { itemName: { $regex: search, $options: 'i' } },
-                { hsnNo: { $regex: search, $options: 'i' } },
+                { name: { $regex: s, $options: "i" } },
+                { itemName: { $regex: s, $options: "i" } },
+                { hsnNo: { $regex: s, $options: "i" } }
             ];
         }
 
+        // optional category, brand filters
         if (category) q.category = category;
         if (brand) q.brandName = brand;
 
+        // Sorting
         const sortObj = {};
         if (sort) {
-            const [k, dir] = sort.split(':');
-            sortObj[k || 'createdAt'] = dir === 'desc' ? -1 : 1;
+            const [key, dir] = sort.split(":");
+            sortObj[key || "createdAt"] = dir === "desc" ? -1 : 1;
         } else {
             sortObj.createdAt = -1;
         }
@@ -43,7 +60,7 @@ async function list(req, res, next) {
 
         const [items, total] = await Promise.all([
             Item.find(q).sort(sortObj).skip(skip).limit(Number(limit)).lean(),
-            Item.countDocuments(q),
+            Item.countDocuments(q)
         ]);
 
         return res.json({
@@ -57,24 +74,31 @@ async function list(req, res, next) {
     }
 }
 
+/* ============================= GET ONE ============================= */
 async function getOne(req, res, next) {
     try {
         const ownerId = req.user.ownerId;
-        const accountCompanyName = req.query.accountCompanyName;
 
-        if (!accountCompanyName) {
-            return res.status(400).json({ message: "accountCompanyName is required" });
+        const companyId = toObjectId(req.query.accountCompanyName);
+        if (!companyId) {
+            return res.status(400).json({
+                success: false,
+                error: { message: "Valid accountCompanyName (companyId) is required" }
+            });
         }
 
         const doc = await Item.findOne({
             _id: req.params.id,
             ownerId,
-            accountCompanyName,
+            accountCompanyName: companyId,
             isDeleted: false
         });
 
         if (!doc) {
-            return res.status(404).json({ success: false, error: { message: 'Not found' } });
+            return res.status(404).json({
+                success: false,
+                error: { message: "Not found" }
+            });
         }
 
         return res.json({ success: true, data: doc });
@@ -84,104 +108,162 @@ async function getOne(req, res, next) {
     }
 }
 
+/* ============================= CREATE ============================= */
 async function create(req, res, next) {
     try {
         const ownerId = req.user.ownerId;
 
-        if (!req.body.accountCompanyName) {
-            return res.status(400).json({ message: "accountCompanyName is required" });
+        const companyId = toObjectId(req.body.accountCompanyName);
+        if (!companyId) {
+            return res.status(400).json({
+                success: false,
+                error: { message: "Valid accountCompanyName is required" }
+            });
+        }
+
+        if (!req.body.name && !req.body.itemName) {
+            return res.status(400).json({
+                success: false,
+                error: { message: "Item name (name or itemName) is required" }
+            });
         }
 
         const payload = {
             ...req.body,
             ownerId,
+            accountCompanyName: companyId,
             createdBy: req.user.id,
-            accountCompanyName: req.body.accountCompanyName,
-            name: req.body.name || req.body.itemName || ""
+            // canonical name fallback
+            name: req.body.name?.trim() || req.body.itemName?.trim()
         };
 
-        // number coercions
-        if (payload.gstRate != null) payload.gstRate = Number(payload.gstRate);
-        if (payload.buyPrice != null) payload.buyPrice = Number(payload.buyPrice);
-        if (payload.sellPrice != null) payload.sellPrice = Number(payload.sellPrice);
-        if (payload.openingStock != null) payload.openingStock = Number(payload.openingStock);
-        if (payload.minStock != null) payload.minStock = Number(payload.minStock);
-        if (payload.openingDate) payload.openingDate = new Date(payload.openingDate);
+        // Numeric coercions
+        ["gstRate", "buyPrice", "sellPrice", "openingStock", "minStock"].forEach((field) => {
+            if (payload[field] != null && payload[field] !== "") {
+                payload[field] = Number(payload[field]) || 0;
+            }
+        });
+
+        // Date coercion
+        if (payload.openingDate) {
+            payload.openingDate = new Date(payload.openingDate);
+        }
 
         const doc = await Item.create(payload);
+
         return res.status(201).json({ success: true, data: doc });
 
     } catch (err) {
-        if (err && err.code === 11000) {
-            return res.status(409).json({ success: false, error: { message: "Item with same name already exists" } });
+        if (err?.code === 11000) {
+            return res.status(409).json({
+                success: false,
+                error: { message: "Item with same name already exists for this company" }
+            });
         }
         next(err);
     }
 }
 
+/* ============================= UPDATE ============================= */
 async function update(req, res, next) {
     try {
         const ownerId = req.user.ownerId;
-
-        if (!req.body.accountCompanyName) {
-            return res.status(400).json({ message: "accountCompanyName is required" });
-        }
-
         const id = req.params.id;
 
-        const payload = { ...req.body, updatedBy: req.user.id };
+        const companyId = toObjectId(req.body.accountCompanyName);
+        if (!companyId) {
+            return res.status(400).json({
+                success: false,
+                error: { message: "Valid accountCompanyName is required" }
+            });
+        }
 
-        // number coercions
-        if (payload.gstRate != null) payload.gstRate = Number(payload.gstRate);
-        if (payload.buyPrice != null) payload.buyPrice = Number(payload.buyPrice);
-        if (payload.sellPrice != null) payload.sellPrice = Number(payload.sellPrice);
-        if (payload.openingStock != null) payload.openingStock = Number(payload.openingStock);
-        if (payload.minStock != null) payload.minStock = Number(payload.minStock);
-        if (payload.openingDate) payload.openingDate = new Date(payload.openingDate);
+        const payload = {
+            ...req.body,
+            updatedBy: req.user.id
+        };
 
-        // sync canonical name
-        if (payload.itemName && !payload.name) payload.name = payload.itemName;
+        // Canonical name sync
+        if (payload.itemName && !payload.name) {
+            payload.name = payload.itemName.trim();
+        }
+        if (payload.name) {
+            payload.name = payload.name.trim();
+        }
+
+        // Numeric coercions
+        ["gstRate", "buyPrice", "sellPrice", "openingStock", "minStock"].forEach((field) => {
+            if (payload[field] != null && payload[field] !== "") {
+                payload[field] = Number(payload[field]) || 0;
+            }
+        });
+
+        // Date coercion
+        if (payload.openingDate) {
+            payload.openingDate = new Date(payload.openingDate);
+        }
 
         const doc = await Item.findOneAndUpdate(
-            { _id: id, ownerId, accountCompanyName: req.body.accountCompanyName },
+            {
+                _id: id,
+                ownerId,
+                accountCompanyName: companyId
+            },
             payload,
             { new: true, runValidators: true }
         );
 
         if (!doc) {
-            return res.status(404).json({ success: false, error: { message: 'Not found' } });
+            return res.status(404).json({
+                success: false,
+                error: { message: "Not found" }
+            });
         }
 
         return res.json({ success: true, data: doc });
 
     } catch (err) {
-        if (err && err.code === 11000) {
-            return res.status(409).json({ success: false, error: { message: "Item with same name already exists" } });
+        if (err?.code === 11000) {
+            return res.status(409).json({
+                success: false,
+                error: { message: "Item with same name already exists for this company" }
+            });
         }
         next(err);
     }
 }
 
+/* ============================= DELETE (SOFT DELETE) ============================= */
 async function remove(req, res, next) {
     try {
         const ownerId = req.user.ownerId;
-        const accountCompanyName = req.query.accountCompanyName;
 
-        if (!accountCompanyName) {
-            return res.status(400).json({ message: "accountCompanyName is required" });
+        const companyId = toObjectId(req.query.accountCompanyName);
+        if (!companyId) {
+            return res.status(400).json({
+                success: false,
+                error: { message: "Valid accountCompanyName is required" }
+            });
         }
 
         const doc = await Item.findOneAndUpdate(
-            { _id: req.params.id, ownerId, accountCompanyName },
+            {
+                _id: req.params.id,
+                ownerId,
+                accountCompanyName: companyId
+            },
             { isDeleted: true, updatedBy: req.user.id },
             { new: true }
         );
 
         if (!doc) {
-            return res.status(404).json({ success: false, error: { message: 'Not found' } });
+            return res.status(404).json({
+                success: false,
+                error: { message: "Not found" }
+            });
         }
 
-        return res.json({ success: true, data: doc });
+        res.json({ success: true, data: doc });
 
     } catch (err) {
         next(err);

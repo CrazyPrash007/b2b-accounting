@@ -9,8 +9,7 @@ function normalizeString(v) {
 const VendorSchema = new mongoose.Schema({
     ownerId: { type: mongoose.Schema.Types.ObjectId, required: true, index: true },
 
-    // NEW FIELD FOR MULTI-COMPANY
-    accountCompanyName: { type: String, required: true, index: true },
+    accountCompanyName: { type: mongoose.Schema.Types.ObjectId, ref: 'Company', required: true, index: true },
 
     vendorName: { type: String, required: true, trim: true },
     name: { type: String, trim: true },
