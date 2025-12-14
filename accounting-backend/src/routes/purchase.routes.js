@@ -11,6 +11,7 @@ router.use(auth);
 router.get('/', controller.list);
 router.post('/', validate(createSchema), controller.create);
 router.get('/:id', controller.getOne);
+router.get('/:id/pdf', controller.exportPDF);
 router.put('/:id', validate(updateSchema), controller.update);
 router.delete('/:id', controller.remove);
 

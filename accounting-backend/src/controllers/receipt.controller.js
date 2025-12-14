@@ -1,6 +1,9 @@
 // src/controllers/receipt.controller.js
 const Receipt = require("../models/Receipt");
 const Sale = require("../models/Sale");
+const Customer = require("../models/Customer");
+const { getCompanyModel } = require("../models/Company");
+const { generateReceiptPDF } = require("../utils/pdfGenerator");
 const mongoose = require("mongoose");
 
 /* ---------------------------- Helper ---------------------------- */
@@ -302,4 +305,66 @@ async function remove(req, res, next) {
     }
 }
 
-module.exports = { list, getOne, create, update, remove };
+/* ============================ EXPORT PDF ============================ */
+async function exportPDF(req, res, next) {
+    try {
+        const ownerId = req.user.ownerId;
+
+        const companyId = toObjectId(req.query.accountCompanyName);
+        if (!companyId)
+            return res.status(400).json({
+                success: false,
+                error: { message: "Valid accountCompanyName is required" }
+            });
+
+        // Fetch the receipt
+        const receipt = await Receipt.findOne({
+            _id: req.params.id,
+            ownerId,
+            accountCompanyName: companyId,
+            isDeleted: false
+        }).lean();
+
+        if (!receipt)
+            return res.status(404).json({
+                success: false,
+                error: { message: "Receipt not found" }
+            });
+
+        // Fetch company details
+        const Company = getCompanyModel();
+        const company = await Company.findById(companyId).lean();
+        if (!company)
+            return res.status(404).json({
+                success: false,
+                error: { message: "Company not found" }
+            });
+
+        // Fetch customer details if available
+        let customer = null;
+        if (receipt.partyId) {
+            customer = await Customer.findById(receipt.partyId).lean();
+        }
+
+        // Fetch invoice details if linked
+        let invoice = null;
+        if (receipt.invoiceId) {
+            invoice = await Sale.findById(receipt.invoiceId).lean();
+        }
+
+        // Generate PDF
+        const pdfBuffer = await generateReceiptPDF(receipt, company, customer, invoice);
+
+        // Set response headers
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename="Receipt_${receipt._id}.pdf"`);
+        res.setHeader('Content-Length', pdfBuffer.length);
+
+        res.send(pdfBuffer);
+
+    } catch (err) {
+        next(err);
+    }
+}
+
+module.exports = { list, getOne, create, update, remove, exportPDF };

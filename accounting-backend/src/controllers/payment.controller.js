@@ -1,6 +1,9 @@
 // src/controllers/payment.controller.js
 const Payment = require("../models/Payment");
 const Purchase = require("../models/Purchase");
+const Vendor = require("../models/Vendor");
+const { getCompanyModel } = require("../models/Company");
+const { generatePaymentPDF } = require("../utils/pdfGenerator");
 const mongoose = require("mongoose");
 
 /* ---------------------------- Helper ---------------------------- */
@@ -294,4 +297,66 @@ async function remove(req, res, next) {
     }
 }
 
-module.exports = { list, getOne, create, update, remove };
+/* ============================ EXPORT PDF ============================ */
+async function exportPDF(req, res, next) {
+    try {
+        const ownerId = req.user.ownerId;
+
+        const companyId = toObjectId(req.query.accountCompanyName);
+        if (!companyId)
+            return res.status(400).json({
+                success: false,
+                error: { message: "Valid accountCompanyName is required" }
+            });
+
+        // Fetch the payment
+        const payment = await Payment.findOne({
+            _id: req.params.id,
+            ownerId,
+            accountCompanyName: companyId,
+            isDeleted: false
+        }).lean();
+
+        if (!payment)
+            return res.status(404).json({
+                success: false,
+                error: { message: "Payment not found" }
+            });
+
+        // Fetch company details
+        const Company = getCompanyModel();
+        const company = await Company.findById(companyId).lean();
+        if (!company)
+            return res.status(404).json({
+                success: false,
+                error: { message: "Company not found" }
+            });
+
+        // Fetch vendor details if available
+        let vendor = null;
+        if (payment.partyId) {
+            vendor = await Vendor.findById(payment.partyId).lean();
+        }
+
+        // Fetch invoice details if linked
+        let invoice = null;
+        if (payment.invoiceId) {
+            invoice = await Purchase.findById(payment.invoiceId).lean();
+        }
+
+        // Generate PDF
+        const pdfBuffer = await generatePaymentPDF(payment, company, vendor, invoice);
+
+        // Set response headers
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename="Payment_${payment._id}.pdf"`);
+        res.setHeader('Content-Length', pdfBuffer.length);
+
+        res.send(pdfBuffer);
+
+    } catch (err) {
+        next(err);
+    }
+}
+
+module.exports = { list, getOne, create, update, remove, exportPDF };

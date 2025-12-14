@@ -1,5 +1,9 @@
 // src/controllers/sale.controller.js
 const Sale = require("../models/Sale");
+const Receipt = require("../models/Receipt");
+const Customer = require("../models/Customer");
+const { getCompanyModel } = require("../models/Company");
+const { generateSalesInvoicePDF } = require("../utils/pdfGenerator");
 const mongoose = require("mongoose");
 
 /* --------------------- Helpers --------------------- */
@@ -426,4 +430,60 @@ async function remove(req, res, next) {
     } catch (err) { next(err); }
 }
 
-module.exports = { list, getOne, create, update, remove, computeTotalsFromItems };
+/* --------------------- EXPORT PDF --------------------- */
+async function exportPDF(req, res, next) {
+    try {
+        const ownerId = req.user.ownerId;
+
+        const companyId = toObjectId(req.query.accountCompanyName);
+        if (!companyId)
+            return res.status(400).json({ success: false, error: { message: "Valid accountCompanyName is required" } });
+
+        // Fetch the sale
+        const sale = await Sale.findOne({
+            _id: req.params.id,
+            ownerId,
+            accountCompanyName: companyId,
+            isDeleted: false
+        }).lean();
+
+        if (!sale)
+            return res.status(404).json({ success: false, error: { message: "Sale not found" } });
+
+        // Fetch company details
+        const Company = getCompanyModel();
+        const company = await Company.findById(companyId).lean();
+        if (!company)
+            return res.status(404).json({ success: false, error: { message: "Company not found" } });
+
+        // Fetch customer details if available
+        let customer = null;
+        if (sale.customerId) {
+            customer = await Customer.findById(sale.customerId).lean();
+        }
+
+        // Fetch all receipts linked to this sale
+        const receipts = await Receipt.find({
+            invoiceId: sale._id,
+            ownerId,
+            accountCompanyName: companyId,
+            isDeleted: false
+        }).sort({ date: 1 }).lean();
+
+        // Generate PDF
+        const pdfBuffer = await generateSalesInvoicePDF(sale, company, customer, receipts);
+
+        // Set response headers
+        const invoiceNumber = `${sale.invoicePrefix}${sale.invoiceNumber}${sale.invoiceSuffix}`;
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename="SalesInvoice_${invoiceNumber}.pdf"`);
+        res.setHeader('Content-Length', pdfBuffer.length);
+
+        res.send(pdfBuffer);
+
+    } catch (err) {
+        next(err);
+    }
+}
+
+module.exports = { list, getOne, create, update, remove, exportPDF, computeTotalsFromItems };

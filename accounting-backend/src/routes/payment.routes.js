@@ -6,6 +6,7 @@ const auth = require("../middlewares/auth");
 
 router.get("/", auth, paymentController.list);
 router.get("/:id", auth, paymentController.getOne);
+router.get("/:id/pdf", auth, paymentController.exportPDF);
 router.post("/", auth, paymentController.create);
 router.put("/:id", auth, paymentController.update);
 router.delete("/:id", auth, paymentController.remove);

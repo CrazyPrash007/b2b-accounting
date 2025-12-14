@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import useSale from "./hooks/useSale";
+import saleApi from "./api/sale.api";
 import { getCurrentCompany } from "../../../services/companyContextAccessor";
 
 // SalesInvoiceModal - replaces the existing modal in SalesPage.jsx
@@ -313,34 +314,39 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
         setFormData((prev) => {
             const updated = { ...prev, [field]: value };
             
-            // If Pay Full checkbox is checked, auto-fill payment amount with total amount
+            // If Pay Full checkbox is checked, auto-fill payment amount with total amount or due amount
             if (field === "payFull" && value === true) {
-                // Calculate total based on current state
-                let taxableAmt = 0;
-                let totalGst = 0;
-                let totalFinalAmt = 0;
+                // In edit mode with partial payments, use due amount
+                if (editData && editData.dueAmount != null && editData.dueAmount > 0) {
+                    updated.paymentAmount = String(editData.dueAmount);
+                } else {
+                    // Calculate total based on current state
+                    let taxableAmt = 0;
+                    let totalGst = 0;
+                    let totalFinalAmt = 0;
 
-                updated.items.forEach(item => {
-                    const actualAmount = parseFloat(item.actualAmount) || 0;
-                    const finalAmount = parseFloat(item.finalAmount) || 0;
-                    taxableAmt += actualAmount;
-                    totalFinalAmt += finalAmount;
-                    totalGst += (finalAmount - actualAmount);
-                });
+                    updated.items.forEach(item => {
+                        const actualAmount = parseFloat(item.actualAmount) || 0;
+                        const finalAmount = parseFloat(item.finalAmount) || 0;
+                        taxableAmt += actualAmount;
+                        totalFinalAmt += finalAmount;
+                        totalGst += (finalAmount - actualAmount);
+                    });
 
-                let subTotal = totalFinalAmt;
-                const discountAmount = parseFloat(updated.discount) || 0;
-                let total = subTotal - discountAmount;
+                    let subTotal = totalFinalAmt;
+                    const discountAmount = parseFloat(updated.discount) || 0;
+                    let total = subTotal - discountAmount;
 
-                additionalCharges.forEach(c => {
-                    total += parseFloat(c.amount) || 0;
-                });
+                    additionalCharges.forEach(c => {
+                        total += parseFloat(c.amount) || 0;
+                    });
 
-                if (updated.autoRoundOff) {
-                    total = Math.round(total);
+                    if (updated.autoRoundOff) {
+                        total = Math.round(total);
+                    }
+
+                    updated.paymentAmount = String(total);
                 }
-
-                updated.paymentAmount = String(total);
             }
 
             // When customer changes, fetch advance payments
@@ -1469,6 +1475,19 @@ export default function SalesPage() {
         }
     };
 
+    const handleDownloadPDF = async (invoice) => {
+        const id = invoice._id || invoice.id;
+        if (!id) return;
+
+        try {
+            await saleApi.downloadPDF(id);
+        } catch (err) {
+            console.error("Failed to download PDF:", err);
+            const msg = err?.response?.data?.error?.message || err?.message || "Failed to download PDF";
+            alert(msg);
+        }
+    };
+
     // ---------- render ----------
     return (
         <div className="h-full flex flex-col bg-white">
@@ -1674,6 +1693,13 @@ export default function SalesPage() {
                                         </td>
                                         <td className={`h-8 px-4 text-left sticky right-0 z-10 border-l border-gray-400 ${rowIndex % 2 === 0 ? 'bg-blue-50' : 'bg-white'}`} style={{ boxShadow: '-4px 0 8px -2px rgba(0, 0, 0, 0.1)' }}>
                                             <div className="flex items-center justify-end gap-2">
+                                                <button
+                                                    onClick={() => handleDownloadPDF(invoice)}
+                                                    className="text-green-600 hover:underline text-sm"
+                                                    title="Download PDF"
+                                                >
+                                                    PDF
+                                                </button>
                                                 <button
                                                     onClick={() => handleEditInvoice(invoice)}
                                                     className="text-blue-600 hover:underline text-sm"
