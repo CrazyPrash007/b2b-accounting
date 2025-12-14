@@ -1,5 +1,6 @@
 // PurchasePage.jsx
 import React, { useState, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import usePurchase from "./hooks/usePurchase";
 import { getCurrentCompany } from "../../../services/companyContextAccessor";
 
@@ -8,6 +9,8 @@ import { getCurrentCompany } from "../../../services/companyContextAccessor";
  * Supports both With GST and Without GST modes
  */
 function PurchaseInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGst = true, bankAccounts: bankAccountsProp = [], gstRates: gstRatesProp = [] }) {
+    const navigate = useNavigate();
+    
     // Get next invoice counter from localStorage or start at 1
     const getNextInvoiceCounter = () => {
         const saved = localStorage.getItem('purchaseInvoiceCounter');
@@ -57,6 +60,10 @@ function PurchaseInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, wit
 
     const [listsLoading, setListsLoading] = useState(false);
     const [listsError, setListsError] = useState(null);
+
+    // Autocomplete dropdown state
+    const [showSupplierDropdown, setShowSupplierDropdown] = useState(false);
+    const [supplierSearchTerm, setSupplierSearchTerm] = useState("");
 
     // Default GST & payment modes
     const defaultGstOptions = ["0", "5", "12", "18", "28"];
@@ -572,26 +579,47 @@ function PurchaseInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, wit
                     {/* Top Section - Supplier & Invoice Details */}
                     <div className="grid grid-cols-2 gap-4 shrink-0">
                         {/* Supplier Selection */}
-                        <div>
+                        <div className="relative">
                             <label className="block text-sm font-medium text-gray-700 mb-1">
                                 Select Supplier <span className="text-red-500">*</span>
                             </label>
-                            <div className="flex gap-2">
-                                <input
-                                    type="text"
-                                    value={formData.supplier}
-                                    onChange={(e) => handleChange("supplier", e.target.value)}
-                                    placeholder="Search supplier or vendor"
-                                    className="flex-1 border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-                                    list="suppliers-datalist"
-                                />
-                                <datalist id="suppliers-datalist">
-                                    {suppliersList.map((s, idx) => <option key={idx} value={s} />)}
-                                </datalist>
-                                <button className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm whitespace-nowrap">
-                                    + Add Supplier
-                                </button>
-                            </div>
+                            <input
+                                type="text"
+                                value={formData.supplier}
+                                onChange={(e) => {
+                                    handleChange("supplier", e.target.value);
+                                    setSupplierSearchTerm(e.target.value);
+                                    setShowSupplierDropdown(true);
+                                }}
+                                onFocus={() => setShowSupplierDropdown(true)}
+                                onBlur={() => setTimeout(() => setShowSupplierDropdown(false), 200)}
+                                placeholder="Type to search supplier or vendor..."
+                                className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                            />
+                            {showSupplierDropdown && (
+                                <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                                    {suppliersList
+                                        .filter(s => s.toLowerCase().includes((formData.supplier || "").toLowerCase()))
+                                        .map((s, idx) => (
+                                            <div
+                                                key={idx}
+                                                onClick={() => {
+                                                    handleChange("supplier", s);
+                                                    setShowSupplierDropdown(false);
+                                                }}
+                                                className="px-3 py-2 text-sm hover:bg-blue-50 cursor-pointer"
+                                            >
+                                                {s}
+                                            </div>
+                                        ))}
+                                    <div
+                                        onClick={() => navigate("/vendor")}
+                                        className="px-3 py-2 text-sm text-blue-600 font-semibold hover:bg-blue-50 cursor-pointer border-t border-gray-200"
+                                    >
+                                        + Add New Supplier
+                                    </div>
+                                </div>
+                            )}
                         </div>
 
                         {/* Invoice Number & Date */}
@@ -694,15 +722,27 @@ function PurchaseInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, wit
                                     <tr key={item.id} className="border-b border-gray-200" data-item-row={index}>
                                         <td className="pl-2 pr-1 py-1 text-gray-600 text-center">{index + 1}</td>
                                         <td className="px-1 py-1">
-                                            <input
-                                                type="text"
+                                            <select
                                                 value={item.goodsService}
-                                                onChange={(e) => handleItemChange(index, "goodsService", e.target.value)}
+                                                onChange={(e) => {
+                                                    const value = e.target.value;
+                                                    if (value === "__ADD_NEW_ITEM__") {
+                                                        navigate("/items");
+                                                    } else {
+                                                        handleItemChange(index, "goodsService", value);
+                                                    }
+                                                }}
                                                 onKeyDown={(e) => handleItemInputKeyDown(e, index, 0)}
-                                                placeholder="Search or select item"
                                                 className="w-full border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-                                                list="items-datalist"
-                                            />
+                                            >
+                                                <option value="">-- Select Item --</option>
+                                                {itemsList.map((it, idx) => (
+                                                    <option key={idx} value={it._displayName || it.displayName || it.itemName || it.name}>
+                                                        {it._displayName || it.displayName || it.itemName || it.name}
+                                                    </option>
+                                                ))}
+                                                <option value="__ADD_NEW_ITEM__" className="text-blue-600 font-semibold">+ Add New Item</option>
+                                            </select>
                                         </td>
                                         <td className="px-1 py-1">
                                             <input
@@ -781,11 +821,6 @@ function PurchaseInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, wit
                                 ))}
                             </tbody>
                         </table>
-
-                        {/* datalist for items (single datalist used for all rows) */}
-                        <datalist id="items-datalist">
-                            {itemsList.map((it, idx) => <option key={idx} value={it._displayName || it.displayName || it.itemName || it.name} />)}
-                        </datalist>
                     </div>
 
                     {/* Bottom Section - Payment & Summary */}
@@ -1410,12 +1445,7 @@ export default function PurchasePage() {
                                             <span>Type</span>
                                         </div>
                                     </th>
-                                    <th className="min-w-[110px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
-                                        <div className="flex items-center gap-2">
-                                            <span className="text-gray-400 cursor-grab">⋮⋮</span>
-                                            <span>Payment</span>
-                                        </div>
-                                    </th>
+                                    {/* Payment column removed as requested */}
                                     <th className="min-w-[120px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
                                         <div className="flex items-center gap-2">
                                             <span className="text-gray-400 cursor-grab">⋮⋮</span>
@@ -1479,18 +1509,8 @@ export default function PurchasePage() {
                                             </span>
                                         </td>
                                         <td
-                                            className={getCellClasses(rowIndex, 6) + " text-left text-gray-600"}
+                                            className={getCellClasses(rowIndex, 6) + " text-left"}
                                             onClick={() => handleCellClick(rowIndex, 6)}
-                                        >
-                                            {invoice.isPaymentMade ? (
-                                                <span className="text-green-600 text-xs">✓ Paid</span>
-                                            ) : (
-                                                <span className="text-yellow-600 text-xs">Pending</span>
-                                            )}
-                                        </td>
-                                        <td
-                                            className={getCellClasses(rowIndex, 7) + " text-left"}
-                                            onClick={() => handleCellClick(rowIndex, 7)}
                                         >
                                             {(() => {
                                                 const status = invoice.paymentStatus || 'unpaid';
@@ -1508,8 +1528,8 @@ export default function PurchasePage() {
                                             })()}
                                         </td>
                                         <td
-                                            className={getCellClasses(rowIndex, 8) + " text-left text-gray-600 font-medium"}
-                                            onClick={() => handleCellClick(rowIndex, 8)}
+                                            className={getCellClasses(rowIndex, 7) + " text-left text-gray-600 font-medium"}
+                                            onClick={() => handleCellClick(rowIndex, 7)}
                                         >
                                             {invoice.dueAmount != null && invoice.dueAmount > 0 ? formatCurrency(invoice.dueAmount) : "-"}
                                         </td>
@@ -1546,7 +1566,6 @@ export default function PurchasePage() {
                                             <td className={getCellClasses(rowIndex, 5)} onClick={() => handleCellClick(rowIndex, 5)}></td>
                                             <td className={getCellClasses(rowIndex, 6)} onClick={() => handleCellClick(rowIndex, 6)}></td>
                                             <td className={getCellClasses(rowIndex, 7)} onClick={() => handleCellClick(rowIndex, 7)}></td>
-                                            <td className={getCellClasses(rowIndex, 8)} onClick={() => handleCellClick(rowIndex, 8)}></td>
                                             <td className={`h-8 px-4 sticky right-0 z-10 border-l border-gray-400 ${rowIndex % 2 === 0 ? 'bg-blue-50' : 'bg-white'}`} style={{ boxShadow: '-4px 0 8px -2px rgba(0, 0, 0, 0.1)' }}></td>
                                         </tr>
                                     );
