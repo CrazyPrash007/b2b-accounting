@@ -62,11 +62,11 @@ async function list(req, res, next) {
         const ownerId = req.user.ownerId;
         const { page = 1, limit = 50, search, sort, fromDate, toDate, accountCompanyName } = req.query;
 
-        const q = { ownerId, isDeleted: false };
-
-        if (accountCompanyName) {
-            q.accountCompanyName = accountCompanyName;
+        if (!accountCompanyName) {
+            return res.status(400).json({ message: "accountCompanyName is required" });
         }
+
+        const q = { ownerId, accountCompanyName, isDeleted: false };
 
         if (search) {
             q.$or = [
@@ -105,9 +105,15 @@ async function list(req, res, next) {
 
 async function getOne(req, res, next) {
     try {
+        const accountCompanyName = req.query.accountCompanyName;
+        if (!accountCompanyName) {
+            return res.status(400).json({ message: "accountCompanyName is required" });
+        }
+
         const doc = await Sale.findOne({
             _id: req.params.id,
             ownerId: req.user.ownerId,
+            accountCompanyName,
             isDeleted: false
         });
 
@@ -120,6 +126,11 @@ async function getOne(req, res, next) {
 async function create(req, res, next) {
     try {
         const ownerId = req.user.ownerId;
+
+        if (!req.body.accountCompanyName) {
+            return res.status(400).json({ message: "accountCompanyName is required" });
+        }
+
         const payload = { ...req.body };
 
         // REQUIRED business/company name
@@ -197,12 +208,12 @@ async function update(req, res, next) {
     try {
         const ownerId = req.user.ownerId;
         const id = req.params.id;
-        const payload = { ...req.body, updatedBy: req.user.id };
 
-        // Allow updating company name
-        if (payload.accountCompanyName !== undefined) {
-            payload.accountCompanyName = String(payload.accountCompanyName);
+        if (!req.body.accountCompanyName) {
+            return res.status(400).json({ message: "accountCompanyName is required" });
         }
+
+        const payload = { ...req.body, updatedBy: req.user.id };
 
         if (payload.invoiceDate) payload.invoiceDate = new Date(payload.invoiceDate);
 
@@ -243,7 +254,8 @@ async function update(req, res, next) {
         payload.withGst = payload.withGst !== undefined ? Boolean(payload.withGst) : undefined;
         payload.autoRoundOff = payload.autoRoundOff !== undefined ? Boolean(payload.autoRoundOff) : undefined;
 
-        const existing = await Sale.findOne({ _id: id, ownerId });
+        const accountCompanyName = req.body.accountCompanyName;
+        const existing = await Sale.findOne({ _id: id, ownerId, accountCompanyName });
         if (!existing) {
             return res.status(404).json({ success: false, error: { message: 'Not found' } });
         }
@@ -262,7 +274,7 @@ async function update(req, res, next) {
         payload.subTotal = totals.subTotal;
         payload.totalAmount = totals.totalAmount;
 
-        const doc = await Sale.findOneAndUpdate({ _id: id, ownerId }, payload, { new: true });
+        const doc = await Sale.findOneAndUpdate({ _id: id, ownerId, accountCompanyName }, payload, { new: true });
         if (!doc) {
             return res.status(404).json({ success: false, error: { message: 'Not found' } });
         }
@@ -280,8 +292,14 @@ async function update(req, res, next) {
 async function remove(req, res, next) {
     try {
         const ownerId = req.user.ownerId;
+        const accountCompanyName = req.query.accountCompanyName;
+
+        if (!accountCompanyName) {
+            return res.status(400).json({ message: "accountCompanyName is required" });
+        }
+
         const updated = await Sale.findOneAndUpdate(
-            { _id: req.params.id, ownerId },
+            { _id: req.params.id, ownerId, accountCompanyName },
             { isDeleted: true, updatedBy: req.user.id },
             { new: true }
         );
