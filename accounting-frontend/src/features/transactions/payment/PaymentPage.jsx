@@ -1,6 +1,8 @@
 // PaymentPage.jsx - Payment Out
 import React, { useState, useEffect, useRef } from "react";
 import InvoicePreviewModal from "../receipt/components/InvoicePreviewModal";
+import PdfPreviewModal from "../../../components/PdfPreviewModal";
+import paymentApi from "./api/payment.api";
 import usePayment from "./hooks/usePayment";
 import { getCurrentCompany } from "../../../services/companyContextAccessor";
 
@@ -569,6 +571,8 @@ export default function PaymentPage() {
     const [editingPayment, setEditingPayment] = useState(null);
     const [isInvoicePreviewOpen, setIsInvoicePreviewOpen] = useState(false);
     const [selectedPaymentForInvoice, setSelectedPaymentForInvoice] = useState(null);
+    const [isPdfPreviewOpen, setIsPdfPreviewOpen] = useState(false);
+    const [selectedPaymentForPdf, setSelectedPaymentForPdf] = useState(null);
 
     // Company/formatter helpers (kept as you had them)
     const companyData = {
@@ -749,6 +753,16 @@ export default function PaymentPage() {
     const handleCloseInvoicePreview = () => {
         setIsInvoicePreviewOpen(false);
         setSelectedPaymentForInvoice(null);
+    };
+
+    const handleDownloadPDF = (payment) => {
+        setSelectedPaymentForPdf(payment);
+        setIsPdfPreviewOpen(true);
+    };
+
+    const handleClosePdfPreview = () => {
+        setIsPdfPreviewOpen(false);
+        setSelectedPaymentForPdf(null);
     };
 
     // Normalize payment payload before sending to server (mirror receipt normalization style)
@@ -997,7 +1011,7 @@ export default function PaymentPage() {
                                     </td>
                                     <td className={`h-8 px-4 text-left sticky right-0 z-10 border-l border-gray-400 ${rowIndex % 2 === 0 ? 'bg-blue-50' : 'bg-white'}`} style={{ boxShadow: '-4px 0 8px -2px rgba(0, 0, 0, 0.1)' }}>
                                         <div className="flex items-center justify-end gap-2">
-                                            <button onClick={() => handleOpenInvoicePreview(payment)} className="text-purple-600 hover:underline text-sm" title="Export as PDF">PDF</button>
+                                            <button onClick={() => handleDownloadPDF(payment)} className="text-purple-600 hover:underline text-sm" title="Export as PDF">PDF</button>
                                             <button onClick={() => handleEditPayment(payment)} className="text-blue-600 hover:underline text-sm">Edit</button>
                                             <button onClick={() => handleDeletePayment(payment)} className="text-gray-400 hover:text-gray-600" title="Delete">
                                                 <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
@@ -1051,6 +1065,17 @@ export default function PaymentPage() {
                     onClose={handleCloseInvoicePreview}
                     invoice={convertPaymentToInvoice(selectedPaymentForInvoice)}
                     config={{ footerText: "This is a computer generated payment voucher" }}
+                />
+            )}
+
+            {/* PDF Preview Modal */}
+            {selectedPaymentForPdf && (
+                <PdfPreviewModal
+                    isOpen={isPdfPreviewOpen}
+                    onClose={handleClosePdfPreview}
+                    fetchPdfBlob={() => paymentApi.getPdfBlob(selectedPaymentForPdf._id || selectedPaymentForPdf.id)}
+                    title="Payment Voucher Preview"
+                    filename={`PaymentVoucher_${selectedPaymentForPdf.id || selectedPaymentForPdf._id}.pdf`}
                 />
             )}
 

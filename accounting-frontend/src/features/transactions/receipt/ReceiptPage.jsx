@@ -1,6 +1,8 @@
 // ReceiptPage.jsx - Payment In
 import React, { useState, useEffect, useRef } from "react";
 import InvoicePreviewModal from "./components/InvoicePreviewModal";
+import PdfPreviewModal from "../../../components/PdfPreviewModal";
+import receiptApi from "./api/receipt.api";
 import useReceipt from "./hooks/useReceipt";
 import { getCurrentCompany } from "../../../services/companyContextAccessor";
 
@@ -569,6 +571,8 @@ export default function ReceiptPage() {
     const [editingReceipt, setEditingReceipt] = useState(null);
     const [isInvoicePreviewOpen, setIsInvoicePreviewOpen] = useState(false);
     const [selectedReceiptForInvoice, setSelectedReceiptForInvoice] = useState(null);
+    const [isPdfPreviewOpen, setIsPdfPreviewOpen] = useState(false);
+    const [selectedReceiptForPdf, setSelectedReceiptForPdf] = useState(null);
 
     // Company/formatter helpers (kept as you had them)
     const companyData = {
@@ -749,6 +753,16 @@ export default function ReceiptPage() {
     const handleCloseInvoicePreview = () => {
         setIsInvoicePreviewOpen(false);
         setSelectedReceiptForInvoice(null);
+    };
+
+    const handleDownloadPDF = (receipt) => {
+        setSelectedReceiptForPdf(receipt);
+        setIsPdfPreviewOpen(true);
+    };
+
+    const handleClosePdfPreview = () => {
+        setIsPdfPreviewOpen(false);
+        setSelectedReceiptForPdf(null);
     };
 
     // Normalize receipt payload before sending to server (mirror invoice normalization style)
@@ -997,7 +1011,7 @@ export default function ReceiptPage() {
                                         </td>
                                         <td className={`h-8 px-4 text-left sticky right-0 z-10 border-l border-gray-400 ${rowIndex % 2 === 0 ? 'bg-blue-50' : 'bg-white'}`} style={{ boxShadow: '-4px 0 8px -2px rgba(0, 0, 0, 0.1)' }}>
                                             <div className="flex items-center justify-end gap-2">
-                                                <button onClick={() => handleOpenInvoicePreview(receipt)} className="text-purple-600 hover:underline text-sm" title="Export as PDF">PDF</button>
+                                                <button onClick={() => handleDownloadPDF(receipt)} className="text-purple-600 hover:underline text-sm" title="Export as PDF">PDF</button>
                                                 <button onClick={() => handleEditReceipt(receipt)} className="text-blue-600 hover:underline text-sm">Edit</button>
                                                 <button onClick={() => handleDeleteReceipt(receipt)} className="text-gray-400 hover:text-gray-600" title="Delete">
                                                     <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
@@ -1051,6 +1065,17 @@ export default function ReceiptPage() {
                     onClose={handleCloseInvoicePreview}
                     invoice={convertReceiptToInvoice(selectedReceiptForInvoice)}
                     config={{ footerText: "This is a computer generated receipt" }}
+                />
+            )}
+
+            {/* PDF Preview Modal */}
+            {selectedReceiptForPdf && (
+                <PdfPreviewModal
+                    isOpen={isPdfPreviewOpen}
+                    onClose={handleClosePdfPreview}
+                    fetchPdfBlob={() => receiptApi.getPdfBlob(selectedReceiptForPdf._id || selectedReceiptForPdf.id)}
+                    title="Receipt Preview"
+                    filename={`Receipt_${selectedReceiptForPdf.id || selectedReceiptForPdf._id}.pdf`}
                 />
             )}
 

@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import usePurchase from "./hooks/usePurchase";
 import purchaseApi from "./api/purchase.api";
+import PdfPreviewModal from "../../../components/PdfPreviewModal";
 import { getCurrentCompany } from "../../../services/companyContextAccessor";
 
 /**
@@ -1088,6 +1089,10 @@ export default function PurchasePage() {
     const [invoiceType, setInvoiceType] = useState("withGst"); // "withGst" or "withoutGst"
     const [activeTab, setActiveTab] = useState("all"); // "all", "withGst", "withoutGst"
 
+    // PDF Preview state
+    const [isPdfPreviewOpen, setIsPdfPreviewOpen] = useState(false);
+    const [selectedInvoiceForPdf, setSelectedInvoiceForPdf] = useState(null);
+
     // bank/accounts and gst fetched from server (no localStorage)
     const [bankAccounts, setBankAccounts] = useState([]);
     const [gstRates, setGstRates] = useState([]);
@@ -1367,13 +1372,13 @@ export default function PurchasePage() {
         const id = invoice._id || invoice.id;
         if (!id) return;
 
-        try {
-            await purchaseApi.downloadPDF(id);
-        } catch (err) {
-            console.error("Failed to download PDF:", err);
-            const msg = err?.response?.data?.error?.message || err?.message || "Failed to download PDF";
-            alert(msg);
-        }
+        setSelectedInvoiceForPdf(invoice);
+        setIsPdfPreviewOpen(true);
+    };
+
+    const handleClosePdfPreview = () => {
+        setIsPdfPreviewOpen(false);
+        setSelectedInvoiceForPdf(null);
     };
 
     // ---------- render ----------
@@ -1645,6 +1650,17 @@ export default function PurchasePage() {
                 bankAccounts={bankAccounts}
                 gstRates={gstRates}
             />
+
+            {/* PDF Preview Modal */}
+            {selectedInvoiceForPdf && (
+                <PdfPreviewModal
+                    isOpen={isPdfPreviewOpen}
+                    onClose={handleClosePdfPreview}
+                    fetchPdfBlob={() => purchaseApi.getPdfBlob(selectedInvoiceForPdf._id || selectedInvoiceForPdf.id)}
+                    title="Purchase Invoice Preview"
+                    filename={`PurchaseInvoice_${selectedInvoiceForPdf.invoicePrefix}${selectedInvoiceForPdf.invoiceNumber}${selectedInvoiceForPdf.invoiceSuffix}.pdf`}
+                />
+            )}
 
             {/* show simple errors */}
             {(error || invoicesError) && <div className="p-3 text-red-600 text-sm">{error || (invoicesError && String(invoicesError))}</div>}
