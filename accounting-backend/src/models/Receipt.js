@@ -22,6 +22,14 @@ const ReceiptSchema = new mongoose.Schema({
     // Advance payment tracking (for receipts not linked to invoices initially)
     usedAmount: { type: Number, default: 0 },
     remainingAmount: { type: Number, default: 0 },
+    
+    // Track which sales have used this advance payment
+    linkedSales: [{
+        saleId: { type: mongoose.Schema.Types.ObjectId, ref: 'Sale' },
+        invoiceLabel: { type: String, trim: true, default: '' },
+        amountUsed: { type: Number, default: 0 },
+        usedAt: { type: Date, default: Date.now }
+    }],
 
     // metadata
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },

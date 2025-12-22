@@ -71,6 +71,10 @@ const SaleSchema = new mongoose.Schema({
     dueAmount: { type: Number, default: 0 },
     paymentStatus: { type: String, enum: ['unpaid', 'partial', 'paid'], default: 'unpaid' },
 
+    // Advance payment tracking
+    advanceReceiptId: { type: mongoose.Schema.Types.ObjectId, ref: 'Receipt', default: null },
+    advanceAmountUsed: { type: Number, default: 0 },
+
     autoRoundOff: { type: Boolean, default: true },
 
     description: { type: String, default: '' },
