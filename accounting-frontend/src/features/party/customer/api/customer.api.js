@@ -1,5 +1,5 @@
-import createResourceApi from "src/services/resourceApiFactory";
+import resourceApiFactory from "src/services/resourceApiFactory";
 
-const customerApi = createResourceApi("/api/customers");
+const customerApi = resourceApiFactory("/api/customers");
 
 export default customerApi;

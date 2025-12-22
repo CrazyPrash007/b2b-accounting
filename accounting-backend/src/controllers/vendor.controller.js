@@ -1,22 +1,34 @@
 // src/controllers/vendor.controller.js
 const Vendor = require('../models/Vendor');
+const mongoose = require("mongoose");
 
-function normalizeString(v) {
-    if (v === undefined || v === null) return "";
-    return String(v).trim().replace(/\s+/g, ' ').toLowerCase();
+/* ---------------------------- Helpers ---------------------------- */
+
+function toObjectId(id) {
+    if (!id) return null;
+    try {
+        return new mongoose.Types.ObjectId(id);
+    } catch (err) {
+        return null;
+    }
 }
 
-/**
- * All controllers enforce owner scoping + company scoping
- */
+function normalize(v) {
+    if (v === undefined || v === null) return "";
+    return String(v).trim().replace(/\s+/g, " ").toLowerCase();
+}
 
+/* =========================== LIST =========================== */
 async function list(req, res, next) {
     try {
         const ownerId = req.user.ownerId;
-        const accountCompanyName = req.query.accountCompanyName;
 
+        const accountCompanyName = toObjectId(req.query.accountCompanyName);
         if (!accountCompanyName) {
-            return res.status(400).json({ success: false, message: "accountCompanyName is required" });
+            return res.status(400).json({
+                success: false,
+                error: { message: "accountCompanyName is required and must be valid" }
+            });
         }
 
         const { page = 1, limit = 50, search, sort } = req.query;
@@ -28,10 +40,11 @@ async function list(req, res, next) {
         };
 
         if (search) {
+            const s = search.trim();
             q.$or = [
-                { vendorName: { $regex: search, $options: 'i' } },
-                { name: { $regex: search, $options: 'i' } },
-                { companyName: { $regex: search, $options: 'i' } },
+                { vendorName: { $regex: s, $options: "i" } },
+                { name: { $regex: s, $options: "i" } },
+                { companyName: { $regex: s, $options: "i" } },
             ];
         }
 
@@ -47,7 +60,7 @@ async function list(req, res, next) {
 
         const [items, total] = await Promise.all([
             Vendor.find(q).sort(sortObj).skip(skip).limit(Number(limit)).lean(),
-            Vendor.countDocuments(q),
+            Vendor.countDocuments(q)
         ]);
 
         res.json({
@@ -61,13 +74,17 @@ async function list(req, res, next) {
     }
 }
 
+/* =========================== GET ONE =========================== */
 async function getOne(req, res, next) {
     try {
         const ownerId = req.user.ownerId;
-        const accountCompanyName = req.query.accountCompanyName;
 
+        const accountCompanyName = toObjectId(req.query.accountCompanyName);
         if (!accountCompanyName) {
-            return res.status(400).json({ success: false, message: "accountCompanyName is required" });
+            return res.status(400).json({
+                success: false,
+                error: { message: "accountCompanyName is required and must be valid" }
+            });
         }
 
         const doc = await Vendor.findOne({
@@ -78,7 +95,10 @@ async function getOne(req, res, next) {
         });
 
         if (!doc) {
-            return res.status(404).json({ success: false, error: { message: "Not found" } });
+            return res.status(404).json({
+                success: false,
+                error: { message: "Not found" }
+            });
         }
 
         res.json({ success: true, data: doc });
@@ -88,78 +108,71 @@ async function getOne(req, res, next) {
     }
 }
 
+/* =========================== CREATE =========================== */
 async function create(req, res, next) {
     try {
         const ownerId = req.user.ownerId;
 
-        if (!req.body.accountCompanyName) {
-            return res.status(400).json({ success: false, message: "accountCompanyName is required" });
+        const accountCompanyName = toObjectId(req.body.accountCompanyName);
+        if (!accountCompanyName) {
+            return res.status(400).json({
+                success: false,
+                error: { message: "accountCompanyName is required and must be valid" }
+            });
         }
 
         const payload = {
             ...req.body,
             ownerId,
-            accountCompanyName: req.body.accountCompanyName,
+            accountCompanyName,
             createdBy: req.user.id
         };
-
-        // Normalize openingBalanceAmount
-        if (payload.openingBalanceAmount === "" ||
-            payload.openingBalanceAmount === null ||
-            payload.openingBalanceAmount === undefined) {
-            payload.openingBalanceAmount = 0;
-        } else {
-            payload.openingBalanceAmount = Number(payload.openingBalanceAmount) || 0;
-        }
 
         if (!payload.vendorName) {
             return res.status(400).json({
                 success: false,
-                message: "vendorName is required",
                 error: { message: "vendorName is required" }
             });
         }
 
-        // default display name
-        if (!payload.name) payload.name = payload.vendorName;
+        payload.vendorName = payload.vendorName.trim();
+        payload.companyName = payload.companyName ? payload.companyName.trim() : "";
 
-        // normalized values for check
-        const vendorNameNorm = normalizeString(payload.vendorName);
-        const companyNameNorm = normalizeString(payload.companyName);
+        payload.vendorNameNorm = normalize(payload.vendorName);
+        payload.companyNameNorm = normalize(payload.companyName);
 
-        const existing = await Vendor.findOne({
+        // Opening balance normalize
+        payload.openingBalanceAmount =
+            Number(payload.openingBalanceAmount || 0);
+
+        // Conflict check
+        const conflict = await Vendor.findOne({
             ownerId,
-            accountCompanyName: payload.accountCompanyName,
-            vendorNameNorm,
-            companyNameNorm,
+            accountCompanyName,
+            vendorNameNorm: payload.vendorNameNorm,
+            companyNameNorm: payload.companyNameNorm,
             isDeleted: false
         }).lean();
 
-        if (existing) {
+        if (conflict) {
             const msg = "vendor already created";
             res.set("X-Error-Message", msg);
             return res.status(409).json({
                 success: false,
-                message: msg,
                 error: { message: msg }
             });
         }
-
-        // trim source fields
-        payload.vendorName = String(payload.vendorName).trim();
-        payload.companyName = payload.companyName ? String(payload.companyName).trim() : "";
 
         const doc = await Vendor.create(payload);
 
         res.status(201).json({ success: true, data: doc });
 
     } catch (err) {
-        if (err && err.code === 11000) {
+        if (err?.code === 11000) {
             const msg = "vendor already created";
             res.set("X-Error-Message", msg);
             return res.status(409).json({
                 success: false,
-                message: msg,
                 error: { message: msg },
                 details: err.keyValue
             });
@@ -168,55 +181,63 @@ async function create(req, res, next) {
     }
 }
 
+/* =========================== UPDATE =========================== */
 async function update(req, res, next) {
     try {
         const ownerId = req.user.ownerId;
-        const accountCompanyName = req.body.accountCompanyName;
 
+        const accountCompanyName = toObjectId(req.body.accountCompanyName);
         if (!accountCompanyName) {
-            return res.status(400).json({ success: false, message: "accountCompanyName is required" });
+            return res.status(400).json({
+                success: false,
+                error: { message: "accountCompanyName is required and must be valid" }
+            });
         }
 
         const id = req.params.id;
 
         const payload = { ...req.body, updatedBy: req.user.id };
 
-        if (payload.openingBalanceAmount === "" || payload.openingBalanceAmount === null) {
-            delete payload.openingBalanceAmount;
-        } else if (payload.openingBalanceAmount !== undefined) {
-            payload.openingBalanceAmount = Number(payload.openingBalanceAmount) || 0;
+        // Normalize numbers
+        if (payload.openingBalanceAmount !== undefined) {
+            payload.openingBalanceAmount =
+                Number(payload.openingBalanceAmount || 0);
         }
 
-        if (payload.vendorName) payload.vendorName = payload.vendorName.trim();
-        if (payload.companyName) payload.companyName = payload.companyName.trim();
+        // Trim + normalize fields
+        if (payload.vendorName) {
+            payload.vendorName = payload.vendorName.trim();
+            payload.vendorNameNorm = normalize(payload.vendorName);
+        }
 
-        // Check conflicts when vendorName/companyName changes
-        if (payload.vendorName !== undefined || payload.companyName !== undefined) {
-            const existingDoc = await Vendor.findOne({
+        if (payload.companyName) {
+            payload.companyName = payload.companyName.trim();
+            payload.companyNameNorm = normalize(payload.companyName);
+        }
+
+        // Check conflicts only if name fields change
+        if (payload.vendorNameNorm !== undefined || payload.companyNameNorm !== undefined) {
+            const existing = await Vendor.findOne({
                 _id: id,
                 ownerId,
                 accountCompanyName
             }).lean();
 
-            if (!existingDoc) {
-                return res.status(404).json({ success: false, error: { message: "Not found" } });
+            if (!existing) {
+                return res.status(404).json({
+                    success: false,
+                    error: { message: "Not found" }
+                });
             }
 
-            const checkVendorNorm =
-                payload.vendorName !== undefined ?
-                    normalizeString(payload.vendorName) :
-                    existingDoc.vendorNameNorm;
-
-            const checkCompanyNorm =
-                payload.companyName !== undefined ?
-                    normalizeString(payload.companyName) :
-                    existingDoc.companyNameNorm;
+            const vendorNorm = payload.vendorNameNorm ?? existing.vendorNameNorm;
+            const companyNorm = payload.companyNameNorm ?? existing.companyNameNorm;
 
             const conflict = await Vendor.findOne({
                 ownerId,
                 accountCompanyName,
-                vendorNameNorm: checkVendorNorm,
-                companyNameNorm: checkCompanyNorm,
+                vendorNameNorm: vendorNorm,
+                companyNameNorm: companyNorm,
                 isDeleted: false,
                 _id: { $ne: id }
             }).lean();
@@ -226,7 +247,6 @@ async function update(req, res, next) {
                 res.set("X-Error-Message", msg);
                 return res.status(409).json({
                     success: false,
-                    message: msg,
                     error: { message: msg }
                 });
             }
@@ -239,18 +259,20 @@ async function update(req, res, next) {
         );
 
         if (!doc) {
-            return res.status(404).json({ success: false, error: { message: "Not found" } });
+            return res.status(404).json({
+                success: false,
+                error: { message: "Not found" }
+            });
         }
 
         res.json({ success: true, data: doc });
 
     } catch (err) {
-        if (err && err.code === 11000) {
+        if (err?.code === 11000) {
             const msg = "vendor already created";
             res.set("X-Error-Message", msg);
             return res.status(409).json({
                 success: false,
-                message: msg,
                 error: { message: msg },
                 details: err.keyValue
             });
@@ -259,13 +281,17 @@ async function update(req, res, next) {
     }
 }
 
+/* =========================== REMOVE (SOFT DELETE) =========================== */
 async function remove(req, res, next) {
     try {
         const ownerId = req.user.ownerId;
-        const accountCompanyName = req.query.accountCompanyName;
+        const accountCompanyName = toObjectId(req.query.accountCompanyName);
 
         if (!accountCompanyName) {
-            return res.status(400).json({ success: false, message: "accountCompanyName is required" });
+            return res.status(400).json({
+                success: false,
+                error: { message: "accountCompanyName is required and must be valid" }
+            });
         }
 
         const id = req.params.id;
@@ -277,7 +303,10 @@ async function remove(req, res, next) {
         );
 
         if (!doc) {
-            return res.status(404).json({ success: false, error: { message: "Not found" } });
+            return res.status(404).json({
+                success: false,
+                error: { message: "Not found" }
+            });
         }
 
         res.json({ success: true, data: doc });

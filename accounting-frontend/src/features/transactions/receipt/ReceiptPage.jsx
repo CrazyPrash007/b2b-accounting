@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import InvoicePreviewModal from "./components/InvoicePreviewModal";
 import useReceipt from "./hooks/useReceipt";
+import { getCurrentCompany } from "../../../services/companyContextAccessor";
 
 /**
  * ReceiptModal - Modal for creating/editing receipt (payment in) entries
@@ -22,6 +23,8 @@ function ReceiptModal({ isOpen, onClose, onSave, onDelete, editData }) {
     });
     const [error, setError] = useState("");
     const [fieldErrors, setFieldErrors] = useState({});
+    const [payFull, setPayFull] = useState(false);
+    const [selectedInvoiceData, setSelectedInvoiceData] = useState(null);
 
     const [parties, setParties] = useState([]); // array of { id?, name } (we'll use name as display)
     const [invoices, setInvoices] = useState([]); // array of { id, invoiceLabel, due, dateIso, totalAmount, paymentAmount }
@@ -49,9 +52,10 @@ function ReceiptModal({ isOpen, onClose, onSave, onDelete, editData }) {
     // fetch customers + vendors and merge to a display list
     const fetchParties = async () => {
         try {
+            const companyId = getCurrentCompany();
             const [cRes, vRes] = await Promise.allSettled([
-                fetch(`${API_BASE}/api/customers`),
-                fetch(`${API_BASE}/api/vendors`)
+                fetch(`${API_BASE}/api/customers?accountCompanyName=${companyId}`),
+                fetch(`${API_BASE}/api/vendors?accountCompanyName=${companyId}`)
             ]);
 
             const parseSettled = async (s) => {
@@ -122,8 +126,12 @@ function ReceiptModal({ isOpen, onClose, onSave, onDelete, editData }) {
                     invoiceId: "",
                     referenceNumber: "",
                     description: "",
+                    paymentStatus: "",
+                    dueAmount: 0,
                 });
                 setInvoices([]);
+                setSelectedInvoiceData(null);
+                setPayFull(false);
             }
             setError("");
             setFieldErrors({});
@@ -177,7 +185,8 @@ function ReceiptModal({ isOpen, onClose, onSave, onDelete, editData }) {
 
         setInvoicesLoading(true);
         try {
-            const res = await fetch(`${API_BASE}/api/sales?search=${encodeURIComponent(selectedName)}`);
+            const companyId = getCurrentCompany();
+            const res = await fetch(`${API_BASE}/api/sales?search=${encodeURIComponent(selectedName)}&accountCompanyName=${companyId}`);
             if (!res.ok) {
                 setInvoices([]);
                 setInvoicesLoading(false);
@@ -193,15 +202,15 @@ function ReceiptModal({ isOpen, onClose, onSave, onDelete, editData }) {
             const mapped = matches.map(s => {
                 const invLabel = `${s.invoicePrefix || ''}${s.invoiceNumber || ''}${s.invoiceSuffix || ''}`.trim();
                 const total = Number(s.totalAmount || 0);
-                const paid = Number(s.paymentAmount || 0);
-                const due = Number((total - paid).toFixed(2));
+                const paid = Number(s.paidAmount || 0);
+                const due = Number(s.dueAmount !== undefined ? s.dueAmount : (total - paid));
                 const dateIso = s.invoiceDate ? new Date(s.invoiceDate).toISOString() : null;
                 return {
                     id: s._id,
                     invoiceLabel: invLabel || (s.invoiceNumber || s._id),
                     due,
                     totalAmount: total,
-                    paymentAmount: paid,
+                    paidAmount: paid,
                     dateIso,
                 };
             });
@@ -214,7 +223,10 @@ function ReceiptModal({ isOpen, onClose, onSave, onDelete, editData }) {
                 return new Date(b.dateIso) - new Date(a.dateIso);
             });
 
-            setInvoices(mapped);
+            // Filter out fully paid invoices (due amount is 0)
+            const unpaidInvoices = mapped.filter(inv => inv.due > 0);
+
+            setInvoices(unpaidInvoices);
         } catch (err) {
             console.error("Failed to fetch sales for party", selectedName, err);
             setInvoices([]);
@@ -231,12 +243,33 @@ function ReceiptModal({ isOpen, onClose, onSave, onDelete, editData }) {
     // when user selects an invoice, set invoice + autofill amount with due
     const handleInvoiceChange = (invoiceId) => {
         const selected = invoices.find(inv => inv.id === invoiceId);
-        setFormData(prev => ({
-            ...prev,
-            invoiceId: invoiceId || "",
-            invoice: selected ? selected.invoiceLabel : "",
-            amount: selected ? String(selected.due) : prev.amount,
-        }));
+        setSelectedInvoiceData(selected || null);
+        
+        if (selected) {
+            setFormData(prev => ({
+                ...prev,
+                invoiceId: invoiceId || "",
+                invoice: selected.invoiceLabel,
+                amount: payFull ? String(selected.due) : prev.amount,
+            }));
+        } else {
+            setFormData(prev => ({
+                ...prev,
+                invoiceId: "",
+                invoice: "",
+            }));
+        }
+    };
+
+    // Handle Pay Full checkbox
+    const handlePayFullChange = (checked) => {
+        setPayFull(checked);
+        if (checked && selectedInvoiceData) {
+            setFormData(prev => ({
+                ...prev,
+                amount: String(selectedInvoiceData.due),
+            }));
+        }
     };
 
     const handleSave = () => {
@@ -265,7 +298,15 @@ function ReceiptModal({ isOpen, onClose, onSave, onDelete, editData }) {
             referenceNumber: (formData.referenceNumber || "").trim(),
         };
 
+        // Call parent save handler
         onSave(receiptData, isEditMode);
+        
+        // Refresh invoices after payment to reflect updated due amounts
+        if (formData.party && formData.invoiceId) {
+            setTimeout(() => {
+                handlePartySelected(formData.party, false).catch(() => { });
+            }, 500);
+        }
     };
 
     const handleBackdropClick = (e) => {
@@ -366,6 +407,53 @@ function ReceiptModal({ isOpen, onClose, onSave, onDelete, editData }) {
                                 </select>
                                 {fieldErrors.party && <p className="mt-1 text-xs text-red-500">{fieldErrors.party}</p>}
                             </div>
+                            <div className="col-span-2">
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    Select Invoice (Optional)
+                                </label>
+
+                                <select
+                                    value={formData.invoiceId}
+                                    onChange={(e) => handleInvoiceChange(e.target.value)}
+                                    onKeyDown={handleKeyDown}
+                                    disabled={!formData.party || invoicesLoading}
+                                    className={`${baseInput} bg-white disabled:bg-gray-100 disabled:cursor-not-allowed`}
+                                >
+                                    <option value="">{formData.party ? (invoicesLoading ? "Loading invoices..." : "Select an invoice or leave empty for advance payment...") : "Select a party first to see their invoices..."}</option>
+
+                                    {(!invoicesLoading && formData.party && invoices.length === 0) && (
+                                        <option value="" disabled>No invoices - Payment will be marked as advance</option>
+                                    )}
+
+                                    {invoices.map(inv => {
+                                        // format date for display
+                                        const dateText = inv.dateIso ? new Date(inv.dateIso).toLocaleDateString('en-GB') : "";
+                                        const dueText = typeof inv.due === 'number' ? inv.due.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : inv.due;
+                                        return (
+                                            <option key={inv.id} value={inv.id}>
+                                                {inv.invoiceLabel} — Due: ₹{dueText}{dateText ? ` — ${dateText}` : ""}
+                                            </option>
+                                        );
+                                    })}
+                                </select>
+                                {formData.invoiceId && selectedInvoiceData && (
+                                    <div className="mt-2 flex items-center">
+                                        <input
+                                            type="checkbox"
+                                            id="payFull"
+                                            checked={payFull}
+                                            onChange={(e) => handlePayFullChange(e.target.checked)}
+                                            className="mr-2"
+                                        />
+                                        <label htmlFor="payFull" className="text-sm text-gray-700 cursor-pointer">
+                                            Pay Full Amount (₹{selectedInvoiceData.due.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})
+                                        </label>
+                                    </div>
+                                )}
+                                <p className="mt-1 text-xs text-gray-500">
+                                    {!formData.party ? "Select a party first" : !formData.invoiceId ? "Leave empty for advance payment" : "Select to link payment to invoice"}
+                                </p>
+                            </div>
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">
                                     Amount<span className="text-red-500">*</span>
@@ -402,37 +490,6 @@ function ReceiptModal({ isOpen, onClose, onSave, onDelete, editData }) {
                     <div className="mb-4">
                         <h4 className="text-sm font-semibold text-gray-800 mb-2 pb-1 border-b border-gray-200">Additional Details</h4>
                         <div className="grid grid-cols-2 gap-3">
-                            <div className="col-span-2">
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    Select Invoice (Optional)
-                                </label>
-
-                                <select
-                                    value={formData.invoiceId}
-                                    onChange={(e) => handleInvoiceChange(e.target.value)}
-                                    onKeyDown={handleKeyDown}
-                                    disabled={!formData.party || invoicesLoading}
-                                    className={`${baseInput} bg-white disabled:bg-gray-100 disabled:cursor-not-allowed`}
-                                >
-                                    <option value="">{formData.party ? (invoicesLoading ? "Loading invoices..." : "Select an invoice...") : "Select a party first to see their invoices..."}</option>
-
-                                    {(!invoicesLoading && formData.party && invoices.length === 0) && (
-                                        <option value="" disabled>No invoices to show</option>
-                                    )}
-
-                                    {invoices.map(inv => {
-                                        // format date for display
-                                        const dateText = inv.dateIso ? new Date(inv.dateIso).toLocaleDateString('en-GB') : "";
-                                        const dueText = typeof inv.due === 'number' ? inv.due.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : inv.due;
-                                        return (
-                                            <option key={inv.id} value={inv.id}>
-                                                {inv.invoiceLabel} — Due: ₹{dueText}{dateText ? ` — ${dateText}` : ""}
-                                            </option>
-                                        );
-                                    })}
-                                </select>
-                                <p className="mt-1 text-xs text-gray-500">Select an invoice to automatically fill the amount with the due amount</p>
-                            </div>
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">
                                     Reference Number
@@ -782,6 +839,41 @@ export default function ReceiptPage() {
         }
     };
 
+    const getStatusBadge = (receipt) => {
+        // Determine status: if invoice is linked, get status from invoice, otherwise show 'advance'
+        let status = 'advance';
+        let label = 'Advance';
+        
+        if (receipt.invoiceId && receipt.invoiceStatus) {
+            // Use invoice payment status
+            const invStatus = receipt.invoiceStatus;
+            if (invStatus === 'paid') {
+                status = 'paid';
+                label = 'Paid';
+            } else if (invStatus === 'partial') {
+                status = 'partial';
+                label = 'Partial';
+            } else {
+                status = 'unpaid';
+                label = 'Due';
+            }
+        }
+
+        const badges = {
+            'paid': { bg: 'bg-green-100', text: 'text-green-700', label: 'Paid' },
+            'partial': { bg: 'bg-yellow-100', text: 'text-yellow-700', label: 'Partial' },
+            'unpaid': { bg: 'bg-red-100', text: 'text-red-700', label: 'Due' },
+            'advance': { bg: 'bg-blue-100', text: 'text-blue-700', label: 'Advance' },
+        };
+        const badge = badges[status] || badges['advance'];
+        badge.label = label;
+        return (
+            <span className={`inline-flex items-center px-2 py-0.5 rounded ${badge.bg} ${badge.text} text-xs font-medium`}>
+                {badge.label}
+            </span>
+        );
+    };
+
     return (
         <div className="h-full flex flex-col bg-white">
             {/* Header Row */}
@@ -863,6 +955,12 @@ export default function ReceiptPage() {
                                             <span>Reference</span>
                                         </div>
                                     </th>
+                                    <th className="min-w-[100px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-gray-400 cursor-grab">⋮⋮</span>
+                                            <span>Status</span>
+                                        </div>
+                                    </th>
                                     <th className="min-w-[100px] h-9 px-4 text-left text-sm font-medium text-gray-700 sticky right-0 z-20 bg-gray-100 border-l border-gray-400" style={{ boxShadow: '-4px 0 8px -2px rgba(0, 0, 0, 0.15)' }}>
                                         Actions
                                     </th>
@@ -894,6 +992,9 @@ export default function ReceiptPage() {
                                         <td className={getCellClasses(rowIndex, 5) + " text-left text-gray-600"} onClick={() => handleCellClick(rowIndex, 5)}>
                                             {receipt.referenceNumber || "-"}
                                         </td>
+                                        <td className={getCellClasses(rowIndex, 6) + " text-left text-gray-600"} onClick={() => handleCellClick(rowIndex, 6)}>
+                                            {getStatusBadge(receipt)}
+                                        </td>
                                         <td className={`h-8 px-4 text-left sticky right-0 z-10 border-l border-gray-400 ${rowIndex % 2 === 0 ? 'bg-blue-50' : 'bg-white'}`} style={{ boxShadow: '-4px 0 8px -2px rgba(0, 0, 0, 0.1)' }}>
                                             <div className="flex items-center justify-end gap-2">
                                                 <button onClick={() => handleOpenInvoicePreview(receipt)} className="text-purple-600 hover:underline text-sm" title="Export as PDF">PDF</button>
@@ -918,6 +1019,7 @@ export default function ReceiptPage() {
                                             <td className={getCellClasses(rowIndex, 3)}></td>
                                             <td className={getCellClasses(rowIndex, 4)}></td>
                                             <td className={getCellClasses(rowIndex, 5)}></td>
+                                            <td className={getCellClasses(rowIndex, 6)}></td>
                                             <td className={`h-8 px-4 sticky right-0 z-10 border-l border-gray-400 ${rowIndex % 2 === 0 ? 'bg-blue-50' : 'bg-white'}`}></td>
                                         </tr>
                                     );

@@ -31,9 +31,7 @@ const PaymentSplitSchema = new mongoose.Schema({
 
 const PurchaseSchema = new mongoose.Schema({
     ownerId: { type: mongoose.Schema.Types.ObjectId, required: true, index: true },
-
-    // 🔥 Required for multi-company separation
-    accountCompanyName: { type: String, required: true, trim: true, index: true },
+    accountCompanyName: { type: mongoose.Schema.Types.ObjectId, ref: 'Company', required: true, index: true },
 
     supplier: { type: String, trim: true, default: '' },
 
@@ -63,6 +61,11 @@ const PurchaseSchema = new mongoose.Schema({
     totalAmount: { type: Number, default: 0 },
     taxableAmount: { type: Number, default: 0 },
     gstAmount: { type: Number, default: 0 },
+
+    // Payment tracking for partial payments
+    paidAmount: { type: Number, default: 0 },
+    dueAmount: { type: Number, default: 0 },
+    paymentStatus: { type: String, enum: ['unpaid', 'partial', 'paid'], default: 'unpaid' },
 
     additionalCharges: { type: [AdditionalChargeSchema], default: [] },
     payments: { type: [PaymentSplitSchema], default: [] },

@@ -35,8 +35,7 @@ const SaleSchema = new mongoose.Schema({
 
     ownerId: { type: mongoose.Schema.Types.ObjectId, required: true, index: true },
 
-    // REQUIRED business association
-    accountCompanyName: { type: String, required: true, index: true },
+    accountCompanyName: { type: mongoose.Schema.Types.ObjectId, ref: 'Company', required: true, index: true },
 
     customerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Customer', default: null },
     customer: { type: String, required: true, trim: true },
@@ -66,6 +65,11 @@ const SaleSchema = new mongoose.Schema({
     gstAmount: { type: Number, default: 0 },
     subTotal: { type: Number, default: 0 },
     totalAmount: { type: Number, default: 0 },
+
+    // Payment tracking for partial payments
+    paidAmount: { type: Number, default: 0 },
+    dueAmount: { type: Number, default: 0 },
+    paymentStatus: { type: String, enum: ['unpaid', 'partial', 'paid'], default: 'unpaid' },
 
     autoRoundOff: { type: Boolean, default: true },
 

@@ -1,5 +1,5 @@
-import createResourceApi from "src/services/resourceApiFactory";
+import resourceApiFactory from "src/services/resourceApiFactory";
 
-const bankApi = createResourceApi("/api/bank");
+const bankApi = resourceApiFactory("/api/bank");
 
 export default bankApi;

@@ -1,6 +1,6 @@
-// src/controllers/receipt.controller.js
-const Receipt = require("../models/Receipt");
-const Sale = require("../models/Sale");
+// src/controllers/payment.controller.js
+const Payment = require("../models/Payment");
+const Purchase = require("../models/Purchase");
 const mongoose = require("mongoose");
 
 /* ---------------------------- Helper ---------------------------- */
@@ -62,24 +62,24 @@ async function list(req, res, next) {
         const skip = (Number(page) - 1) * Number(limit);
 
         const [docs, total] = await Promise.all([
-            Receipt.find(q)
+            Payment.find(q)
                 .sort(sortObj)
                 .skip(skip)
                 .limit(Number(limit))
                 .populate('invoiceId', 'paymentStatus totalAmount paidAmount dueAmount')
                 .lean(),
-            Receipt.countDocuments(q)
+            Payment.countDocuments(q)
         ]);
 
-        // Add invoice status to each receipt
-        const receiptsWithStatus = docs.map(doc => ({
+        // Add invoice status to each payment
+        const paymentsWithStatus = docs.map(doc => ({
             ...doc,
             invoiceStatus: doc.invoiceId?.paymentStatus || null
         }));
 
         return res.json({
             success: true,
-            data: receiptsWithStatus,
+            data: paymentsWithStatus,
             meta: { page: Number(page), limit: Number(limit), total }
         });
 
@@ -100,7 +100,7 @@ async function getOne(req, res, next) {
                 error: { message: "Valid accountCompanyName is required" }
             });
 
-        const doc = await Receipt.findOne({
+        const doc = await Payment.findOne({
             _id: req.params.id,
             ownerId,
             accountCompanyName: companyId,
@@ -152,16 +152,16 @@ async function create(req, res, next) {
         payload.partyId = payload.partyId ? toObjectId(payload.partyId) : null;
         payload.invoiceId = payload.invoiceId ? toObjectId(payload.invoiceId) : null;
 
-        // If linked to an invoice, update the sale's due amount
+        // If linked to an invoice, update the purchase's due amount
         if (payload.invoiceId && payload.amount > 0) {
-            const sale = await Sale.findOne({
+            const purchase = await Purchase.findOne({
                 _id: payload.invoiceId,
                 ownerId,
                 accountCompanyName: companyId,
                 isDeleted: false
             });
 
-            if (!sale) {
+            if (!purchase) {
                 return res.status(400).json({
                     success: false,
                     error: { message: "Invoice not found" }
@@ -169,11 +169,11 @@ async function create(req, res, next) {
             }
 
             // Calculate new paid and due amounts
-            const newPaidAmount = (sale.paidAmount || 0) + payload.amount;
-            const newDueAmount = Math.max(0, sale.totalAmount - newPaidAmount);
+            const newPaidAmount = (purchase.paidAmount || 0) + payload.amount;
+            const newDueAmount = Math.max(0, purchase.totalAmount - newPaidAmount);
 
             // Ensure we don't overpay
-            if (newPaidAmount > sale.totalAmount) {
+            if (newPaidAmount > purchase.totalAmount) {
                 return res.status(400).json({
                     success: false,
                     error: { message: "Payment amount exceeds invoice due amount" }
@@ -188,8 +188,8 @@ async function create(req, res, next) {
                 paymentStatus = 'partial';
             }
 
-            // Update the sale
-            await Sale.findByIdAndUpdate(payload.invoiceId, {
+            // Update the purchase
+            await Purchase.findByIdAndUpdate(payload.invoiceId, {
                 paidAmount: newPaidAmount,
                 dueAmount: newDueAmount,
                 paymentStatus: paymentStatus,
@@ -197,7 +197,7 @@ async function create(req, res, next) {
             });
         }
 
-        const doc = await Receipt.create(payload);
+        const doc = await Payment.create(payload);
 
         return res.status(201).json({ success: true, data: doc });
 
@@ -236,7 +236,7 @@ async function update(req, res, next) {
         payload.partyId = payload.partyId ? toObjectId(payload.partyId) : null;
         payload.invoiceId = payload.invoiceId ? toObjectId(payload.invoiceId) : null;
 
-        const doc = await Receipt.findOneAndUpdate(
+        const doc = await Payment.findOneAndUpdate(
             {
                 _id: id,
                 ownerId,
@@ -271,7 +271,7 @@ async function remove(req, res, next) {
                 error: { message: "Valid accountCompanyName is required" }
             });
 
-        const doc = await Receipt.findOneAndUpdate(
+        const doc = await Payment.findOneAndUpdate(
             {
                 _id: req.params.id,
                 ownerId,

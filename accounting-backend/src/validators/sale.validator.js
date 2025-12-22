@@ -1,6 +1,7 @@
 const Joi = require('joi');
 
 const objectId = Joi.string().hex().length(24);
+const objectnewId = Joi.string().regex(/^[0-9a-fA-F]{24}$/);
 
 const saleItem = Joi.object({
     itemId: objectId.optional().allow(null),
@@ -32,8 +33,7 @@ const paymentSplit = Joi.object({
 
 // CREATE
 const create = Joi.object({
-    accountCompanyName: Joi.string().trim().required(),
-
+    accountCompanyName: objectnewId.required(),
     customerId: objectId.optional().allow(null),
     customer: Joi.string().trim().required(),
 
@@ -67,41 +67,6 @@ const create = Joi.object({
 });
 
 // UPDATE
-const update = Joi.object({
-    accountCompanyName: Joi.string().trim().optional(),
-
-    customerId: objectId.optional().allow(null),
-    customer: Joi.string().trim().optional(),
-
-    invoicePrefix: Joi.string().trim().optional(),
-    invoiceNumber: Joi.string().trim().optional(),
-    invoiceSuffix: Joi.string().trim().optional().allow(''),
-
-    invoiceDate: Joi.date().iso().optional(),
-
-    items: Joi.array().items(saleItem).min(1).optional(),
-
-    withGst: Joi.boolean().optional(),
-    isPaymentReceived: Joi.boolean().optional(),
-    paymentMode: Joi.string().trim().optional(),
-    refNo: Joi.string().allow('').optional(),
-    depositTo: Joi.string().allow('').optional(),
-    paymentAmount: Joi.number().min(0).optional(),
-    payFull: Joi.boolean().optional(),
-
-    payments: Joi.array().items(paymentSplit).optional(),
-    additionalCharges: Joi.array().items(additionalCharge).optional(),
-    discount: Joi.number().min(0).optional(),
-
-    taxableAmount: Joi.number().optional().allow(null),
-    gstAmount: Joi.number().optional().allow(null),
-    subTotal: Joi.number().optional().allow(null),
-    totalAmount: Joi.number().optional().allow(null),
-
-    autoRoundOff: Joi.boolean().optional(),
-    description: Joi.string().allow('').optional(),
-    isActive: Joi.boolean().optional(),
-    isDeleted: Joi.boolean().optional(),
-});
+const update = create.fork(['accountCompanyName'], (s) => s.optional());
 
 module.exports = { create, update };

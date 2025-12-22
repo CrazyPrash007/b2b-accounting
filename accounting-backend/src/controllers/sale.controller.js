@@ -1,49 +1,52 @@
 // src/controllers/sale.controller.js
-const Sale = require('../models/Sale');
+const Sale = require("../models/Sale");
+const mongoose = require("mongoose");
 
-/**
- * Compute totals
- */
+/* --------------------- Helpers --------------------- */
+function toObjectId(v) {
+    if (!v) return null;
+    try { return new mongoose.Types.ObjectId(v); }
+    catch { return null; }
+}
+
+/* --------------------- Compute Totals --------------------- */
 function computeTotalsFromItems(items = [], discount = 0, additionalCharges = [], withGst = true, autoRoundOff = true) {
     let taxableAmt = 0, totalGst = 0, totalFinalAmt = 0;
 
     items.forEach(it => {
         const qty = Number(it.qty) || 0;
         const rate = Number(it.rate) || 0;
-        const gstPercent = (it.gstPercent != null && it.gstPercent !== '') ? Number(it.gstPercent) : 0;
-        const gstType = it.gstType || 'Excluded';
+        const gstPercent = it.gstPercent != null ? Number(it.gstPercent) : 0;
+        const gstType = it.gstType || "Excluded";
 
-        let actualAmount = 0;
-        let finalAmount = 0;
+        let actual = 0, final = 0;
 
         if (withGst && gstPercent > 0) {
-            if (gstType === 'Excluded') {
-                actualAmount = qty * rate;
-                finalAmount = actualAmount + (actualAmount * gstPercent / 100);
+            if (gstType === "Excluded") {
+                actual = qty * rate;
+                final = actual + (actual * gstPercent / 100);
             } else {
-                finalAmount = qty * rate;
-                actualAmount = finalAmount / (1 + gstPercent / 100);
+                final = qty * rate;
+                actual = final / (1 + gstPercent / 100);
             }
         } else {
-            actualAmount = qty * rate;
-            finalAmount = actualAmount;
+            actual = qty * rate;
+            final = actual;
         }
 
-        actualAmount = Number(actualAmount.toFixed(2));
-        finalAmount = Number(finalAmount.toFixed(2));
+        actual = Number(actual.toFixed(2));
+        final = Number(final.toFixed(2));
 
-        taxableAmt += actualAmount;
-        totalFinalAmt += finalAmount;
-        totalGst += (finalAmount - actualAmount);
+        taxableAmt += actual;
+        totalFinalAmt += final;
+        totalGst += (final - actual);
     });
 
     let subTotal = totalFinalAmt;
     let total = subTotal - (Number(discount) || 0);
 
     if (Array.isArray(additionalCharges)) {
-        additionalCharges.forEach(c => {
-            total += Number(c.amount) || 0;
-        });
+        additionalCharges.forEach(c => total += Number(c.amount) || 0);
     }
 
     if (autoRoundOff) total = Math.round(total);
@@ -57,34 +60,39 @@ function computeTotalsFromItems(items = [], discount = 0, additionalCharges = []
     };
 }
 
+/* --------------------- LIST --------------------- */
 async function list(req, res, next) {
     try {
         const ownerId = req.user.ownerId;
-        const { page = 1, limit = 50, search, sort, fromDate, toDate, accountCompanyName } = req.query;
 
-        const q = { ownerId, isDeleted: false };
+        const companyId = toObjectId(req.query.accountCompanyName);
+        if (!companyId)
+            return res.status(400).json({ success: false, error: { message: "Valid accountCompanyName is required" } });
 
-        if (accountCompanyName) {
-            q.accountCompanyName = accountCompanyName;
-        }
+        const { page = 1, limit = 50, search, sort, fromDate, toDate } = req.query;
+
+        const q = { ownerId, accountCompanyName: companyId, isDeleted: false };
 
         if (search) {
+            const s = search.trim();
             q.$or = [
-                { invoiceNumber: { $regex: search, $options: 'i' } },
-                { customer: { $regex: search, $options: 'i' } },
+                { invoiceNumber: { $regex: s, $options: "i" } },
+                { customer: { $regex: s, $options: "i" } }
             ];
         }
 
+        // Date filters
         if (fromDate || toDate) {
             q.invoiceDate = {};
             if (fromDate) q.invoiceDate.$gte = new Date(fromDate);
             if (toDate) q.invoiceDate.$lte = new Date(toDate);
         }
 
+        // Sorting
         const sortObj = {};
         if (sort) {
-            const [k, dir] = sort.split(':');
-            sortObj[k || 'invoiceDate'] = dir === 'desc' ? -1 : 1;
+            const [k, d] = sort.split(":");
+            sortObj[k || "invoiceDate"] = d === "desc" ? -1 : 1;
         } else {
             sortObj.invoiceDate = -1;
         }
@@ -92,80 +100,93 @@ async function list(req, res, next) {
         const skip = (Number(page) - 1) * Number(limit);
 
         const [docs, total] = await Promise.all([
-            Sale.find(q).sort(sortObj).skip(skip).limit(Number(limit)).lean(),
-            Sale.countDocuments(q),
+            Sale.find(q).sort(sortObj).skip(skip).limit(Number(limit)),
+            Sale.countDocuments(q)
         ]);
 
         res.json({ success: true, data: docs, meta: { page: Number(page), limit: Number(limit), total } });
-    } catch (err) {
-        next(err);
-    }
+
+    } catch (err) { next(err); }
 }
 
-
+/* --------------------- GET ONE --------------------- */
 async function getOne(req, res, next) {
     try {
+        const ownerId = req.user.ownerId;
+
+        const companyId = toObjectId(req.query.accountCompanyName);
+        if (!companyId)
+            return res.status(400).json({ success: false, error: { message: "Valid accountCompanyName is required" } });
+
         const doc = await Sale.findOne({
             _id: req.params.id,
-            ownerId: req.user.ownerId,
+            ownerId,
+            accountCompanyName: companyId,
             isDeleted: false
         });
 
         if (!doc) return res.status(404).json({ success: false, error: { message: "Not found" } });
 
         res.json({ success: true, data: doc });
+
     } catch (err) { next(err); }
 }
 
+/* --------------------- CREATE --------------------- */
 async function create(req, res, next) {
     try {
         const ownerId = req.user.ownerId;
-        const payload = { ...req.body };
 
-        // REQUIRED business/company name
-        payload.accountCompanyName = req.body.accountCompanyName;
-        payload.ownerId = ownerId;
-        payload.createdBy = req.user.id;
+        const companyId = toObjectId(req.body.accountCompanyName);
+        if (!companyId)
+            return res.status(400).json({ success: false, error: { message: "Valid accountCompanyName is required" } });
 
-        if (payload.invoiceDate) payload.invoiceDate = new Date(payload.invoiceDate);
+        const payload = {
+            ...req.body,
+            ownerId,
+            accountCompanyName: companyId,
+            createdBy: req.user.id
+        };
 
-        if (!Array.isArray(payload.items) || payload.items.length === 0) {
-            return res.status(400).json({ success: false, error: { message: 'Items are required' } });
-        }
+        if (!payload.items || payload.items.length === 0)
+            return res.status(400).json({ success: false, error: { message: "Items are required" } });
 
+        if (payload.invoiceDate)
+            payload.invoiceDate = new Date(payload.invoiceDate);
+
+        // Normalize items
         payload.items = payload.items.map(it => ({
             itemId: it.itemId || null,
-            name: (it.goodsService || it.name || '').toString(),
-            description: it.description || '',
+            name: (it.name || it.goodsService || "").toString().trim(),
+            description: it.description || "",
             qty: Number(it.qty) || 0,
             rate: Number(it.rate) || 0,
-            sellPrice: it.sellPrice != null ? Number(it.sellPrice) : it.sellPrice,
-            gstPercent: (it.gstPercent != null && it.gstPercent !== '') ? Number(it.gstPercent) : null,
-            gstType: it.gstType || 'Excluded',
-            hsnNo: it.hsnNo || '',
-            unit: it.unit || '',
-            actualAmount: it.actualAmount != null ? Number(it.actualAmount) : null,
-            finalAmount: it.finalAmount != null ? Number(it.finalAmount) : null,
+            sellPrice: Number(it.sellPrice || 0),
+            gstPercent: it.gstPercent != null ? Number(it.gstPercent) : null,
+            gstType: it.gstType || "Excluded",
+            hsnNo: it.hsnNo || "",
+            unit: it.unit || "",
+            actualAmount: Number(it.actualAmount || 0),
+            finalAmount: Number(it.finalAmount || 0)
         }));
 
-        payload.additionalCharges = Array.isArray(payload.additionalCharges)
-            ? payload.additionalCharges.map(c => ({ name: c.name, amount: Number(c.amount) || 0 }))
-            : [];
+        payload.additionalCharges = (payload.additionalCharges || []).map(c => ({
+            name: c.name,
+            amount: Number(c.amount || 0)
+        }));
 
-        payload.payments = Array.isArray(payload.payments)
-            ? payload.payments.map(p => ({
-                mode: p.mode,
-                amount: Number(p.amount) || 0,
-                refNo: p.refNo || '',
-                depositTo: p.depositTo || ''
-            }))
-            : [];
+        payload.payments = (payload.payments || []).map(p => ({
+            mode: p.mode,
+            amount: Number(p.amount || 0),
+            refNo: p.refNo || "",
+            depositTo: p.depositTo || ""
+        }));
 
-        payload.discount = Number(payload.discount) || 0;
+        payload.discount = Number(payload.discount || 0);
         payload.withGst = payload.withGst !== undefined ? Boolean(payload.withGst) : true;
         payload.autoRoundOff = payload.autoRoundOff !== undefined ? Boolean(payload.autoRoundOff) : true;
 
-        // Compute totals
+        // Calculate totals
         const totals = computeTotalsFromItems(
             payload.items,
             payload.discount,
@@ -174,114 +195,130 @@ async function create(req, res, next) {
             payload.autoRoundOff
         );
 
-        payload.taxableAmount = totals.taxableAmount;
-        payload.gstAmount = totals.gstAmount;
-        payload.subTotal = totals.subTotal;
-        payload.totalAmount = totals.totalAmount;
+        Object.assign(payload, totals);
+
+        // Initialize payment tracking
+        const paymentReceived = Number(payload.paymentAmount || 0);
+        payload.paidAmount = payload.isPaymentReceived ? paymentReceived : 0;
+        payload.dueAmount = Math.max(0, totals.totalAmount - payload.paidAmount);
+        
+        // Calculate payment status
+        if (payload.dueAmount === 0 && payload.paidAmount > 0) {
+            payload.paymentStatus = 'paid';
+        } else if (payload.paidAmount > 0 && payload.dueAmount > 0) {
+            payload.paymentStatus = 'partial';
+        } else {
+            payload.paymentStatus = 'unpaid';
+        }
 
         const doc = await Sale.create(payload);
         res.status(201).json({ success: true, data: doc });
+
     } catch (err) {
-        if (err && err.code === 11000) {
-            return res.status(409).json({
-                success: false,
-                error: { message: 'Invoice with same identifier already exists' }
-            });
-        }
+        if (err?.code === 11000)
+            return res.status(409).json({ success: false, error: { message: "Invoice already exists" } });
         next(err);
     }
 }
 
-
+/* --------------------- UPDATE --------------------- */
 async function update(req, res, next) {
     try {
         const ownerId = req.user.ownerId;
         const id = req.params.id;
+
+        const companyId = toObjectId(req.body.accountCompanyName);
+        if (!companyId)
+            return res.status(400).json({ success: false, error: { message: "Valid accountCompanyName is required" } });
+
         const payload = { ...req.body, updatedBy: req.user.id };
 
-        // Allow updating company name
-        if (payload.accountCompanyName !== undefined) {
-            payload.accountCompanyName = String(payload.accountCompanyName);
-        }
+        if (payload.invoiceDate)
+            payload.invoiceDate = new Date(payload.invoiceDate);
 
-        if (payload.invoiceDate) payload.invoiceDate = new Date(payload.invoiceDate);
-
+        // Normalize items
         if (payload.items) {
             payload.items = payload.items.map(it => ({
                 itemId: it.itemId || null,
-                name: (it.goodsService || it.name || '').toString(),
-                description: it.description || '',
-                qty: Number(it.qty) || 0,
-                rate: Number(it.rate) || 0,
-                sellPrice: it.sellPrice != null ? Number(it.sellPrice) : it.sellPrice,
-                gstPercent: (it.gstPercent != null && it.gstPercent !== '') ? Number(it.gstPercent) : null,
-                gstType: it.gstType || 'Excluded',
-                hsnNo: it.hsnNo || '',
-                unit: it.unit || '',
-                actualAmount: it.actualAmount != null ? Number(it.actualAmount) : null,
-                finalAmount: it.finalAmount != null ? Number(it.finalAmount) : null,
+                name: (it.name || it.goodsService || "").toString().trim(),
+                description: it.description || "",
+                qty: Number(it.qty || 0),
+                rate: Number(it.rate || 0),
+                sellPrice: Number(it.sellPrice || 0),
+                gstPercent: it.gstPercent != null ? Number(it.gstPercent) : null,
+                gstType: it.gstType || "Excluded",
+                hsnNo: it.hsnNo || "",
+                unit: it.unit || "",
+                actualAmount: Number(it.actualAmount || 0),
+                finalAmount: Number(it.finalAmount || 0)
             }));
         }
 
+        // Normalize charges + payments
         if (payload.additionalCharges) {
             payload.additionalCharges = payload.additionalCharges.map(c => ({
                 name: c.name,
-                amount: Number(c.amount) || 0
+                amount: Number(c.amount || 0)
             }));
         }
 
         if (payload.payments) {
             payload.payments = payload.payments.map(p => ({
                 mode: p.mode,
-                amount: Number(p.amount) || 0,
-                refNo: p.refNo || '',
-                depositTo: p.depositTo || ''
+                amount: Number(p.amount || 0),
+                refNo: p.refNo || "",
+                depositTo: p.depositTo || ""
             }));
         }
 
         payload.discount = payload.discount != null ? Number(payload.discount) : undefined;
-        payload.withGst = payload.withGst !== undefined ? Boolean(payload.withGst) : undefined;
-        payload.autoRoundOff = payload.autoRoundOff !== undefined ? Boolean(payload.autoRoundOff) : undefined;
 
-        const existing = await Sale.findOne({ _id: id, ownerId });
-        if (!existing) {
-            return res.status(404).json({ success: false, error: { message: 'Not found' } });
-        }
+        // Fetch existing invoice for totals
+        const old = await Sale.findOne({
+            _id: id,
+            ownerId,
+            accountCompanyName: companyId
+        });
 
-        // Recompute totals
+        if (!old)
+            return res.status(404).json({ success: false, error: { message: "Not found" } });
+
         const totals = computeTotalsFromItems(
-            payload.items || existing.items,
-            payload.discount != null ? payload.discount : existing.discount,
-            payload.additionalCharges != null ? payload.additionalCharges : existing.additionalCharges,
-            payload.withGst != null ? payload.withGst : existing.withGst,
-            payload.autoRoundOff != null ? payload.autoRoundOff : existing.autoRoundOff
+            payload.items || old.items,
+            payload.discount != null ? payload.discount : old.discount,
+            payload.additionalCharges || old.additionalCharges,
+            payload.withGst != null ? payload.withGst : old.withGst,
+            payload.autoRoundOff != null ? payload.autoRoundOff : old.autoRoundOff
         );
 
-        payload.taxableAmount = totals.taxableAmount;
-        payload.gstAmount = totals.gstAmount;
-        payload.subTotal = totals.subTotal;
-        payload.totalAmount = totals.totalAmount;
+        Object.assign(payload, totals);
 
-        const doc = await Sale.findOneAndUpdate({ _id: id, ownerId }, payload, { new: true });
-        if (!doc) {
-            return res.status(404).json({ success: false, error: { message: 'Not found' } });
-        }
+        const doc = await Sale.findOneAndUpdate(
+            { _id: id, ownerId, accountCompanyName: companyId },
+            payload,
+            { new: true }
+        );
 
         res.json({ success: true, data: doc });
+
     } catch (err) {
-        if (err && err.code === 11000) {
-            return res.status(409).json({ success: false, error: { message: 'Invoice with same identifier already exists' } });
-        }
+        if (err?.code === 11000)
+            return res.status(409).json({ success: false, error: { message: "Invoice already exists" } });
         next(err);
     }
 }
 
-
+/* --------------------- REMOVE (Soft Delete) --------------------- */
 async function remove(req, res, next) {
     try {
         const ownerId = req.user.ownerId;
+
+        const companyId = toObjectId(req.query.accountCompanyName);
+        if (!companyId)
+            return res.status(400).json({ success: false, error: { message: "Valid accountCompanyName is required" } });
+
         const updated = await Sale.findOneAndUpdate(
-            { _id: req.params.id, ownerId },
+            { _id: req.params.id, ownerId, accountCompanyName: companyId },
             { isDeleted: true, updatedBy: req.user.id },
             { new: true }
         );
@@ -290,6 +327,7 @@ async function remove(req, res, next) {
             return res.status(404).json({ success: false, error: { message: "Not found" } });
 
         res.json({ success: true, data: updated });
+
     } catch (err) { next(err); }
 }
 

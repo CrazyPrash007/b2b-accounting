@@ -1,13 +1,26 @@
 import apiClient from "src/services/apiClient";
-import createResourceApi from "src/services/resourceApiFactory";
+import resourceApiFactory from "src/services/resourceApiFactory";
+import { getCurrentCompany } from "src/services/companyContextAccessor";
 
-const baseApi = createResourceApi("/api/expense");
+const baseApi = resourceApiFactory("/api/expense");
 
 const expenseApi = {
     ...baseApi,
 
     // override CREATE → multipart/form-data
-    create: async (formData) => {
+    create: async (formData, accountCompanyName) => {
+        // Get company from parameter or from global context
+        const companyId = accountCompanyName || getCurrentCompany();
+        
+        // If formData is a FormData object, delete existing and set accountCompanyName
+        if (formData instanceof FormData) {
+            formData.delete("accountCompanyName");
+            formData.append("accountCompanyName", companyId);
+        } else {
+            // If it's a plain object, add the property
+            formData.accountCompanyName = companyId;
+        }
+        
         const res = await apiClient.post("/api/expense", formData, {
             headers: { "Content-Type": "multipart/form-data" }
         });
@@ -15,7 +28,19 @@ const expenseApi = {
     },
 
     // override UPDATE → multipart/form-data
-    update: async (id, formData) => {
+    update: async (id, formData, accountCompanyName) => {
+        // Get company from parameter or from global context
+        const companyId = accountCompanyName || getCurrentCompany();
+        
+        // If formData is a FormData object, delete existing and set accountCompanyName
+        if (formData instanceof FormData) {
+            formData.delete("accountCompanyName");
+            formData.append("accountCompanyName", companyId);
+        } else {
+            // If it's a plain object, add the property
+            formData.accountCompanyName = companyId;
+        }
+        
         const res = await apiClient.put(`/api/expense/${id}`, formData, {
             headers: { "Content-Type": "multipart/form-data" }
         });
