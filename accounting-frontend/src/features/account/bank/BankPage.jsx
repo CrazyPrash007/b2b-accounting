@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef, useContext } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import useBank from "./hooks/useBank";
 import { CompanyContext } from "src/App";
+import { exportTableToExcel } from "../../../utils/excelExport";
 
 /**
  * BankModal - Compact centered modal for creating/editing a bank account
@@ -494,6 +495,32 @@ export default function BankPage() {
     };
 
 
+    const handleExportToExcel = () => {
+        const columns = [
+            { header: 'Sr No', key: 'srNo' },
+            { header: 'Account Display Name', key: 'accountDisplayName' },
+            { header: 'Bank Name', key: 'bankName' },
+            { header: 'Account Number', key: 'accountNumber' },
+            { header: 'IFSC Code', key: 'ifscCode' },
+            { header: 'Account Holder', key: 'accountHolderName' },
+            { header: 'Opening Balance', key: 'openingBalance' },
+            { header: 'Balance Type', key: 'openingBalanceType' },
+            { header: 'Status', key: 'status' },
+        ];
+        const exportData = bankAccounts.map((account, idx) => ({
+            srNo: idx + 1,
+            accountDisplayName: account.accountDisplayName || '-',
+            bankName: account.bankName || '-',
+            accountNumber: account.accountNumber || '-',
+            ifscCode: account.ifscCode || '-',
+            accountHolderName: account.accountHolderName || '-',
+            openingBalance: account.openingBalance != null ? `₹${account.openingBalance}` : '-',
+            openingBalanceType: account.openingBalanceType || '-',
+            status: account.status || '-',
+        }));
+        exportTableToExcel(exportData, columns, 'Bank_Accounts');
+    };
+
     const handleCellClick = (rowIndex, colIndex) => {
         setSelectedCell({ rowIndex, colIndex });
     };
@@ -568,6 +595,18 @@ export default function BankPage() {
             </div>
 
             {/* Toolbar - Icons commented out */}
+            <div className="flex items-center justify-end gap-2 px-4 py-2 border-b border-gray-100">
+                <button 
+                    onClick={handleExportToExcel}
+                    className="flex items-center gap-2 px-3 py-1.5 text-gray-600 hover:bg-gray-100 rounded text-sm"
+                    title="Export to Excel"
+                >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    Export to Excel
+                </button>
+            </div>
             {/*
             <div className="flex items-center justify-end gap-2 px-4 py-2 border-b border-gray-100">
                 <button className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded">

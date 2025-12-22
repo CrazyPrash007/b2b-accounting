@@ -1,10 +1,17 @@
 // SalesPage.jsx
 import React, { useState, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import useSale from "./hooks/useSale";
+import saleApi from "./api/sale.api";
+import PdfPreviewModal from "../../../components/PdfPreviewModal";
 import { getCurrentCompany } from "../../../services/companyContextAccessor";
+import { exportTableToExcel } from "../../../utils/excelExport";
+import { authFetch } from "../../../services/apiClient";
 
 // SalesInvoiceModal - replaces the existing modal in SalesPage.jsx
 function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGst = true, bankAccounts: bankAccountsProp = [], gstRates: gstRatesProp = [] }) {
+    const navigate = useNavigate();
+    
     // Get next invoice counter from localStorage or start at 1
     const getNextInvoiceCounter = () => {
         const saved = localStorage.getItem('salesInvoiceCounter');
@@ -18,7 +25,7 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
         invoiceSuffix: "",
         invoiceDate: new Date().toISOString().split('T')[0],
         // <-- make sure new items have both goodsService and name
-        items: [{ id: 1, goodsService: "", name: "", qty: "", rate: "", gstPercent: "", gstType: "Included", actualAmount: "", finalAmount: "" }],
+        items: [{ id: 1, goodsService: "", name: "", qty: "1", rate: "", gstPercent: "", gstType: "Included", actualAmount: "", finalAmount: "" }],
         isPaymentReceived: true,
         paymentMode: "Cash",
         refNo: "",
@@ -31,6 +38,12 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
     });
 
     const [error, setError] = useState("");
+
+    // Advance payment state
+    const [availableAdvances, setAvailableAdvances] = useState([]);
+    const [selectedAdvance, setSelectedAdvance] = useState(null);
+    const [applyAdvance, setApplyAdvance] = useState(false);
+    const [advanceAmount, setAdvanceAmount] = useState("");
 
     // Additional charges state
     const [additionalCharges, setAdditionalCharges] = useState([]);
@@ -53,6 +66,10 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
 
     const [listsLoading, setListsLoading] = useState(false);
     const [listsError, setListsError] = useState(null);
+
+    // Autocomplete dropdown state
+    const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
+    const [customerSearchTerm, setCustomerSearchTerm] = useState("");
 
     // Default GST options if no rates provided from props/api
     const defaultGstOptions = ["0", "5", "12", "18", "28"];
@@ -117,7 +134,7 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
                     invoiceNumber: String(nextCounter).padStart(6, '0'),
                     invoiceSuffix: "",
                     invoiceDate: new Date().toISOString().split('T')[0],
-                    items: [{ id: 1, goodsService: "", name: "", qty: "", rate: "", gstPercent: "", gstType: "Included", actualAmount: "", finalAmount: "" }],
+                    items: [{ id: 1, goodsService: "", name: "", qty: "1", rate: "", gstPercent: "", gstType: "Included", actualAmount: "", finalAmount: "" }],
                     isPaymentReceived: true,
                     paymentMode: "Cash",
                     refNo: "",
@@ -156,11 +173,11 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
             const companyId = getCurrentCompany();
             // NOTE: added /api/vendors to fetch vendors and merge with customers
             const promises = await Promise.allSettled([
-                fetch(`${API_BASE}/api/customers?accountCompanyName=${companyId}`),
-                fetch(`${API_BASE}/api/vendors?accountCompanyName=${companyId}`),    // <-- added vendors
-                fetch(`${API_BASE}/api/items?accountCompanyName=${companyId}`),
-                fetch(`${API_BASE}/api/gst?accountCompanyName=${companyId}`),
-                fetch(`${API_BASE}/api/bank?accountCompanyName=${companyId}`)
+                authFetch(`${API_BASE}/api/customers?accountCompanyName=${companyId}`),
+                authFetch(`${API_BASE}/api/vendors?accountCompanyName=${companyId}`),    // <-- added vendors
+                authFetch(`${API_BASE}/api/items?accountCompanyName=${companyId}`),
+                authFetch(`${API_BASE}/api/gst?accountCompanyName=${companyId}`),
+                authFetch(`${API_BASE}/api/bank?accountCompanyName=${companyId}`)
             ]);
 
             const parseSettled = async (s) => {
@@ -251,40 +268,93 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
         return rateVal != null ? String(rateVal) : "";
     };
 
+    // Fetch advance payments for the selected customer
+    const fetchAdvancePayments = async (customerName) => {
+        if (!customerName || !customerName.trim()) {
+            setAvailableAdvances([]);
+            setSelectedAdvance(null);
+            setApplyAdvance(false);
+            setAdvanceAmount("");
+            return;
+        }
+
+        try {
+            const companyId = getCurrentCompany();
+            const res = await authFetch(`${API_BASE}/api/receipts?search=${encodeURIComponent(customerName)}&accountCompanyName=${companyId}`);
+            if (!res.ok) {
+                setAvailableAdvances([]);
+                return;
+            }
+            const body = await parseJsonSafe(res);
+            const receipts = Array.isArray(body) ? body : [];
+
+            // Filter for advance payments with remaining balance
+            const normalizedCustomer = customerName.toString().trim().toLowerCase();
+            const advances = receipts.filter(r => {
+                const matchesCustomer = (r.party || "").toString().trim().toLowerCase() === normalizedCustomer;
+                // Check if has remaining amount (for new receipts, remainingAmount might not be set, so fallback to amount - usedAmount)
+                const remaining = r.remainingAmount !== undefined ? Number(r.remainingAmount) : (Number(r.amount || 0) - Number(r.usedAmount || 0));
+                const hasBalance = remaining > 0;
+                return matchesCustomer && hasBalance;
+            });
+
+            // Add calculated remaining amount to each advance for display
+            const advancesWithBalance = advances.map(adv => ({
+                ...adv,
+                _remainingAmount: adv.remainingAmount !== undefined ? Number(adv.remainingAmount) : (Number(adv.amount || 0) - Number(adv.usedAmount || 0))
+            }));
+
+            setAvailableAdvances(advancesWithBalance);
+        } catch (err) {
+            console.error("Failed to fetch advance payments", err);
+            setAvailableAdvances([]);
+        }
+    };
+
 
     // existing helpers (handleItemChange, addRow, etc.) reused with a tweak to auto-fill rate when goodsService set
     const handleChange = (field, value) => {
         setFormData((prev) => {
             const updated = { ...prev, [field]: value };
             
-            // If Pay Full checkbox is checked, auto-fill payment amount with total amount
+            // If Pay Full checkbox is checked, auto-fill payment amount with total amount or due amount
             if (field === "payFull" && value === true) {
-                // Calculate total based on current state
-                let taxableAmt = 0;
-                let totalGst = 0;
-                let totalFinalAmt = 0;
+                // In edit mode with partial payments, use due amount
+                if (editData && editData.dueAmount != null && editData.dueAmount > 0) {
+                    updated.paymentAmount = String(editData.dueAmount);
+                } else {
+                    // Calculate total based on current state
+                    let taxableAmt = 0;
+                    let totalGst = 0;
+                    let totalFinalAmt = 0;
 
-                updated.items.forEach(item => {
-                    const actualAmount = parseFloat(item.actualAmount) || 0;
-                    const finalAmount = parseFloat(item.finalAmount) || 0;
-                    taxableAmt += actualAmount;
-                    totalFinalAmt += finalAmount;
-                    totalGst += (finalAmount - actualAmount);
-                });
+                    updated.items.forEach(item => {
+                        const actualAmount = parseFloat(item.actualAmount) || 0;
+                        const finalAmount = parseFloat(item.finalAmount) || 0;
+                        taxableAmt += actualAmount;
+                        totalFinalAmt += finalAmount;
+                        totalGst += (finalAmount - actualAmount);
+                    });
 
-                let subTotal = totalFinalAmt;
-                const discountAmount = parseFloat(updated.discount) || 0;
-                let total = subTotal - discountAmount;
+                    let subTotal = totalFinalAmt;
+                    const discountAmount = parseFloat(updated.discount) || 0;
+                    let total = subTotal - discountAmount;
 
-                additionalCharges.forEach(c => {
-                    total += parseFloat(c.amount) || 0;
-                });
+                    additionalCharges.forEach(c => {
+                        total += parseFloat(c.amount) || 0;
+                    });
 
-                if (updated.autoRoundOff) {
-                    total = Math.round(total);
+                    if (updated.autoRoundOff) {
+                        total = Math.round(total);
+                    }
+
+                    updated.paymentAmount = String(total);
                 }
+            }
 
-                updated.paymentAmount = String(total);
+            // When customer changes, fetch advance payments
+            if (field === "customer" && value && value.trim()) {
+                setTimeout(() => fetchAdvancePayments(value), 300);
             }
             
             return updated;
@@ -296,13 +366,25 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
         const newItems = [...formData.items];
         newItems[index] = { ...newItems[index], [field]: value };
 
-        // If goodsService changed, try to autofill rate synchronously
+        // If goodsService changed, try to autofill rate and GST synchronously
         if (field === "goodsService") {
             // set the canonical name too so payload and later editing remain consistent
             newItems[index].name = value;
-            const autoRate = tryAutoFillRate(value);
-            if (autoRate !== "") {
-                newItems[index].rate = autoRate;
+            const match = itemsList.find(i => {
+                const name = (i._displayName || i.itemName || i.name || "").toString().trim().toLowerCase();
+                return name && name === value.toString().trim().toLowerCase();
+            });
+            if (match) {
+                // Auto-fill rate
+                const autoRate = match.sellPrice ?? match.rate ?? match.price ?? match.buyPrice ?? "";
+                if (autoRate !== "") {
+                    newItems[index].rate = autoRate;
+                }
+                // Auto-fill and lock GST
+                if (match.gstRate != null) {
+                    newItems[index].gstPercent = String(match.gstRate);
+                    newItems[index].gstLocked = true; // Mark GST as locked
+                }
             }
         }
 
@@ -495,6 +577,28 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
             setError("Customer is required");
             return;
         }
+
+        // Validate advance application if selected
+        if (applyAdvance) {
+            if (!selectedAdvance) {
+                setError("Please select an advance payment to apply");
+                return;
+            }
+            if (!advanceAmount || Number(advanceAmount) <= 0) {
+                setError("Please enter a valid advance amount");
+                return;
+            }
+            const maxAdvance = Number(selectedAdvance._remainingAmount || 0);
+            if (Number(advanceAmount) > maxAdvance) {
+                setError(`Advance amount cannot exceed available balance of ₹${maxAdvance.toFixed(2)}`);
+                return;
+            }
+            if (Number(advanceAmount) > totals.total) {
+                setError("Advance amount cannot exceed invoice total");
+                return;
+            }
+        }
+
         const salesData = {
             id: isEditMode ? editData.id : String(Date.now()),
             ...formData,
@@ -507,6 +611,13 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
             payments,
         };
 
+        // Add advance payment information if applicable
+        if (applyAdvance && selectedAdvance && advanceAmount) {
+            salesData.advancePayment = {
+                receiptId: selectedAdvance._id,
+                amount: Number(advanceAmount)
+            };
+        }
 
         if (!isEditMode) {
             const currentCounter = getNextInvoiceCounter();
@@ -547,26 +658,47 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
                     {/* Top Section - Customer & Invoice Details */}
                     <div className="grid grid-cols-2 gap-4 flex-shrink-0">
                         {/* Customer Selection */}
-                        <div>
+                        <div className="relative">
                             <label className="block text-sm font-medium text-gray-700 mb-1">
                                 Select Customer <span className="text-red-500">*</span>
                             </label>
-                            <div className="flex gap-2">
-                                <input
-                                    type="text"
-                                    value={formData.customer}
-                                    onChange={(e) => handleChange("customer", e.target.value)}
-                                    placeholder="Search customer or vendor"
-                                    className="flex-1 border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-                                    list="customers-datalist"
-                                />
-                                <datalist id="customers-datalist">
-                                    {customersList.map((c, idx) => <option key={idx} value={c} />)}
-                                </datalist>
-                                <button className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm whitespace-nowrap">
-                                    + End Customer
-                                </button>
-                            </div>
+                            <input
+                                type="text"
+                                value={formData.customer}
+                                onChange={(e) => {
+                                    handleChange("customer", e.target.value);
+                                    setCustomerSearchTerm(e.target.value);
+                                    setShowCustomerDropdown(true);
+                                }}
+                                onFocus={() => setShowCustomerDropdown(true)}
+                                onBlur={() => setTimeout(() => setShowCustomerDropdown(false), 200)}
+                                placeholder="Type to search customer or vendor..."
+                                className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                            />
+                            {showCustomerDropdown && (
+                                <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                                    {customersList
+                                        .filter(c => c.toLowerCase().includes((formData.customer || "").toLowerCase()))
+                                        .map((c, idx) => (
+                                            <div
+                                                key={idx}
+                                                onClick={() => {
+                                                    handleChange("customer", c);
+                                                    setShowCustomerDropdown(false);
+                                                }}
+                                                className="px-3 py-2 text-sm hover:bg-blue-50 cursor-pointer"
+                                            >
+                                                {c}
+                                            </div>
+                                        ))}
+                                    <div
+                                        onClick={() => navigate("/customer")}
+                                        className="px-3 py-2 text-sm text-blue-600 font-semibold hover:bg-blue-50 cursor-pointer border-t border-gray-200"
+                                    >
+                                        + Add New Customer
+                                    </div>
+                                </div>
+                            )}
                         </div>
 
                         {/* Invoice Number & Date */}
@@ -642,15 +774,27 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
                                     <tr key={item.id} className="border-b border-gray-200" data-item-row={index}>
                                         <td className="pl-2 pr-1 py-1 text-gray-600 text-center">{index + 1}</td>
                                         <td className="px-1 py-1">
-                                            <input
-                                                type="text"
+                                            <select
                                                 value={item.goodsService}
-                                                onChange={(e) => handleItemChange(index, "goodsService", e.target.value)}
+                                                onChange={(e) => {
+                                                    const value = e.target.value;
+                                                    if (value === "__ADD_NEW_ITEM__") {
+                                                        navigate("/items");
+                                                    } else {
+                                                        handleItemChange(index, "goodsService", value);
+                                                    }
+                                                }}
                                                 onKeyDown={(e) => handleItemInputKeyDown(e, index, 0)}
-                                                placeholder="Search or select item"
                                                 className="w-full border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-                                                list={`items-datalist`}
-                                            />
+                                            >
+                                                <option value="">-- Select Item --</option>
+                                                {itemsList.map((it, idx) => (
+                                                    <option key={idx} value={it._displayName || it.displayName || it.itemName || it.name}>
+                                                        {it._displayName || it.displayName || it.itemName || it.name}
+                                                    </option>
+                                                ))}
+                                                <option value="__ADD_NEW_ITEM__" className="text-blue-600 font-semibold">+ Add New Item</option>
+                                            </select>
                                         </td>
                                         <td className="px-1 py-1">
                                             <input
@@ -659,6 +803,8 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
                                                 onChange={(e) => handleItemChange(index, "qty", e.target.value)}
                                                 onKeyDown={(e) => handleItemInputKeyDown(e, index, 1)}
                                                 className="w-full border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                                min="0"
+                                                step="1"
                                             />
                                         </td>
                                         <td className="px-1 py-1">
@@ -668,20 +814,31 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
                                                 onChange={(e) => handleItemChange(index, "rate", e.target.value)}
                                                 onKeyDown={(e) => handleItemInputKeyDown(e, index, 2, !withGst)}
                                                 className="w-full border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                                min="0"
+                                                step="0.01"
                                             />
                                         </td>
                                         {withGst && (
                                             <>
                                                 <td className="px-1 py-1">
-                                                    <select
-                                                        value={item.gstPercent}
-                                                        onChange={(e) => handleItemChange(index, "gstPercent", e.target.value)}
-                                                        onKeyDown={(e) => handleItemInputKeyDown(e, index, 3)}
-                                                        className="w-full border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-                                                    >
-                                                        <option value="">GST</option>
-                                                        {gstOptions.map(g => <option key={g} value={g}>{g}%</option>)}
-                                                    </select>
+                                                    {item.gstLocked ? (
+                                                        <input
+                                                            type="text"
+                                                            value={item.gstPercent ? `${item.gstPercent}%` : ''}
+                                                            readOnly
+                                                            className="w-full border border-gray-300 rounded px-2 py-1 text-sm bg-gray-100 cursor-not-allowed"
+                                                        />
+                                                    ) : (
+                                                        <select
+                                                            value={item.gstPercent}
+                                                            onChange={(e) => handleItemChange(index, "gstPercent", e.target.value)}
+                                                            onKeyDown={(e) => handleItemInputKeyDown(e, index, 3)}
+                                                            className="w-full border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                                        >
+                                                            <option value="">GST</option>
+                                                            {gstOptions.map(g => <option key={g} value={g}>{g}%</option>)}
+                                                        </select>
+                                                    )}
                                                 </td>
                                                 <td className="px-1 py-1">
                                                     <select
@@ -729,10 +886,6 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
                                 ))}
                             </tbody>
                         </table>
-                        {/* datalist for items (single datalist used for all rows) */}
-                        <datalist id="items-datalist">
-                            {itemsList.map((it, idx) => <option key={idx} value={it._displayName || it.displayName || it.itemName || it.name} />)}
-                        </datalist>
                     </div>
 
                     {/* Bottom Section - Payment & Summary */}
@@ -833,6 +986,92 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
                                             ))}
                                         </div>
                                     )}
+                                </div>
+                            )}
+
+                            {/* Advance Payment Section */}
+                            {availableAdvances.length > 0 && !isEditMode && (
+                                <div className="mt-3 pt-3 border-t border-gray-200">
+                                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                                        <div className="flex items-start gap-2">
+                                            <svg className="w-5 h-5 text-blue-600 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                            </svg>
+                                            <div className="flex-1">
+                                                <p className="text-sm font-medium text-blue-900 mb-2">
+                                                    Advance Payment Available
+                                                </p>
+                                                <p className="text-xs text-blue-700 mb-2">
+                                                    This customer has {availableAdvances.length} advance payment{availableAdvances.length > 1 ? 's' : ''} with total available balance of ₹{availableAdvances.reduce((sum, adv) => sum + Number(adv._remainingAmount || 0), 0).toFixed(2)}
+                                                </p>
+                                                <label className="flex items-center gap-2 mb-2">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={applyAdvance}
+                                                        onChange={(e) => {
+                                                            setApplyAdvance(e.target.checked);
+                                                            if (!e.target.checked) {
+                                                                setSelectedAdvance(null);
+                                                                setAdvanceAmount("");
+                                                            }
+                                                        }}
+                                                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                                    />
+                                                    <span className="text-sm font-medium text-blue-900">Apply advance to this sale</span>
+                                                </label>
+
+                                                {applyAdvance && (
+                                                    <div className="space-y-2 pl-6">
+                                                        <div>
+                                                            <label className="block text-xs text-blue-700 mb-1">Select Advance</label>
+                                                            <select
+                                                                value={selectedAdvance?._id || ""}
+                                                                onChange={(e) => {
+                                                                    const adv = availableAdvances.find(a => a._id === e.target.value);
+                                                                    setSelectedAdvance(adv || null);
+                                                                    if (adv) {
+                                                                        setAdvanceAmount(String(adv._remainingAmount));
+                                                                    } else {
+                                                                        setAdvanceAmount("");
+                                                                    }
+                                                                }}
+                                                                className="w-full border border-blue-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                                            >
+                                                                <option value="">Select an advance payment...</option>
+                                                                {availableAdvances.map(adv => (
+                                                                    <option key={adv._id} value={adv._id}>
+                                                                        {new Date(adv.date).toLocaleDateString()} - Available: ₹{Number(adv._remainingAmount || 0).toFixed(2)} ({adv.paymentMethod})
+                                                                    </option>
+                                                                ))}
+                                                            </select>
+                                                        </div>
+                                                        {selectedAdvance && (
+                                                            <div>
+                                                                <label className="block text-xs text-blue-700 mb-1">
+                                                                    Amount to apply (max: ₹{Number(selectedAdvance._remainingAmount).toFixed(2)})
+                                                                </label>
+                                                                <input
+                                                                    type="number"
+                                                                    value={advanceAmount}
+                                                                    onChange={(e) => {
+                                                                        const val = Number(e.target.value);
+                                                                        const max = Number(selectedAdvance._remainingAmount);
+                                                                        if (val <= max && val >= 0) {
+                                                                            setAdvanceAmount(e.target.value);
+                                                                        }
+                                                                    }}
+                                                                    max={selectedAdvance._remainingAmount}
+                                                                    min="0"
+                                                                    step="0.01"
+                                                                    className="w-full border border-blue-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                                                />
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             )}
                         </div>
@@ -964,6 +1203,10 @@ export default function SalesPage() {
     const [invoiceType, setInvoiceType] = useState("withGst"); // "withGst" or "withoutGst"
     const [activeTab, setActiveTab] = useState("all"); // "all", "withGst", "withoutGst"
 
+    // PDF Preview state
+    const [isPdfPreviewOpen, setIsPdfPreviewOpen] = useState(false);
+    const [selectedInvoiceForPdf, setSelectedInvoiceForPdf] = useState(null);
+
     // bank/accounts and gst fetched from server (no localStorage)
     const [bankAccounts, setBankAccounts] = useState([]);
     const [gstRates, setGstRates] = useState([]);
@@ -1073,6 +1316,32 @@ export default function SalesPage() {
         if (e.target === e.currentTarget) {
             setSelectedCell(null);
         }
+    };
+
+    const handleExportToExcel = () => {
+        const columns = [
+            { header: 'Date', key: 'date' },
+            { header: 'Invoice No', key: 'invoiceNo' },
+            { header: 'Customer', key: 'customer' },
+            { header: 'Amount', key: 'amount' },
+            { header: 'GST', key: 'gst' },
+            { header: 'Type', key: 'type' },
+            { header: 'Status', key: 'status' },
+            { header: 'Due Amount', key: 'dueAmount' },
+        ];
+        
+        const exportData = filteredInvoices.map(invoice => ({
+            date: formatDate(invoice.invoiceDate),
+            invoiceNo: `${invoice.invoicePrefix || ''}${invoice.invoiceNumber || ''}${invoice.invoiceSuffix || ''}`,
+            customer: invoice.customerName || '-',
+            amount: invoice.totalAmount || 0,
+            gst: invoice.gstType || '-',
+            type: invoice.invoiceType || '-',
+            status: invoice.paymentStatus || '-',
+            dueAmount: invoice.dueAmount || 0,
+        }));
+        
+        exportTableToExcel(exportData, columns, 'Sales_Invoices_Report', 'Sales');
     };
 
     const handleCellClick = (rowIndex, colIndex) => {
@@ -1239,6 +1508,19 @@ export default function SalesPage() {
         }
     };
 
+    const handleDownloadPDF = async (invoice) => {
+        const id = invoice._id || invoice.id;
+        if (!id) return;
+
+        setSelectedInvoiceForPdf(invoice);
+        setIsPdfPreviewOpen(true);
+    };
+
+    const handleClosePdfPreview = () => {
+        setIsPdfPreviewOpen(false);
+        setSelectedInvoiceForPdf(null);
+    };
+
     // ---------- render ----------
     return (
         <div className="h-full flex flex-col bg-white">
@@ -1298,6 +1580,16 @@ export default function SalesPage() {
 
             {/* Toolbar */}
             <div className="flex items-center justify-end gap-2 px-4 py-2 border-b border-gray-100">
+                <button 
+                    onClick={handleExportToExcel}
+                    className="flex items-center gap-2 px-3 py-1.5 text-gray-600 hover:bg-gray-100 rounded text-sm"
+                    title="Export to Excel"
+                >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    Export to Excel
+                </button>
                 <div className="w-px h-5 bg-gray-300 mx-1"></div>
                 <button className="flex items-center gap-2 px-3 py-1.5 text-gray-600 hover:bg-gray-100 rounded text-sm">
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1354,16 +1646,17 @@ export default function SalesPage() {
                                             <span>Type</span>
                                         </div>
                                     </th>
-                                    <th className="min-w-[110px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
-                                        <div className="flex items-center gap-2">
-                                            <span className="text-gray-400 cursor-grab">⋮⋮</span>
-                                            <span>Payment</span>
-                                        </div>
-                                    </th>
+                                    {/* Payment column removed as requested */}
                                     <th className="min-w-[120px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
                                         <div className="flex items-center gap-2">
                                             <span className="text-gray-400 cursor-grab">⋮⋮</span>
                                             <span>Status</span>
+                                        </div>
+                                    </th>
+                                    <th className="min-w-[130px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-gray-400 cursor-grab">⋮⋮</span>
+                                            <span>Due Amount</span>
                                         </div>
                                     </th>
                                     <th className="min-w-[100px] h-9 px-4 text-left text-sm font-medium text-gray-700 sticky right-0 z-20 bg-gray-100 border-l border-gray-400" style={{ boxShadow: '-4px 0 8px -2px rgba(0, 0, 0, 0.15)' }}>
@@ -1417,18 +1710,8 @@ export default function SalesPage() {
                                             </span>
                                         </td>
                                         <td
-                                            className={getCellClasses(rowIndex, 6) + " text-left text-gray-600"}
+                                            className={getCellClasses(rowIndex, 6) + " text-left"}
                                             onClick={() => handleCellClick(rowIndex, 6)}
-                                        >
-                                            {invoice.isPaymentReceived ? (
-                                                <span className="text-green-600 text-xs">✓ Received</span>
-                                            ) : (
-                                                <span className="text-yellow-600 text-xs">Pending</span>
-                                            )}
-                                        </td>
-                                        <td
-                                            className={getCellClasses(rowIndex, 7) + " text-left"}
-                                            onClick={() => handleCellClick(rowIndex, 7)}
                                         >
                                             {(() => {
                                                 const status = invoice.paymentStatus || 'unpaid';
@@ -1445,8 +1728,21 @@ export default function SalesPage() {
                                                 );
                                             })()}
                                         </td>
+                                        <td
+                                            className={getCellClasses(rowIndex, 7) + " text-left text-gray-600 font-medium"}
+                                            onClick={() => handleCellClick(rowIndex, 7)}
+                                        >
+                                            {invoice.dueAmount != null && invoice.dueAmount > 0 ? formatCurrency(invoice.dueAmount) : "-"}
+                                        </td>
                                         <td className={`h-8 px-4 text-left sticky right-0 z-10 border-l border-gray-400 ${rowIndex % 2 === 0 ? 'bg-blue-50' : 'bg-white'}`} style={{ boxShadow: '-4px 0 8px -2px rgba(0, 0, 0, 0.1)' }}>
                                             <div className="flex items-center justify-end gap-2">
+                                                <button
+                                                    onClick={() => handleDownloadPDF(invoice)}
+                                                    className="text-green-600 hover:underline text-sm"
+                                                    title="Download PDF"
+                                                >
+                                                    PDF
+                                                </button>
                                                 <button
                                                     onClick={() => handleEditInvoice(invoice)}
                                                     className="text-blue-600 hover:underline text-sm"
@@ -1504,6 +1800,17 @@ export default function SalesPage() {
                 bankAccounts={bankAccounts}
                 gstRates={gstRates}
             />
+
+            {/* PDF Preview Modal */}
+            {selectedInvoiceForPdf && (
+                <PdfPreviewModal
+                    isOpen={isPdfPreviewOpen}
+                    onClose={handleClosePdfPreview}
+                    fetchPdfBlob={() => saleApi.getPdfBlob(selectedInvoiceForPdf._id || selectedInvoiceForPdf.id)}
+                    title="Sales Invoice Preview"
+                    filename={`SalesInvoice_${selectedInvoiceForPdf.invoicePrefix}${selectedInvoiceForPdf.invoiceNumber}${selectedInvoiceForPdf.invoiceSuffix}.pdf`}
+                />
+            )}
 
             {/* show simple errors */}
             {(error || invoicesError) && <div className="p-3 text-red-600 text-sm">{error || (invoicesError && String(invoicesError))}</div>}
