@@ -69,16 +69,41 @@ async function list(req, res, next) {
                 .sort(sortObj)
                 .skip(skip)
                 .limit(Number(limit))
-                .populate('invoiceId', 'paymentStatus totalAmount paidAmount dueAmount')
+                .populate('invoiceId', 'paymentStatus totalAmount paidAmount dueAmount invoiceNumber invoicePrefix invoiceSuffix')
+                .populate('linkedSales.saleId', 'paymentStatus invoiceNumber invoicePrefix invoiceSuffix totalAmount')
                 .lean(),
             Receipt.countDocuments(q)
         ]);
 
-        // Add invoice status to each receipt
-        const receiptsWithStatus = docs.map(doc => ({
-            ...doc,
-            invoiceStatus: doc.invoiceId?.paymentStatus || null
-        }));
+        // Add computed status to each receipt
+        const receiptsWithStatus = docs.map(doc => {
+            const totalAmount = Number(doc.amount || 0);
+            const usedAmount = Number(doc.usedAmount || 0);
+            const remainingAmount = Number(doc.remainingAmount ?? (totalAmount - usedAmount));
+            
+            // Determine receipt status based on usage
+            let receiptStatus = 'advance';  // Default: advance payment available
+            
+            if (doc.invoiceId) {
+                // Linked directly to an invoice (payment against invoice)
+                receiptStatus = doc.invoiceId.paymentStatus || 'linked';
+            } else if (usedAmount > 0) {
+                if (remainingAmount <= 0) {
+                    // Fully used in sales
+                    receiptStatus = 'fully_used';
+                } else {
+                    // Partially used
+                    receiptStatus = 'partially_used';
+                }
+            }
+            
+            return {
+                ...doc,
+                invoiceStatus: doc.invoiceId?.paymentStatus || null,
+                receiptStatus,
+                calculatedRemainingAmount: remainingAmount
+            };
+        });
 
         return res.json({
             success: true,
@@ -281,6 +306,62 @@ async function remove(req, res, next) {
                 success: false,
                 error: { message: "Valid accountCompanyName is required" }
             });
+
+        // First, get the receipt to check if it's linked to sales or invoices
+        const receipt = await Receipt.findOne({
+            _id: req.params.id,
+            ownerId,
+            accountCompanyName: companyId,
+            isDeleted: false
+        });
+
+        if (!receipt)
+            return res.status(404).json({
+                success: false,
+                error: { message: "Not found" }
+            });
+
+        // Check if receipt has been used in any sales (advance payment)
+        if (receipt.linkedSales && receipt.linkedSales.length > 0) {
+            return res.status(400).json({
+                success: false,
+                error: { 
+                    message: `Cannot delete this receipt as it has been used in ${receipt.linkedSales.length} invoice(s). Please delete the invoices first.`,
+                    code: 'RECEIPT_IN_USE'
+                }
+            });
+        }
+
+        // If receipt is linked to an invoice directly (payment against invoice), update the sale's amounts
+        if (receipt.invoiceId && receipt.amount > 0) {
+            const sale = await Sale.findOne({
+                _id: receipt.invoiceId,
+                ownerId,
+                accountCompanyName: companyId,
+                isDeleted: false
+            });
+
+            if (sale) {
+                // Reverse the payment from the sale
+                const newPaidAmount = Math.max(0, (sale.paidAmount || 0) - receipt.amount);
+                const newDueAmount = Math.max(0, sale.totalAmount - newPaidAmount);
+
+                // Calculate new payment status
+                let paymentStatus = 'unpaid';
+                if (newDueAmount === 0 && newPaidAmount > 0) {
+                    paymentStatus = 'paid';
+                } else if (newPaidAmount > 0 && newDueAmount > 0) {
+                    paymentStatus = 'partial';
+                }
+
+                await Sale.findByIdAndUpdate(receipt.invoiceId, {
+                    paidAmount: newPaidAmount,
+                    dueAmount: newDueAmount,
+                    paymentStatus: paymentStatus,
+                    updatedBy: req.user.id
+                });
+            }
+        }
 
         const doc = await Receipt.findOneAndUpdate(
             {
