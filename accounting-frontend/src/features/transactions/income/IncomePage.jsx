@@ -1,8 +1,7 @@
 // IncomePage.jsx
 import React, { useState, useEffect, useRef, useContext } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import useIncome from "./hooks/useIncome";
-import incomeApi from "./api/income.api";
+import useIncome from "./hooks/useIncome";import { exportTableToExcel } from "../../../utils/excelExport";import incomeApi from "./api/income.api";
 import { CompanyContext } from "src/App";
 
 
@@ -407,6 +406,28 @@ export default function IncomePage() {
         }
     };
 
+    const handleExportToExcel = () => {
+        const columns = [
+            { header: 'Date', key: 'date' },
+            { header: 'Bill Name', key: 'billName' },
+            { header: 'Amount', key: 'amount' },
+            { header: 'Category', key: 'category' },
+            { header: 'Payment Method', key: 'paymentMethod' },
+            { header: 'Description', key: 'description' },
+        ];
+        
+        const exportData = incomes.map(income => ({
+            date: formatDate(income.date),
+            billName: income.billName || '-',
+            amount: income.amount || 0,
+            category: income.category || '-',
+            paymentMethod: income.paymentMethod || '-',
+            description: income.description || '-',
+        }));
+        
+        exportTableToExcel(exportData, columns, 'Income_Report', 'Income');
+    };
+
     const TOTAL_ROWS = 15;
     const tableContainerRef = useRef(null);
     const [visibleRows, setVisibleRows] = useState(TOTAL_ROWS);
@@ -548,7 +569,16 @@ export default function IncomePage() {
 
             {/* Toolbar - Icons commented out as per requirement */}
             <div className="flex items-center justify-end gap-2 px-4 py-2 border-b border-gray-100">
-                {/* toolbar buttons are intentionally commented */}
+                <button 
+                    onClick={handleExportToExcel}
+                    className="flex items-center gap-2 px-3 py-1.5 text-gray-600 hover:bg-gray-100 rounded text-sm"
+                    title="Export to Excel"
+                >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    Export to Excel
+                </button>
             </div>
 
             {/* Table Container - Scrollable */}

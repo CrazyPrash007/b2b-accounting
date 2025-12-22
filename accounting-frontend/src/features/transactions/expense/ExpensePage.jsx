@@ -1,8 +1,7 @@
 // ExpensePage.jsx
 import React, { useState, useEffect, useRef, useContext } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import useExpense from "./hooks/useExpense";
-import expenseApi from "./api/expense.api";
+import useExpense from "./hooks/useExpense";import { exportTableToExcel } from "../../../utils/excelExport";import expenseApi from "./api/expense.api";
 import { CompanyContext } from "src/App";
 
 /**
@@ -423,6 +422,28 @@ export default function ExpensePage() {
         }
     };
 
+    const handleExportToExcel = () => {
+        const columns = [
+            { header: 'Date', key: 'date' },
+            { header: 'Bill Name', key: 'billName' },
+            { header: 'Amount', key: 'amount' },
+            { header: 'Category', key: 'category' },
+            { header: 'Payment Method', key: 'paymentMethod' },
+            { header: 'Description', key: 'description' },
+        ];
+        
+        const exportData = expenses.map(expense => ({
+            date: formatDate(expense.date),
+            billName: expense.billName || '-',
+            amount: expense.amount || 0,
+            category: expense.category || '-',
+            paymentMethod: expense.paymentMethod || '-',
+            description: expense.description || '-',
+        }));
+        
+        exportTableToExcel(exportData, columns, 'Expense_Report', 'Expense');
+    };
+
     const TOTAL_ROWS = 15;
     const tableContainerRef = useRef(null);
     const [visibleRows, setVisibleRows] = useState(TOTAL_ROWS);
@@ -555,6 +576,16 @@ export default function ExpensePage() {
 
             {/* Toolbar - Icons commented out as per requirement */}
             <div className="flex items-center justify-end gap-2 px-4 py-2 border-b border-gray-100">
+                <button 
+                    onClick={handleExportToExcel}
+                    className="flex items-center gap-2 px-3 py-1.5 text-gray-600 hover:bg-gray-100 rounded text-sm"
+                    title="Export to Excel"
+                >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    Export to Excel
+                </button>
                 {/* <button className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded">
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />

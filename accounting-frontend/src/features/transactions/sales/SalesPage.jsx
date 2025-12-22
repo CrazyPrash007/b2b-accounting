@@ -5,6 +5,7 @@ import useSale from "./hooks/useSale";
 import saleApi from "./api/sale.api";
 import PdfPreviewModal from "../../../components/PdfPreviewModal";
 import { getCurrentCompany } from "../../../services/companyContextAccessor";
+import { exportTableToExcel } from "../../../utils/excelExport";
 
 // SalesInvoiceModal - replaces the existing modal in SalesPage.jsx
 function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGst = true, bankAccounts: bankAccountsProp = [], gstRates: gstRatesProp = [] }) {
@@ -1316,6 +1317,32 @@ export default function SalesPage() {
         }
     };
 
+    const handleExportToExcel = () => {
+        const columns = [
+            { header: 'Date', key: 'date' },
+            { header: 'Invoice No', key: 'invoiceNo' },
+            { header: 'Customer', key: 'customer' },
+            { header: 'Amount', key: 'amount' },
+            { header: 'GST', key: 'gst' },
+            { header: 'Type', key: 'type' },
+            { header: 'Status', key: 'status' },
+            { header: 'Due Amount', key: 'dueAmount' },
+        ];
+        
+        const exportData = filteredInvoices.map(invoice => ({
+            date: formatDate(invoice.invoiceDate),
+            invoiceNo: `${invoice.invoicePrefix || ''}${invoice.invoiceNumber || ''}${invoice.invoiceSuffix || ''}`,
+            customer: invoice.customerName || '-',
+            amount: invoice.totalAmount || 0,
+            gst: invoice.gstType || '-',
+            type: invoice.invoiceType || '-',
+            status: invoice.paymentStatus || '-',
+            dueAmount: invoice.dueAmount || 0,
+        }));
+        
+        exportTableToExcel(exportData, columns, 'Sales_Invoices_Report', 'Sales');
+    };
+
     const handleCellClick = (rowIndex, colIndex) => {
         setSelectedCell({ rowIndex, colIndex });
     };
@@ -1552,6 +1579,16 @@ export default function SalesPage() {
 
             {/* Toolbar */}
             <div className="flex items-center justify-end gap-2 px-4 py-2 border-b border-gray-100">
+                <button 
+                    onClick={handleExportToExcel}
+                    className="flex items-center gap-2 px-3 py-1.5 text-gray-600 hover:bg-gray-100 rounded text-sm"
+                    title="Export to Excel"
+                >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    Export to Excel
+                </button>
                 <div className="w-px h-5 bg-gray-300 mx-1"></div>
                 <button className="flex items-center gap-2 px-3 py-1.5 text-gray-600 hover:bg-gray-100 rounded text-sm">
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

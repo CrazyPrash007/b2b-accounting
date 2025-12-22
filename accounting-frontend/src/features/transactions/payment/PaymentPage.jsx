@@ -5,6 +5,7 @@ import PdfPreviewModal from "../../../components/PdfPreviewModal";
 import paymentApi from "./api/payment.api";
 import usePayment from "./hooks/usePayment";
 import { getCurrentCompany } from "../../../services/companyContextAccessor";
+import { exportTableToExcel } from "../../../utils/excelExport";
 
 /**
  * PaymentModal - Modal for creating/editing payment out entries
@@ -853,6 +854,30 @@ export default function PaymentPage() {
         }
     };
 
+    const handleExportToExcel = () => {
+        const columns = [
+            { header: 'Date', key: 'date' },
+            { header: 'Party', key: 'party' },
+            { header: 'Amount', key: 'amount' },
+            { header: 'Payment Method', key: 'paymentMethod' },
+            { header: 'Invoice', key: 'invoice' },
+            { header: 'Reference Number', key: 'referenceNumber' },
+            { header: 'Description', key: 'description' },
+        ];
+        
+        const exportData = payments.map(payment => ({
+            date: formatDate(payment.date),
+            party: payment.party || '-',
+            amount: payment.amount || 0,
+            paymentMethod: payment.paymentMethod || '-',
+            invoice: payment.invoice || '-',
+            referenceNumber: payment.referenceNumber || '-',
+            description: payment.description || '-',
+        }));
+        
+        exportTableToExcel(exportData, columns, 'Payments_Report', 'Payments');
+    };
+
     const getStatusBadge = (payment) => {
         // Determine status: if invoice is linked, get status from invoice, otherwise show 'advance'
         let status = 'advance';
@@ -913,6 +938,16 @@ export default function PaymentPage() {
 
             {/* Toolbar (kept minimal like ReceiptPage) */}
             <div className="flex items-center justify-end gap-2 px-4 py-2 border-b border-gray-100">
+                <button 
+                    onClick={handleExportToExcel}
+                    className="flex items-center gap-2 px-3 py-1.5 text-gray-600 hover:bg-gray-100 rounded text-sm"
+                    title="Export to Excel"
+                >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    Export to Excel
+                </button>
                 <div className="w-px h-5 bg-gray-300 mx-1"></div>
                 <button className="flex items-center gap-2 px-3 py-1.5 text-gray-600 hover:bg-gray-100 rounded text-sm">
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
