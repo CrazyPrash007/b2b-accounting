@@ -6,6 +6,7 @@ import receiptApi from "./api/receipt.api";
 import useReceipt from "./hooks/useReceipt";
 import { getCurrentCompany } from "../../../services/companyContextAccessor";
 import { exportTableToExcel } from "../../../utils/excelExport";
+import { authFetch } from "../../../services/apiClient";
 
 /**
  * ReceiptModal - Modal for creating/editing receipt (payment in) entries
@@ -57,8 +58,8 @@ function ReceiptModal({ isOpen, onClose, onSave, onDelete, editData }) {
         try {
             const companyId = getCurrentCompany();
             const [cRes, vRes] = await Promise.allSettled([
-                fetch(`${API_BASE}/api/customers?accountCompanyName=${companyId}`),
-                fetch(`${API_BASE}/api/vendors?accountCompanyName=${companyId}`)
+                authFetch(`${API_BASE}/api/customers?accountCompanyName=${companyId}`),
+                authFetch(`${API_BASE}/api/vendors?accountCompanyName=${companyId}`)
             ]);
 
             const parseSettled = async (s) => {
@@ -189,7 +190,7 @@ function ReceiptModal({ isOpen, onClose, onSave, onDelete, editData }) {
         setInvoicesLoading(true);
         try {
             const companyId = getCurrentCompany();
-            const res = await fetch(`${API_BASE}/api/sales?search=${encodeURIComponent(selectedName)}&accountCompanyName=${companyId}`);
+            const res = await authFetch(`${API_BASE}/api/sales?search=${encodeURIComponent(selectedName)}&accountCompanyName=${companyId}`);
             if (!res.ok) {
                 setInvoices([]);
                 setInvoicesLoading(false);

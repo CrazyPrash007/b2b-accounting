@@ -5,6 +5,7 @@ import useItem from "./hooks/useItem";
 import ItemTable from "./ItemTable";
 import { getCurrentCompany } from "../../../services/companyContextAccessor";
 import { exportTableToExcel } from "../../../utils/excelExport";
+import { authFetch } from "../../../services/apiClient";
 
 /**
  * Helper to safely parse backend JSON that might be { success, data, meta } or raw array
@@ -100,10 +101,10 @@ function ItemModal({ isOpen, onClose, onSave, onDelete, editData }) {
         try {
             const companyId = getCurrentCompany();
             const [unitsRes, catsRes, brandsRes, gstRes] = await Promise.allSettled([
-                fetch(`${API_BASE}/api/unit?accountCompanyName=${companyId}`),
-                fetch(`${API_BASE}/api/item-categories?accountCompanyName=${companyId}`),
-                fetch(`${API_BASE}/api/brand?accountCompanyName=${companyId}`),
-                fetch(`${API_BASE}/api/gst?accountCompanyName=${companyId}`),
+                authFetch(`${API_BASE}/api/unit?accountCompanyName=${companyId}`),
+                authFetch(`${API_BASE}/api/item-categories?accountCompanyName=${companyId}`),
+                authFetch(`${API_BASE}/api/brand?accountCompanyName=${companyId}`),
+                authFetch(`${API_BASE}/api/gst?accountCompanyName=${companyId}`),
             ]);
 
             const parseSettled = async (s) => {

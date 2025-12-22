@@ -1,8 +1,12 @@
 // src/layouts/TopBar.jsx
 import React, { useState, useRef, useEffect, useContext } from "react";
 import { CompanyContext } from "src/App";
+import { useAuth } from "src/contexts/AuthContext";
 import companyApi from "src/features/company/api/company.api";
 import { setCurrentCompany } from "src/services/companyContextAccessor";
+
+// Main app URL for navigation
+const MAIN_APP_URL = import.meta.env.VITE_MAIN_APP_URL || 'http://localhost:5173';
 
 // Lazy import AddCompanyForm
 let AddCompanyForm = null;
@@ -16,13 +20,16 @@ const loadAddCompanyForm = async () => {
 
 export default function TopBar() {
     const { selectedCompany, setSelectedCompany } = useContext(CompanyContext);
+    const { user, logout } = useAuth();
 
     const [companies, setCompanies] = useState([]);
     const [showCompanyDropdown, setShowCompanyDropdown] = useState(false);
+    const [showUserDropdown, setShowUserDropdown] = useState(false);
     const [isAddCompanyOpen, setIsAddCompanyOpen] = useState(false);
     const [AddCompanyFormComponent, setAddCompanyFormComponent] = useState(null);
 
     const companyDropdownRef = useRef(null);
+    const userDropdownRef = useRef(null);
 
     // ---------------------------------------------------------
     // 1️⃣ LOAD COMPANIES ON MOUNT
@@ -91,7 +98,7 @@ export default function TopBar() {
         setAddCompanyFormComponent(null);
     };
 
-    // Close dropdown on outside click
+    // Close dropdowns on outside click
     useEffect(() => {
         function onClick(e) {
             if (
@@ -99,6 +106,12 @@ export default function TopBar() {
                 !companyDropdownRef.current.contains(e.target)
             ) {
                 setShowCompanyDropdown(false);
+            }
+            if (
+                userDropdownRef.current &&
+                !userDropdownRef.current.contains(e.target)
+            ) {
+                setShowUserDropdown(false);
             }
         }
         document.addEventListener("mousedown", onClick);
@@ -109,16 +122,20 @@ export default function TopBar() {
     // UI HELPERS
     // ---------------------------------------------------------
     const getUserInitial = () => {
-        try {
-            const user = JSON.parse(localStorage.getItem("user") || "{}");
-            return user?.name?.[0]?.toUpperCase() || "U";
-        } catch {
-            return "U";
+        if (user?.name) {
+            return user.name[0].toUpperCase();
         }
+        return "U";
     };
 
     const handleGoToChat = () => {
-        window.location.href = "/dashboard";
+        // Navigate back to main app dashboard
+        window.location.href = `${MAIN_APP_URL}/dashboard`;
+    };
+
+    const handleLogout = () => {
+        setShowUserDropdown(false);
+        logout();
     };
 
     const selectedCompanyObj = companies.find(c => c._id === selectedCompany);
@@ -143,7 +160,30 @@ export default function TopBar() {
                         alt="Logo"
                         style={{ height: 34, borderRadius: 4, cursor: "pointer" }}
                         onClick={handleGoToChat}
+                        title="Back to Chat"
                     />
+
+                    {/* Back to Chat Button */}
+                    <button
+                        onClick={handleGoToChat}
+                        style={{
+                            background: "rgba(255,255,255,0.15)",
+                            borderRadius: 6,
+                            padding: "6px 12px",
+                            border: "1px solid rgba(255,255,255,0.3)",
+                            color: "#fff",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 6,
+                            cursor: "pointer",
+                            fontSize: 13,
+                        }}
+                    >
+                        <svg width="16" height="16" fill="#fff" viewBox="0 0 24 24">
+                            <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/>
+                        </svg>
+                        Chat
+                    </button>
 
                     {/* COMPANY DROPDOWN */}
                     <div ref={companyDropdownRef} style={{ position: "relative" }}>
@@ -159,6 +199,7 @@ export default function TopBar() {
                                 alignItems: "center",
                                 gap: 8,
                                 minWidth: 140,
+                                cursor: "pointer",
                             }}
                         >
                             <span
@@ -228,21 +269,93 @@ export default function TopBar() {
                     </div>
                 </div>
 
-                {/* RIGHT USER ICON */}
-                <div
-                    style={{
-                        width: 36,
-                        height: 36,
-                        borderRadius: "50%",
-                        background: "rgba(255,255,255,0.2)",
-                        border: "2px solid rgba(255,255,255,0.5)",
-                        color: "#fff",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                    }}
-                >
-                    {getUserInitial()}
+                {/* RIGHT USER DROPDOWN */}
+                <div ref={userDropdownRef} style={{ position: "relative" }}>
+                    <div
+                        onClick={() => setShowUserDropdown(!showUserDropdown)}
+                        style={{
+                            width: 36,
+                            height: 36,
+                            borderRadius: "50%",
+                            background: "rgba(255,255,255,0.2)",
+                            border: "2px solid rgba(255,255,255,0.5)",
+                            color: "#fff",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            cursor: "pointer",
+                            fontWeight: 600,
+                        }}
+                    >
+                        {getUserInitial()}
+                    </div>
+
+                    {showUserDropdown && (
+                        <div
+                            style={{
+                                position: "absolute",
+                                top: "100%",
+                                right: 0,
+                                marginTop: 8,
+                                background: "#fff",
+                                borderRadius: 8,
+                                boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+                                minWidth: 200,
+                                zIndex: 100,
+                                overflow: "hidden",
+                            }}
+                        >
+                            {/* User Info */}
+                            <div style={{ padding: "14px 16px", borderBottom: "1px solid #f0f2f5" }}>
+                                <div style={{ fontWeight: 600, color: "#333", marginBottom: 4 }}>
+                                    {user?.name || "User"}
+                                </div>
+                                <div style={{ fontSize: 12, color: "#666" }}>
+                                    {user?.email || ""}
+                                </div>
+                            </div>
+
+                            {/* Back to Chat */}
+                            <div
+                                onClick={handleGoToChat}
+                                style={{
+                                    padding: "12px 16px",
+                                    cursor: "pointer",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: 10,
+                                    borderBottom: "1px solid #f0f2f5",
+                                }}
+                                onMouseEnter={(e) => e.currentTarget.style.background = "#f5f6f6"}
+                                onMouseLeave={(e) => e.currentTarget.style.background = "#fff"}
+                            >
+                                <svg width="18" height="18" fill="#54656f" viewBox="0 0 24 24">
+                                    <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/>
+                                </svg>
+                                <span style={{ color: "#333" }}>Back to Chat</span>
+                            </div>
+
+                            {/* Logout */}
+                            <div
+                                onClick={handleLogout}
+                                style={{
+                                    padding: "12px 16px",
+                                    cursor: "pointer",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: 10,
+                                    color: "#e53935",
+                                }}
+                                onMouseEnter={(e) => e.currentTarget.style.background = "#fff5f5"}
+                                onMouseLeave={(e) => e.currentTarget.style.background = "#fff"}
+                            >
+                                <svg width="18" height="18" fill="#e53935" viewBox="0 0 24 24">
+                                    <path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/>
+                                </svg>
+                                <span>Logout</span>
+                            </div>
+                        </div>
+                    )}
                 </div>
             </div>
 

@@ -495,6 +495,32 @@ export default function BankPage() {
     };
 
 
+    const handleExportToExcel = () => {
+        const columns = [
+            { header: 'Sr No', key: 'srNo' },
+            { header: 'Account Display Name', key: 'accountDisplayName' },
+            { header: 'Bank Name', key: 'bankName' },
+            { header: 'Account Number', key: 'accountNumber' },
+            { header: 'IFSC Code', key: 'ifscCode' },
+            { header: 'Account Holder', key: 'accountHolderName' },
+            { header: 'Opening Balance', key: 'openingBalance' },
+            { header: 'Balance Type', key: 'openingBalanceType' },
+            { header: 'Status', key: 'status' },
+        ];
+        const exportData = bankAccounts.map((account, idx) => ({
+            srNo: idx + 1,
+            accountDisplayName: account.accountDisplayName || '-',
+            bankName: account.bankName || '-',
+            accountNumber: account.accountNumber || '-',
+            ifscCode: account.ifscCode || '-',
+            accountHolderName: account.accountHolderName || '-',
+            openingBalance: account.openingBalance != null ? `₹${account.openingBalance}` : '-',
+            openingBalanceType: account.openingBalanceType || '-',
+            status: account.status || '-',
+        }));
+        exportTableToExcel(exportData, columns, 'Bank_Accounts');
+    };
+
     const handleCellClick = (rowIndex, colIndex) => {
         setSelectedCell({ rowIndex, colIndex });
     };

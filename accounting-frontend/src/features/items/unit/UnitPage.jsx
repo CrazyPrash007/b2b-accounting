@@ -235,6 +235,20 @@ export default function UnitPage() {
     };
 
 
+    const handleExportToExcel = () => {
+        const columns = [
+            { header: 'Sr No', key: 'srNo' },
+            { header: 'Full Name', key: 'fullName' },
+            { header: 'Alias Name', key: 'aliasName' },
+        ];
+        const exportData = units.map((unit, idx) => ({
+            srNo: idx + 1,
+            fullName: unit.fullName || '-',
+            aliasName: unit.aliasName || '-',
+        }));
+        exportTableToExcel(exportData, columns, 'Units');
+    };
+
     const handleCellClick = (rowIndex, colIndex) => {
         setSelectedCell({ rowIndex, colIndex });
     };

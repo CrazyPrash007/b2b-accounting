@@ -6,6 +6,7 @@ import saleApi from "./api/sale.api";
 import PdfPreviewModal from "../../../components/PdfPreviewModal";
 import { getCurrentCompany } from "../../../services/companyContextAccessor";
 import { exportTableToExcel } from "../../../utils/excelExport";
+import { authFetch } from "../../../services/apiClient";
 
 // SalesInvoiceModal - replaces the existing modal in SalesPage.jsx
 function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGst = true, bankAccounts: bankAccountsProp = [], gstRates: gstRatesProp = [] }) {
@@ -172,11 +173,11 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
             const companyId = getCurrentCompany();
             // NOTE: added /api/vendors to fetch vendors and merge with customers
             const promises = await Promise.allSettled([
-                fetch(`${API_BASE}/api/customers?accountCompanyName=${companyId}`),
-                fetch(`${API_BASE}/api/vendors?accountCompanyName=${companyId}`),    // <-- added vendors
-                fetch(`${API_BASE}/api/items?accountCompanyName=${companyId}`),
-                fetch(`${API_BASE}/api/gst?accountCompanyName=${companyId}`),
-                fetch(`${API_BASE}/api/bank?accountCompanyName=${companyId}`)
+                authFetch(`${API_BASE}/api/customers?accountCompanyName=${companyId}`),
+                authFetch(`${API_BASE}/api/vendors?accountCompanyName=${companyId}`),    // <-- added vendors
+                authFetch(`${API_BASE}/api/items?accountCompanyName=${companyId}`),
+                authFetch(`${API_BASE}/api/gst?accountCompanyName=${companyId}`),
+                authFetch(`${API_BASE}/api/bank?accountCompanyName=${companyId}`)
             ]);
 
             const parseSettled = async (s) => {
@@ -279,7 +280,7 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
 
         try {
             const companyId = getCurrentCompany();
-            const res = await fetch(`${API_BASE}/api/receipts?search=${encodeURIComponent(customerName)}&accountCompanyName=${companyId}`);
+            const res = await authFetch(`${API_BASE}/api/receipts?search=${encodeURIComponent(customerName)}&accountCompanyName=${companyId}`);
             if (!res.ok) {
                 setAvailableAdvances([]);
                 return;

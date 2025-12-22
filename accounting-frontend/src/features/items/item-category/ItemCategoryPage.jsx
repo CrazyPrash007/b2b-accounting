@@ -311,6 +311,19 @@ export default function ItemCategoryPage() {
         }
     };
 
+    const handleExportToExcel = () => {
+        const columns = [
+            { header: 'Sr No', key: 'srNo' },
+            { header: 'Category Name', key: 'name' },
+            { header: 'Subcategories', key: 'subcategories' },
+        ];
+        const exportData = categories.map((cat, idx) => ({
+            srNo: idx + 1,
+            name: cat.name || '-',
+            subcategories: (cat.subcategories || []).join(', ') || '-',
+        }));
+        exportTableToExcel(exportData, columns, 'Item_Categories');
+    };
 
     const handleCellClick = (rowIndex, colIndex) => {
         setSelectedCell({ rowIndex, colIndex });

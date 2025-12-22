@@ -1,8 +1,11 @@
 // IncomePage.jsx
 import React, { useState, useEffect, useRef, useContext } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import useIncome from "./hooks/useIncome";import { exportTableToExcel } from "../../../utils/excelExport";import incomeApi from "./api/income.api";
+import useIncome from "./hooks/useIncome";
+import { exportTableToExcel } from "../../../utils/excelExport";
+import incomeApi from "./api/income.api";
 import { CompanyContext } from "src/App";
+import { authFetch } from "../../../services/apiClient";
 
 
 /**
@@ -492,15 +495,9 @@ export default function IncomePage() {
             // Match backendBase used elsewhere in this file (keep in sync)
             const backendBase = "http://localhost:4000";
 
-            // Optional dev owner header — set window.__DEV_OWNER_ID__ in dev if you want per-request header
-            const headers = {};
-            if (window.__DEV_OWNER_ID__) headers['x-owner-id'] = window.__DEV_OWNER_ID__;
-
             // Fetch binary from backend (absolute URL to avoid vite/dev-server proxy issues)
-            const res = await fetch(`${backendBase}/api/income/${id}/receipt`, {
+            const res = await authFetch(`${backendBase}/api/income/${id}/receipt`, {
                 method: 'GET',
-                headers,
-                credentials: 'same-origin', // keep same-origin to include cookies if you ever use them
             });
 
             if (!res.ok) {

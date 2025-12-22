@@ -1,8 +1,11 @@
 // ExpensePage.jsx
 import React, { useState, useEffect, useRef, useContext } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import useExpense from "./hooks/useExpense";import { exportTableToExcel } from "../../../utils/excelExport";import expenseApi from "./api/expense.api";
+import useExpense from "./hooks/useExpense";
+import { exportTableToExcel } from "../../../utils/excelExport";
+import expenseApi from "./api/expense.api";
 import { CompanyContext } from "src/App";
+import { authFetch } from "../../../services/apiClient";
 
 /**
  * ExpenseModal - Modal for creating/editing expenses
@@ -506,13 +509,8 @@ export default function ExpensePage() {
             if (!id) throw new Error("Invalid expense id");
             const backendBase = "http://localhost:4000";
 
-            const headers = {};
-            if (window.__DEV_OWNER_ID__) headers['x-owner-id'] = window.__DEV_OWNER_ID__;
-
-            const res = await fetch(`${backendBase}/api/expense/${id}/receipt`, {
+            const res = await authFetch(`${backendBase}/api/expense/${id}/receipt`, {
                 method: 'GET',
-                headers,
-                credentials: 'same-origin',
             });
 
             if (!res.ok) {

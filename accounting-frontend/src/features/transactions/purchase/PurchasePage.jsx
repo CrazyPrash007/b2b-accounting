@@ -6,6 +6,7 @@ import purchaseApi from "./api/purchase.api";
 import PdfPreviewModal from "../../../components/PdfPreviewModal";
 import { getCurrentCompany } from "../../../services/companyContextAccessor";
 import { exportTableToExcel } from "../../../utils/excelExport";
+import { authFetch } from "../../../services/apiClient";
 
 /**
  * PurchaseInvoiceModal - Modal for creating/editing purchase invoices
@@ -101,11 +102,11 @@ function PurchaseInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, wit
         try {
             const companyId = getCurrentCompany();
             const promises = await Promise.allSettled([
-                fetch(`${API_BASE}/api/customers?accountCompanyName=${companyId}`),
-                fetch(`${API_BASE}/api/vendors?accountCompanyName=${companyId}`),
-                fetch(`${API_BASE}/api/items?accountCompanyName=${companyId}`),
-                fetch(`${API_BASE}/api/gst?accountCompanyName=${companyId}`),
-                fetch(`${API_BASE}/api/bank?accountCompanyName=${companyId}`)
+                authFetch(`${API_BASE}/api/customers?accountCompanyName=${companyId}`),
+                authFetch(`${API_BASE}/api/vendors?accountCompanyName=${companyId}`),
+                authFetch(`${API_BASE}/api/items?accountCompanyName=${companyId}`),
+                authFetch(`${API_BASE}/api/gst?accountCompanyName=${companyId}`),
+                authFetch(`${API_BASE}/api/bank?accountCompanyName=${companyId}`)
             ]);
 
             const parseSettled = async (s) => {

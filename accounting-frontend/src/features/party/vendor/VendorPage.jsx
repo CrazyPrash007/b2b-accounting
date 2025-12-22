@@ -606,6 +606,32 @@ export default function VendorPage() {
     };
 
 
+    const handleExportToExcel = () => {
+        const columns = [
+            { header: 'Sr No', key: 'srNo' },
+            { header: 'Vendor Name', key: 'name' },
+            { header: 'Contact Person', key: 'contactPerson' },
+            { header: 'Phone', key: 'phone' },
+            { header: 'Email', key: 'email' },
+            { header: 'GSTIN', key: 'gstin' },
+            { header: 'Address', key: 'address' },
+            { header: 'Opening Balance', key: 'openingBalance' },
+            { header: 'Balance Type', key: 'balanceType' },
+        ];
+        const exportData = vendors.map((vendor, idx) => ({
+            srNo: idx + 1,
+            name: vendor.name || '-',
+            contactPerson: vendor.contactPerson || '-',
+            phone: vendor.phone || '-',
+            email: vendor.email || '-',
+            gstin: vendor.gstin || '-',
+            address: vendor.address || '-',
+            openingBalance: vendor.openingBalance != null ? `₹${vendor.openingBalance}` : '-',
+            balanceType: vendor.balanceType || '-',
+        }));
+        exportTableToExcel(exportData, columns, 'Vendors');
+    };
+
     const handleCellClick = (rowIndex, colIndex) => {
         setSelectedCell({ rowIndex, colIndex });
     };

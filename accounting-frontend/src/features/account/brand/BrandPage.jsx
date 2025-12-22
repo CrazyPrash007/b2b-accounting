@@ -202,6 +202,18 @@ export default function BrandPage() {
         }
     };
 
+    const handleExportToExcel = () => {
+        const columns = [
+            { header: 'Sr No', key: 'srNo' },
+            { header: 'Brand Name', key: 'brandName' },
+        ];
+        const exportData = brands.map((brand, idx) => ({
+            srNo: idx + 1,
+            brandName: brand.brandName || '-',
+        }));
+        exportTableToExcel(exportData, columns, 'Brands');
+    };
+
     const handleCellClick = (rowIndex, colIndex) => {
         setSelectedCell({ rowIndex, colIndex });
     };
@@ -251,6 +263,36 @@ export default function BrandPage() {
             : "";
         return `${baseClasses} ${selectedClasses}`;
     };
+
+    // Show loading state
+    if (loading) {
+        return (
+            <div className="h-full flex items-center justify-center bg-white">
+                <div className="text-center">
+                    <div className="w-8 h-8 border-4 border-gray-200 border-t-blue-500 rounded-full animate-spin mx-auto mb-4"></div>
+                    <p className="text-gray-500">Loading brands...</p>
+                </div>
+            </div>
+        );
+    }
+
+    // Show error state
+    if (error) {
+        return (
+            <div className="h-full flex items-center justify-center bg-white">
+                <div className="text-center">
+                    <p className="text-red-500 mb-4">Failed to load brands</p>
+                    <p className="text-gray-500 text-sm mb-4">{error.message || 'Unknown error'}</p>
+                    <button 
+                        onClick={reload}
+                        className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                    >
+                        Try Again
+                    </button>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="h-full flex flex-col bg-white">

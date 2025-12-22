@@ -2,6 +2,7 @@ import React from "react";
 import Sidebar from "./Sidebar";
 import TopBar from "./TopBar";
 import { Outlet } from "react-router-dom";
+import ErrorBoundary from "../components/ErrorBoundary";
 
 
 export default function AppLayout({ children }) {
@@ -17,7 +18,9 @@ export default function AppLayout({ children }) {
 
                 {/* Main Content */}
                 <main className="flex-1 overflow-auto">
-                    {content}
+                    <ErrorBoundary>
+                        {content}
+                    </ErrorBoundary>
                 </main>
             </div>
         </div>
