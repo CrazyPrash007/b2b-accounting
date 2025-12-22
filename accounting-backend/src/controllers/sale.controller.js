@@ -1,5 +1,9 @@
 // src/controllers/sale.controller.js
 const Sale = require("../models/Sale");
+const Receipt = require("../models/Receipt");
+const Customer = require("../models/Customer");
+const { getCompanyModel } = require("../models/Company");
+const { generateSalesInvoicePDF } = require("../utils/pdfGenerator");
 const mongoose = require("mongoose");
 
 /* --------------------- Helpers --------------------- */
@@ -198,7 +202,75 @@ async function create(req, res, next) {
         Object.assign(payload, totals);
 
         // Initialize payment tracking
-        const paymentReceived = Number(payload.paymentAmount || 0);
+        let paymentReceived = Number(payload.paymentAmount || 0);
+        
+        // Handle advance payment adjustment if provided
+        if (payload.advancePayment && payload.advancePayment.receiptId && payload.advancePayment.amount) {
+            const Receipt = require("../models/Receipt");
+            
+            const advanceAmount = Number(payload.advancePayment.amount);
+            const receiptId = toObjectId(payload.advancePayment.receiptId);
+            
+            if (!receiptId) {
+                return res.status(400).json({ 
+                    success: false, 
+                    error: { message: "Invalid advance receipt ID" } 
+                });
+            }
+
+            // Validate advance payment exists and has available balance
+            const receipt = await Receipt.findOne({
+                _id: receiptId,
+                ownerId,
+                accountCompanyName: companyId,
+                isDeleted: false
+            });
+
+            if (!receipt) {
+                return res.status(400).json({ 
+                    success: false, 
+                    error: { message: "Advance receipt not found" } 
+                });
+            }
+
+            // Calculate available balance (for new receipts, remainingAmount may be 0, so use amount - usedAmount)
+            const receiptUsed = Number(receipt.usedAmount || 0);
+            const receiptTotal = Number(receipt.amount || 0);
+            const availableBalance = receiptTotal - receiptUsed;
+
+            if (availableBalance <= 0) {
+                return res.status(400).json({ 
+                    success: false, 
+                    error: { message: "This advance payment has been fully used" } 
+                });
+            }
+
+            if (advanceAmount > availableBalance) {
+                return res.status(400).json({ 
+                    success: false, 
+                    error: { message: `Advance amount exceeds available balance (₹${availableBalance.toFixed(2)})` } 
+                });
+            }
+
+            if (advanceAmount > totals.totalAmount) {
+                return res.status(400).json({ 
+                    success: false, 
+                    error: { message: "Advance amount cannot exceed invoice total" } 
+                });
+            }
+
+            // Add advance amount to paid amount
+            paymentReceived += advanceAmount;
+
+            // Store receipt info for later update
+            payload._advanceReceipt = {
+                id: receiptId,
+                amount: advanceAmount,
+                previousUsed: receiptUsed,
+                totalAmount: receiptTotal
+            };
+        }
+
         payload.paidAmount = payload.isPaymentReceived ? paymentReceived : 0;
         payload.dueAmount = Math.max(0, totals.totalAmount - payload.paidAmount);
         
@@ -212,6 +284,33 @@ async function create(req, res, next) {
         }
 
         const doc = await Sale.create(payload);
+
+        // Update advance receipt to track usage
+        if (payload._advanceReceipt) {
+            const Receipt = require("../models/Receipt");
+            const { id: receiptId, amount: advanceAmount, previousUsed, totalAmount } = payload._advanceReceipt;
+            
+            if (receiptId) {
+                const newUsedAmount = previousUsed + advanceAmount;
+                const newRemainingAmount = totalAmount - newUsedAmount;
+                const invLabel = `${doc.invoicePrefix || ''}${doc.invoiceNumber || ''}${doc.invoiceSuffix || ''}`.trim();
+                
+                const updateFields = {
+                    usedAmount: newUsedAmount,
+                    remainingAmount: newRemainingAmount,
+                    updatedBy: req.user.id
+                };
+
+                // Only link to invoice if fully used (backward compatibility)
+                if (newRemainingAmount === 0) {
+                    updateFields.invoiceId = doc._id;
+                    updateFields.invoiceLabel = invLabel;
+                }
+                
+                await Receipt.findByIdAndUpdate(receiptId, updateFields);
+            }
+        }
+
         res.status(201).json({ success: true, data: doc });
 
     } catch (err) {
@@ -331,4 +430,60 @@ async function remove(req, res, next) {
     } catch (err) { next(err); }
 }
 
-module.exports = { list, getOne, create, update, remove, computeTotalsFromItems };
+/* --------------------- EXPORT PDF --------------------- */
+async function exportPDF(req, res, next) {
+    try {
+        const ownerId = req.user.ownerId;
+
+        const companyId = toObjectId(req.query.accountCompanyName);
+        if (!companyId)
+            return res.status(400).json({ success: false, error: { message: "Valid accountCompanyName is required" } });
+
+        // Fetch the sale
+        const sale = await Sale.findOne({
+            _id: req.params.id,
+            ownerId,
+            accountCompanyName: companyId,
+            isDeleted: false
+        }).lean();
+
+        if (!sale)
+            return res.status(404).json({ success: false, error: { message: "Sale not found" } });
+
+        // Fetch company details
+        const Company = getCompanyModel();
+        const company = await Company.findById(companyId).lean();
+        if (!company)
+            return res.status(404).json({ success: false, error: { message: "Company not found" } });
+
+        // Fetch customer details if available
+        let customer = null;
+        if (sale.customerId) {
+            customer = await Customer.findById(sale.customerId).lean();
+        }
+
+        // Fetch all receipts linked to this sale
+        const receipts = await Receipt.find({
+            invoiceId: sale._id,
+            ownerId,
+            accountCompanyName: companyId,
+            isDeleted: false
+        }).sort({ date: 1 }).lean();
+
+        // Generate PDF
+        const pdfBuffer = await generateSalesInvoicePDF(sale, company, customer, receipts);
+
+        // Set response headers
+        const invoiceNumber = `${sale.invoicePrefix}${sale.invoiceNumber}${sale.invoiceSuffix}`;
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename="SalesInvoice_${invoiceNumber}.pdf"`);
+        res.setHeader('Content-Length', pdfBuffer.length);
+
+        res.send(pdfBuffer);
+
+    } catch (err) {
+        next(err);
+    }
+}
+
+module.exports = { list, getOne, create, update, remove, exportPDF, computeTotalsFromItems };

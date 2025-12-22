@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import useBrand from "./hooks/useBrand";
+import { exportTableToExcel } from "../../../utils/excelExport";
 
 function BrandModal({ isOpen, onClose, onSave, onDelete, editData }) {
     const [brandName, setBrandName] = useState("");
@@ -201,6 +202,18 @@ export default function BrandPage() {
         }
     };
 
+    const handleExportToExcel = () => {
+        const columns = [
+            { header: 'Sr No', key: 'srNo' },
+            { header: 'Brand Name', key: 'brandName' },
+        ];
+        const exportData = brands.map((brand, idx) => ({
+            srNo: idx + 1,
+            brandName: brand.brandName || '-',
+        }));
+        exportTableToExcel(exportData, columns, 'Brands');
+    };
+
     const handleCellClick = (rowIndex, colIndex) => {
         setSelectedCell({ rowIndex, colIndex });
     };
@@ -251,6 +264,36 @@ export default function BrandPage() {
         return `${baseClasses} ${selectedClasses}`;
     };
 
+    // Show loading state
+    if (loading) {
+        return (
+            <div className="h-full flex items-center justify-center bg-white">
+                <div className="text-center">
+                    <div className="w-8 h-8 border-4 border-gray-200 border-t-blue-500 rounded-full animate-spin mx-auto mb-4"></div>
+                    <p className="text-gray-500">Loading brands...</p>
+                </div>
+            </div>
+        );
+    }
+
+    // Show error state
+    if (error) {
+        return (
+            <div className="h-full flex items-center justify-center bg-white">
+                <div className="text-center">
+                    <p className="text-red-500 mb-4">Failed to load brands</p>
+                    <p className="text-gray-500 text-sm mb-4">{error.message || 'Unknown error'}</p>
+                    <button 
+                        onClick={reload}
+                        className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                    >
+                        Try Again
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div className="h-full flex flex-col bg-white">
             {/* Header Row */}
@@ -275,6 +318,18 @@ export default function BrandPage() {
             </div>
 
             {/* Toolbar - Icons commented out */}
+            <div className="flex items-center justify-end gap-2 px-4 py-2 border-b border-gray-100">
+                <button 
+                    onClick={handleExportToExcel}
+                    className="flex items-center gap-2 px-3 py-1.5 text-gray-600 hover:bg-gray-100 rounded text-sm"
+                    title="Export to Excel"
+                >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    Export to Excel
+                </button>
+            </div>
             {/*
             <div className="flex items-center justify-end gap-2 px-4 py-2 border-b border-gray-100">
                 <button className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded">

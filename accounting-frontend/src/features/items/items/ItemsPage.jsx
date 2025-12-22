@@ -4,6 +4,8 @@ import { useNavigate, useLocation } from "react-router-dom";
 import useItem from "./hooks/useItem";
 import ItemTable from "./ItemTable";
 import { getCurrentCompany } from "../../../services/companyContextAccessor";
+import { exportTableToExcel } from "../../../utils/excelExport";
+import { authFetch } from "../../../services/apiClient";
 
 /**
  * Helper to safely parse backend JSON that might be { success, data, meta } or raw array
@@ -43,6 +45,7 @@ function ItemModal({ isOpen, onClose, onSave, onDelete, editData }) {
 
     const [listsLoading, setListsLoading] = useState(false);
     const [listsError, setListsError] = useState(null);
+    const navigate = useNavigate();
 
     const isEditMode = !!editData;
 
@@ -98,10 +101,10 @@ function ItemModal({ isOpen, onClose, onSave, onDelete, editData }) {
         try {
             const companyId = getCurrentCompany();
             const [unitsRes, catsRes, brandsRes, gstRes] = await Promise.allSettled([
-                fetch(`${API_BASE}/api/unit?accountCompanyName=${companyId}`),
-                fetch(`${API_BASE}/api/item-categories?accountCompanyName=${companyId}`),
-                fetch(`${API_BASE}/api/brand?accountCompanyName=${companyId}`),
-                fetch(`${API_BASE}/api/gst?accountCompanyName=${companyId}`),
+                authFetch(`${API_BASE}/api/unit?accountCompanyName=${companyId}`),
+                authFetch(`${API_BASE}/api/item-categories?accountCompanyName=${companyId}`),
+                authFetch(`${API_BASE}/api/brand?accountCompanyName=${companyId}`),
+                authFetch(`${API_BASE}/api/gst?accountCompanyName=${companyId}`),
             ]);
 
             const parseSettled = async (s) => {
@@ -264,7 +267,13 @@ function ItemModal({ isOpen, onClose, onSave, onDelete, editData }) {
                             <label className="block text-sm font-medium text-gray-700 mb-1">Unit</label>
                             <select
                                 value={unit}
-                                onChange={(e) => setUnit(e.target.value)}
+                                onChange={(e) => {
+                                    if (e.target.value === "__ADD_NEW__") {
+                                        navigate("/unit");
+                                    } else {
+                                        setUnit(e.target.value);
+                                    }
+                                }}
                                 className={baseInput}
                             >
                                 <option value="">-- Select Unit --</option>
@@ -273,6 +282,7 @@ function ItemModal({ isOpen, onClose, onSave, onDelete, editData }) {
                                         {u}
                                     </option>
                                 ))}
+                                <option value="__ADD_NEW__" style={{color: '#2563eb', fontWeight: '600'}}>+ Add New Unit</option>
                             </select>
                         </div>
 
@@ -281,7 +291,14 @@ function ItemModal({ isOpen, onClose, onSave, onDelete, editData }) {
                             <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
                             <select
                                 value={category}
-                                onChange={(e) => setCategory(e.target.value)}
+                                onChange={(e) => {
+                                    if (e.target.value === "__ADD_NEW__") {
+                                        navigate("/item-category");
+                                    } else {
+                                        setCategory(e.target.value);
+                                        setSubCategory(""); // Reset subcategory when category changes
+                                    }
+                                }}
                                 className={baseInput}
                             >
                                 <option value="">-- Select Category --</option>
@@ -290,6 +307,7 @@ function ItemModal({ isOpen, onClose, onSave, onDelete, editData }) {
                                         {c.name}
                                     </option>
                                 ))}
+                                <option value="__ADD_NEW__" style={{color: '#2563eb', fontWeight: '600'}}>+ Add New Category</option>
                             </select>
                         </div>
 
@@ -299,20 +317,18 @@ function ItemModal({ isOpen, onClose, onSave, onDelete, editData }) {
                             <select
                                 value={subCategory}
                                 onChange={(e) => setSubCategory(e.target.value)}
-                                className={baseInput}
+                                disabled={!category}
+                                className={`${baseInput} ${!category ? 'bg-gray-100 cursor-not-allowed' : ''}`}
                             >
-                                <option value="">-- Select Sub-Category --</option>
-                                {(activeSubcategories.current || []).map((s, idx) => (
-                                    <option key={`active-sub-${idx}`} value={s}>
-                                        {s}
-                                    </option>
-                                ))}
-                                {/* fallback: show all known subcategories */}
-                                {categoriesList.flatMap(c => (Array.isArray(c.subcategories) ? c.subcategories : [])).filter(Boolean).map((s, idx) => (
-                                    <option key={`all-sub-${idx}`} value={s}>
-                                        {s}
-                                    </option>
-                                ))}
+                                <option value="">{!category ? "Select a category first" : "-- Select Sub-Category --"}</option>
+                                {category && categoriesList
+                                    .find(c => c.name === category)?.subcategories
+                                    ?.filter(Boolean)
+                                    .map((s, idx) => (
+                                        <option key={`sub-${idx}`} value={s}>
+                                            {s}
+                                        </option>
+                                    ))}
                             </select>
                         </div>
 
@@ -324,7 +340,13 @@ function ItemModal({ isOpen, onClose, onSave, onDelete, editData }) {
                             <label className="block text-sm font-medium text-gray-700 mb-1">Brand Name</label>
                             <select
                                 value={brandName}
-                                onChange={(e) => setBrandName(e.target.value)}
+                                onChange={(e) => {
+                                    if (e.target.value === "__ADD_NEW__") {
+                                        navigate("/brand");
+                                    } else {
+                                        setBrandName(e.target.value);
+                                    }
+                                }}
                                 className={baseInput}
                             >
                                 <option value="">-- Select Brand --</option>
@@ -333,6 +355,7 @@ function ItemModal({ isOpen, onClose, onSave, onDelete, editData }) {
                                         {b}
                                     </option>
                                 ))}
+                                <option value="__ADD_NEW__" style={{color: '#2563eb', fontWeight: '600'}}>+ Add New Brand</option>
                             </select>
                         </div>
 
@@ -344,15 +367,30 @@ function ItemModal({ isOpen, onClose, onSave, onDelete, editData }) {
 
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">GST Rate (%)</label>
-                            <select value={gstRate} onChange={(e) => setGstRate(e.target.value)} className={baseInput}>
+                            <select
+                                value={gstRate}
+                                onChange={(e) => {
+                                    if (e.target.value === "__ADD_NEW__") {
+                                        navigate("/gst");
+                                    } else {
+                                        setGstRate(e.target.value);
+                                    }
+                                }}
+                                className={baseInput}
+                            >
                                 <option value="">Select GST Rate</option>
-                                {gstList.map((g, idx) => <option key={"gst-" + idx} value={String(g)}>{String(g)}%</option>)}
+                                {gstList.map((g, idx) => (
+                                    <option key={"gst-" + idx} value={String(g)}>
+                                        {String(g)}%
+                                    </option>
+                                ))}
+                                <option value="__ADD_NEW__" style={{ color: '#2563eb', fontWeight: '600' }}>+ Add New GST</option>
                             </select>
                         </div>
 
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">Buy Price</label>
-                            <input type="number" value={buyPrice} onChange={(e) => setBuyPrice(e.target.value)} className={baseInput} placeholder="0.00" />
+                            <input type="number" value={buyPrice} onChange={(e) => setBuyPrice(e.target.value)} className={baseInput} placeholder="0.00" min="0" step="0.01" />
                         </div>
                     </div>
 
@@ -360,15 +398,15 @@ function ItemModal({ isOpen, onClose, onSave, onDelete, editData }) {
                     <div className="grid grid-cols-4 gap-3 mb-3">
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">Sell Price</label>
-                            <input type="number" value={sellPrice} onChange={(e) => setSellPrice(e.target.value)} className={baseInput} placeholder="0.00" />
+                            <input type="number" value={sellPrice} onChange={(e) => setSellPrice(e.target.value)} className={baseInput} placeholder="0.00" min="0" step="0.01" />
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">Opening Stock</label>
-                            <input type="number" value={openingStock} onChange={(e) => setOpeningStock(e.target.value)} className={baseInput} placeholder="0" />
+                            <input type="number" value={openingStock} onChange={(e) => setOpeningStock(e.target.value)} className={baseInput} placeholder="0" min="0" step="1" />
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">Min Stock</label>
-                            <input type="number" value={minStock} onChange={(e) => setMinStock(e.target.value)} className={baseInput} placeholder="0" />
+                            <input type="number" value={minStock} onChange={(e) => setMinStock(e.target.value)} className={baseInput} placeholder="0" min="0" step="1" />
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">Opening Date</label>
@@ -522,6 +560,44 @@ export default function ItemsPage() {
         }
     };
 
+    const handleExportToExcel = () => {
+        const columns = [
+            { header: 'Item Name', key: 'itemName' },
+            { header: 'Description', key: 'description' },
+            { header: 'Item Type', key: 'itemType' },
+            { header: 'Unit', key: 'unit' },
+            { header: 'Category', key: 'category' },
+            { header: 'Sub-Category', key: 'subCategory' },
+            { header: 'Brand', key: 'brandName' },
+            { header: 'HSN No', key: 'hsnNo' },
+            { header: 'GST Rate', key: 'gstRate' },
+            { header: 'Buy Price', key: 'buyPrice' },
+            { header: 'Sell Price', key: 'sellPrice' },
+            { header: 'Opening Stock', key: 'openingStock' },
+            { header: 'Min Stock', key: 'minStock' },
+            { header: 'Opening Date', key: 'openingDate' },
+        ];
+        
+        const exportData = items.map(item => ({
+            itemName: item.itemName || item.name || '-',
+            description: item.description || '-',
+            itemType: item.itemType || '-',
+            unit: item.unit || '-',
+            category: item.category || '-',
+            subCategory: item.subCategory || '-',
+            brandName: item.brandName || '-',
+            hsnNo: item.hsnNo || '-',
+            gstRate: item.gstRate != null ? `${item.gstRate}%` : '-',
+            buyPrice: item.buyPrice != null ? `₹${item.buyPrice}` : '-',
+            sellPrice: item.sellPrice != null ? `₹${item.sellPrice}` : '-',
+            openingStock: item.openingStock != null ? item.openingStock : '-',
+            minStock: item.minStock != null ? item.minStock : '-',
+            openingDate: item.openingDate || '-',
+        }));
+        
+        exportTableToExcel(exportData, columns, 'Items_Report', 'Items');
+    };
+
     return (
         <div className="h-full flex flex-col bg-white">
             {/* Header */}
@@ -532,10 +608,22 @@ export default function ItemsPage() {
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" /></svg>
                     </button>
                 </div>
-                <button type="button" className="flex items-center gap-1 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition-colors text-sm font-medium" onClick={handleCreateItem}>
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-                    Create Item
-                </button>
+                <div className="flex items-center gap-2">
+                    <button 
+                        onClick={handleExportToExcel}
+                        className="flex items-center gap-2 px-3 py-2 text-gray-600 hover:bg-gray-100 rounded text-sm"
+                        title="Export to Excel"
+                    >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        Export to Excel
+                    </button>
+                    <button type="button" className="flex items-center gap-1 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition-colors text-sm font-medium" onClick={handleCreateItem}>
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                        Create Item
+                    </button>
+                </div>
             </div>
 
             {/* Table */}

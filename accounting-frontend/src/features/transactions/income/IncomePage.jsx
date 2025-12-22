@@ -2,8 +2,10 @@
 import React, { useState, useEffect, useRef, useContext } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import useIncome from "./hooks/useIncome";
+import { exportTableToExcel } from "../../../utils/excelExport";
 import incomeApi from "./api/income.api";
 import { CompanyContext } from "src/App";
+import { authFetch } from "../../../services/apiClient";
 
 
 /**
@@ -407,6 +409,28 @@ export default function IncomePage() {
         }
     };
 
+    const handleExportToExcel = () => {
+        const columns = [
+            { header: 'Date', key: 'date' },
+            { header: 'Bill Name', key: 'billName' },
+            { header: 'Amount', key: 'amount' },
+            { header: 'Category', key: 'category' },
+            { header: 'Payment Method', key: 'paymentMethod' },
+            { header: 'Description', key: 'description' },
+        ];
+        
+        const exportData = incomes.map(income => ({
+            date: formatDate(income.date),
+            billName: income.billName || '-',
+            amount: income.amount || 0,
+            category: income.category || '-',
+            paymentMethod: income.paymentMethod || '-',
+            description: income.description || '-',
+        }));
+        
+        exportTableToExcel(exportData, columns, 'Income_Report', 'Income');
+    };
+
     const TOTAL_ROWS = 15;
     const tableContainerRef = useRef(null);
     const [visibleRows, setVisibleRows] = useState(TOTAL_ROWS);
@@ -471,15 +495,9 @@ export default function IncomePage() {
             // Match backendBase used elsewhere in this file (keep in sync)
             const backendBase = "http://localhost:4000";
 
-            // Optional dev owner header — set window.__DEV_OWNER_ID__ in dev if you want per-request header
-            const headers = {};
-            if (window.__DEV_OWNER_ID__) headers['x-owner-id'] = window.__DEV_OWNER_ID__;
-
             // Fetch binary from backend (absolute URL to avoid vite/dev-server proxy issues)
-            const res = await fetch(`${backendBase}/api/income/${id}/receipt`, {
+            const res = await authFetch(`${backendBase}/api/income/${id}/receipt`, {
                 method: 'GET',
-                headers,
-                credentials: 'same-origin', // keep same-origin to include cookies if you ever use them
             });
 
             if (!res.ok) {
@@ -548,7 +566,16 @@ export default function IncomePage() {
 
             {/* Toolbar - Icons commented out as per requirement */}
             <div className="flex items-center justify-end gap-2 px-4 py-2 border-b border-gray-100">
-                {/* toolbar buttons are intentionally commented */}
+                <button 
+                    onClick={handleExportToExcel}
+                    className="flex items-center gap-2 px-3 py-1.5 text-gray-600 hover:bg-gray-100 rounded text-sm"
+                    title="Export to Excel"
+                >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    Export to Excel
+                </button>
             </div>
 
             {/* Table Container - Scrollable */}

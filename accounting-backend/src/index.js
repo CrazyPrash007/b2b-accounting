@@ -3,6 +3,7 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const { connect, connectChatStarter } = require('./db/mongo');
+const authRoutes = require('./routes/auth.routes');
 const itemCategoryRoutes = require('./routes/itemCategory.routes');
 const unitRoutes = require('./routes/unit.routes');
 const customerRoutes = require('./routes/customer.routes');
@@ -32,6 +33,9 @@ async function start() {
 
     // Health
     app.get('/health', (req, res) => res.json({ ok: true, env: process.env.NODE_ENV || 'development' }));
+
+    // Auth routes (for validating tokens from main app)
+    app.use('/api/auth', authRoutes);
 
     // API routes
     app.use('/api/companies', companyRoutes);
