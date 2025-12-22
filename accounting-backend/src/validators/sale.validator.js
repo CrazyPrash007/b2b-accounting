@@ -31,6 +31,12 @@ const paymentSplit = Joi.object({
     depositTo: Joi.string().allow('').optional(),
 });
 
+// Advance payment schema
+const advancePaymentSchema = Joi.object({
+    receiptId: objectId.required(),
+    amount: Joi.number().min(0).required(),
+});
+
 // CREATE
 const create = Joi.object({
     accountCompanyName: objectnewId.required(),
@@ -56,6 +62,9 @@ const create = Joi.object({
     payments: Joi.array().items(paymentSplit).optional(),
     additionalCharges: Joi.array().items(additionalCharge).optional(),
     discount: Joi.number().min(0).optional(),
+
+    // Advance payment support
+    advancePayment: advancePaymentSchema.optional().allow(null),
 
     taxableAmount: Joi.number().optional().allow(null),
     gstAmount: Joi.number().optional().allow(null),

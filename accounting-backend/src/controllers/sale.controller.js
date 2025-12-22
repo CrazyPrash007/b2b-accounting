@@ -262,13 +262,17 @@ async function create(req, res, next) {
             // Add advance amount to paid amount
             paymentReceived += advanceAmount;
 
-            // Store receipt info for later update
+            // Store receipt info for later update AND for saving to sale document
             payload._advanceReceipt = {
                 id: receiptId,
                 amount: advanceAmount,
                 previousUsed: receiptUsed,
                 totalAmount: receiptTotal
             };
+            
+            // Store advance receipt reference in the sale document
+            payload.advanceReceiptId = receiptId;
+            payload.advanceAmountUsed = advanceAmount;
         }
 
         payload.paidAmount = payload.isPaymentReceived ? paymentReceived : 0;
@@ -287,7 +291,6 @@ async function create(req, res, next) {
 
         // Update advance receipt to track usage
         if (payload._advanceReceipt) {
-            const Receipt = require("../models/Receipt");
             const { id: receiptId, amount: advanceAmount, previousUsed, totalAmount } = payload._advanceReceipt;
             
             if (receiptId) {
@@ -295,19 +298,22 @@ async function create(req, res, next) {
                 const newRemainingAmount = totalAmount - newUsedAmount;
                 const invLabel = `${doc.invoicePrefix || ''}${doc.invoiceNumber || ''}${doc.invoiceSuffix || ''}`.trim();
                 
-                const updateFields = {
+                // Add this sale to the receipt's linkedSales array
+                await Receipt.findByIdAndUpdate(receiptId, {
                     usedAmount: newUsedAmount,
                     remainingAmount: newRemainingAmount,
-                    updatedBy: req.user.id
-                };
-
-                // Only link to invoice if fully used (backward compatibility)
-                if (newRemainingAmount === 0) {
-                    updateFields.invoiceId = doc._id;
-                    updateFields.invoiceLabel = invLabel;
-                }
-                
-                await Receipt.findByIdAndUpdate(receiptId, updateFields);
+                    updatedBy: req.user.id,
+                    $push: {
+                        linkedSales: {
+                            saleId: doc._id,
+                            invoiceLabel: invLabel,
+                            amountUsed: advanceAmount,
+                            usedAt: new Date()
+                        }
+                    },
+                    // Set invoiceId only if fully used (for backward compatibility)
+                    ...(newRemainingAmount === 0 ? { invoiceId: doc._id, invoiceLabel: invLabel } : {})
+                });
             }
         }
 
@@ -416,14 +422,45 @@ async function remove(req, res, next) {
         if (!companyId)
             return res.status(400).json({ success: false, error: { message: "Valid accountCompanyName is required" } });
 
+        // First, get the sale to check if it used advance payment
+        const sale = await Sale.findOne({
+            _id: req.params.id,
+            ownerId,
+            accountCompanyName: companyId,
+            isDeleted: false
+        });
+
+        if (!sale)
+            return res.status(404).json({ success: false, error: { message: "Not found" } });
+
+        // If sale used an advance payment, restore the amount to the receipt
+        if (sale.advanceReceiptId && sale.advanceAmountUsed > 0) {
+            const receipt = await Receipt.findById(sale.advanceReceiptId);
+            if (receipt) {
+                const newUsedAmount = Math.max(0, (receipt.usedAmount || 0) - sale.advanceAmountUsed);
+                const newRemainingAmount = receipt.amount - newUsedAmount;
+
+                // Remove this sale from linkedSales
+                const updatedLinkedSales = (receipt.linkedSales || []).filter(
+                    ls => !ls.saleId.equals(sale._id)
+                );
+
+                await Receipt.findByIdAndUpdate(sale.advanceReceiptId, {
+                    usedAmount: newUsedAmount,
+                    remainingAmount: newRemainingAmount,
+                    linkedSales: updatedLinkedSales,
+                    // Clear invoiceId if it was set to this sale
+                    ...(receipt.invoiceId && receipt.invoiceId.equals(sale._id) ? { invoiceId: null, invoiceLabel: '' } : {}),
+                    updatedBy: req.user.id
+                });
+            }
+        }
+
         const updated = await Sale.findOneAndUpdate(
             { _id: req.params.id, ownerId, accountCompanyName: companyId },
             { isDeleted: true, updatedBy: req.user.id },
             { new: true }
         );
-
-        if (!updated)
-            return res.status(404).json({ success: false, error: { message: "Not found" } });
 
         res.json({ success: true, data: updated });
 

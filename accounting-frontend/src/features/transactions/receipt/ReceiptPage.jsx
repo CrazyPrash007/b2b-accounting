@@ -860,32 +860,90 @@ export default function ReceiptPage() {
             { header: 'Date', key: 'date' },
             { header: 'Party', key: 'party' },
             { header: 'Amount', key: 'amount' },
+            { header: 'Balance', key: 'balance' },
             { header: 'Payment Method', key: 'paymentMethod' },
             { header: 'Invoice', key: 'invoice' },
             { header: 'Reference Number', key: 'referenceNumber' },
+            { header: 'Status', key: 'status' },
             { header: 'Description', key: 'description' },
         ];
         
-        const exportData = receipts.map(receipt => ({
-            date: formatDate(receipt.date),
-            party: receipt.party || '-',
-            amount: receipt.amount || 0,
-            paymentMethod: receipt.paymentMethod || '-',
-            invoice: receipt.invoice || '-',
-            referenceNumber: receipt.referenceNumber || '-',
-            description: receipt.description || '-',
-        }));
+        const exportData = receipts.map(receipt => {
+            const totalAmount = Number(receipt.amount || 0);
+            const usedAmount = Number(receipt.usedAmount || 0);
+            const remaining = receipt.calculatedRemainingAmount ?? receipt.remainingAmount ?? (totalAmount - usedAmount);
+            
+            // Calculate status for export
+            let statusText = 'Advance';
+            if (receipt.receiptStatus) {
+                const statusMap = {
+                    'paid': 'Paid',
+                    'partial': 'Partial',
+                    'unpaid': 'Due',
+                    'fully_used': 'Fully Used',
+                    'partially_used': 'Partially Used',
+                    'advance': 'Advance'
+                };
+                statusText = statusMap[receipt.receiptStatus] || 'Advance';
+            } else if (receipt.invoiceId) {
+                statusText = receipt.invoiceStatus === 'paid' ? 'Paid' : (receipt.invoiceStatus === 'partial' ? 'Partial' : 'Due');
+            } else if (usedAmount > 0) {
+                statusText = remaining <= 0 ? 'Fully Used' : 'Partially Used';
+            }
+            
+            return {
+                date: formatDate(receipt.date),
+                party: receipt.party || '-',
+                amount: receipt.amount || 0,
+                balance: receipt.invoiceId && !receipt.linkedSales?.length ? '-' : remaining,
+                paymentMethod: receipt.paymentMethod || '-',
+                invoice: receipt.invoiceLabel || receipt.invoice || (receipt.linkedSales?.length > 0 ? `${receipt.linkedSales.length} invoice(s)` : '-'),
+                referenceNumber: receipt.referenceNumber || '-',
+                status: statusText,
+                description: receipt.description || '-',
+            };
+        });
         
         exportTableToExcel(exportData, columns, 'Receipts_Report', 'Receipts');
     };
 
     const getStatusBadge = (receipt) => {
-        // Determine status: if invoice is linked, get status from invoice, otherwise show 'advance'
+        // Use the receiptStatus from backend if available, otherwise calculate
+        const receiptStatus = receipt.receiptStatus;
+        
         let status = 'advance';
         let label = 'Advance';
         
-        if (receipt.invoiceId && receipt.invoiceStatus) {
-            // Use invoice payment status
+        if (receiptStatus) {
+            // Use computed status from backend
+            switch (receiptStatus) {
+                case 'paid':
+                    status = 'paid';
+                    label = 'Paid';
+                    break;
+                case 'partial':
+                    status = 'partial';
+                    label = 'Partial';
+                    break;
+                case 'unpaid':
+                case 'linked':
+                    status = 'unpaid';
+                    label = 'Due';
+                    break;
+                case 'fully_used':
+                    status = 'fully_used';
+                    label = 'Fully Used';
+                    break;
+                case 'partially_used':
+                    status = 'partially_used';
+                    label = 'Partially Used';
+                    break;
+                default:
+                    status = 'advance';
+                    label = 'Advance';
+            }
+        } else if (receipt.invoiceId && receipt.invoiceStatus) {
+            // Fallback: Use invoice payment status
             const invStatus = receipt.invoiceStatus;
             if (invStatus === 'paid') {
                 status = 'paid';
@@ -897,21 +955,54 @@ export default function ReceiptPage() {
                 status = 'unpaid';
                 label = 'Due';
             }
+        } else {
+            // Check if advance has been used
+            const usedAmount = Number(receipt.usedAmount || 0);
+            const totalAmount = Number(receipt.amount || 0);
+            const remainingAmount = receipt.calculatedRemainingAmount ?? receipt.remainingAmount ?? (totalAmount - usedAmount);
+            
+            if (usedAmount > 0) {
+                if (remainingAmount <= 0) {
+                    status = 'fully_used';
+                    label = 'Fully Used';
+                } else {
+                    status = 'partially_used';
+                    label = 'Partially Used';
+                }
+            }
         }
 
         const badges = {
-            'paid': { bg: 'bg-green-100', text: 'text-green-700', label: 'Paid' },
-            'partial': { bg: 'bg-yellow-100', text: 'text-yellow-700', label: 'Partial' },
-            'unpaid': { bg: 'bg-red-100', text: 'text-red-700', label: 'Due' },
-            'advance': { bg: 'bg-blue-100', text: 'text-blue-700', label: 'Advance' },
+            'paid': { bg: 'bg-green-100', text: 'text-green-700' },
+            'partial': { bg: 'bg-yellow-100', text: 'text-yellow-700' },
+            'unpaid': { bg: 'bg-red-100', text: 'text-red-700' },
+            'advance': { bg: 'bg-blue-100', text: 'text-blue-700' },
+            'fully_used': { bg: 'bg-green-100', text: 'text-green-700' },
+            'partially_used': { bg: 'bg-purple-100', text: 'text-purple-700' },
         };
         const badge = badges[status] || badges['advance'];
-        badge.label = label;
         return (
             <span className={`inline-flex items-center px-2 py-0.5 rounded ${badge.bg} ${badge.text} text-xs font-medium`}>
-                {badge.label}
+                {label}
             </span>
         );
+    };
+
+    // Get remaining balance for display
+    const getRemainingBalance = (receipt) => {
+        const totalAmount = Number(receipt.amount || 0);
+        const usedAmount = Number(receipt.usedAmount || 0);
+        const remaining = receipt.calculatedRemainingAmount ?? receipt.remainingAmount ?? (totalAmount - usedAmount);
+        
+        // Don't show remaining for receipts linked directly to invoices
+        if (receipt.invoiceId && !receipt.linkedSales?.length) {
+            return '-';
+        }
+        
+        if (remaining <= 0) {
+            return '₹0.00';
+        }
+        return formatCurrency(remaining);
     };
 
     return (
@@ -966,7 +1057,7 @@ export default function ReceiptPage() {
             >
                 <div className="border border-gray-400 rounded overflow-hidden h-full">
                     <div className="overflow-x-auto h-full">
-                        <table className="min-w-[1000px] w-full border-collapse text-sm" style={{ borderSpacing: 0 }}>
+                        <table className="min-w-[1100px] w-full border-collapse text-sm" style={{ borderSpacing: 0 }}>
                             <thead className="sticky top-0 z-10 bg-white">
                                 <tr className="border-b border-gray-400">
                                     <th className="min-w-[110px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
@@ -981,13 +1072,19 @@ export default function ReceiptPage() {
                                             <span>Party</span>
                                         </div>
                                     </th>
-                                    <th className="min-w-[130px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                    <th className="min-w-[110px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
                                         <div className="flex items-center gap-2">
                                             <span className="text-gray-400 cursor-grab">⋮⋮</span>
                                             <span>Amount</span>
                                         </div>
                                     </th>
-                                    <th className="min-w-[140px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                    <th className="min-w-[110px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-gray-400 cursor-grab">⋮⋮</span>
+                                            <span>Balance</span>
+                                        </div>
+                                    </th>
+                                    <th className="min-w-[120px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
                                         <div className="flex items-center gap-2">
                                             <span className="text-gray-400 cursor-grab">⋮⋮</span>
                                             <span>Payment Method</span>
@@ -999,13 +1096,13 @@ export default function ReceiptPage() {
                                             <span>Invoice</span>
                                         </div>
                                     </th>
-                                    <th className="min-w-[130px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                    <th className="min-w-[110px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
                                         <div className="flex items-center gap-2">
                                             <span className="text-gray-400 cursor-grab">⋮⋮</span>
                                             <span>Reference</span>
                                         </div>
                                     </th>
-                                    <th className="min-w-[100px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                    <th className="min-w-[110px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
                                         <div className="flex items-center gap-2">
                                             <span className="text-gray-400 cursor-grab">⋮⋮</span>
                                             <span>Status</span>
@@ -1031,18 +1128,21 @@ export default function ReceiptPage() {
                                         <td className={getCellClasses(rowIndex, 2) + " text-left text-green-600 font-medium"} onClick={() => handleCellClick(rowIndex, 2)}>
                                             {formatCurrency(receipt.amount)}
                                         </td>
-                                        <td className={getCellClasses(rowIndex, 3) + " text-left text-gray-600"} onClick={() => handleCellClick(rowIndex, 3)}>
+                                        <td className={getCellClasses(rowIndex, 3) + " text-left text-gray-600 font-medium"} onClick={() => handleCellClick(rowIndex, 3)}>
+                                            {getRemainingBalance(receipt)}
+                                        </td>
+                                        <td className={getCellClasses(rowIndex, 4) + " text-left text-gray-600"} onClick={() => handleCellClick(rowIndex, 4)}>
                                             <span className="inline-flex items-center px-2 py-0.5 rounded bg-gray-100 text-gray-700 text-xs">
                                                 {receipt.paymentMethod}
                                             </span>
                                         </td>
-                                        <td className={getCellClasses(rowIndex, 4) + " text-left text-gray-600"} onClick={() => handleCellClick(rowIndex, 4)}>
-                                            {receipt.invoice || "-"}
-                                        </td>
                                         <td className={getCellClasses(rowIndex, 5) + " text-left text-gray-600"} onClick={() => handleCellClick(rowIndex, 5)}>
-                                            {receipt.referenceNumber || "-"}
+                                            {receipt.invoiceLabel || receipt.invoice || (receipt.linkedSales?.length > 0 ? `${receipt.linkedSales.length} invoice(s)` : "-")}
                                         </td>
                                         <td className={getCellClasses(rowIndex, 6) + " text-left text-gray-600"} onClick={() => handleCellClick(rowIndex, 6)}>
+                                            {receipt.referenceNumber || "-"}
+                                        </td>
+                                        <td className={getCellClasses(rowIndex, 7) + " text-left text-gray-600"} onClick={() => handleCellClick(rowIndex, 7)}>
                                             {getStatusBadge(receipt)}
                                         </td>
                                         <td className={`h-8 px-4 text-left sticky right-0 z-10 border-l border-gray-400 ${rowIndex % 2 === 0 ? 'bg-blue-50' : 'bg-white'}`} style={{ boxShadow: '-4px 0 8px -2px rgba(0, 0, 0, 0.1)' }}>
@@ -1070,6 +1170,7 @@ export default function ReceiptPage() {
                                             <td className={getCellClasses(rowIndex, 4)}></td>
                                             <td className={getCellClasses(rowIndex, 5)}></td>
                                             <td className={getCellClasses(rowIndex, 6)}></td>
+                                            <td className={getCellClasses(rowIndex, 7)}></td>
                                             <td className={`h-8 px-4 sticky right-0 z-10 border-l border-gray-400 ${rowIndex % 2 === 0 ? 'bg-blue-50' : 'bg-white'}`}></td>
                                         </tr>
                                     );

@@ -1715,6 +1715,7 @@ export default function SalesPage() {
                                         >
                                             {(() => {
                                                 const status = invoice.paymentStatus || 'unpaid';
+                                                const hasAdvance = invoice.advanceReceiptId || invoice.advanceAmountUsed > 0;
                                                 const badges = {
                                                     'paid': { bg: 'bg-green-100', text: 'text-green-700', label: 'Paid' },
                                                     'partial': { bg: 'bg-yellow-100', text: 'text-yellow-700', label: 'Partial' },
@@ -1722,9 +1723,16 @@ export default function SalesPage() {
                                                 };
                                                 const badge = badges[status] || badges['unpaid'];
                                                 return (
-                                                    <span className={`inline-flex items-center px-2 py-0.5 rounded ${badge.bg} ${badge.text} text-xs font-medium`}>
-                                                        {badge.label}
-                                                    </span>
+                                                    <div className="flex items-center gap-1">
+                                                        <span className={`inline-flex items-center px-2 py-0.5 rounded ${badge.bg} ${badge.text} text-xs font-medium`}>
+                                                            {badge.label}
+                                                        </span>
+                                                        {hasAdvance && (
+                                                            <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-purple-100 text-purple-700 text-xs font-medium" title={`Advance: ₹${Number(invoice.advanceAmountUsed || 0).toFixed(2)}`}>
+                                                                ADV
+                                                            </span>
+                                                        )}
+                                                    </div>
                                                 );
                                             })()}
                                         </td>
