@@ -7,10 +7,15 @@ import PdfPreviewModal from "../../../components/PdfPreviewModal";
 import { getCurrentCompany } from "../../../services/companyContextAccessor";
 import { exportTableToExcel } from "../../../utils/excelExport";
 import { authFetch } from "../../../services/apiClient";
+import { useModal } from "../../../hooks/useModal";
+import CustomerModal from "../../party/customer/components/CustomerModal";
+import ItemModal from "../../items/items/components/ItemModal";
 
 // SalesInvoiceModal - replaces the existing modal in SalesPage.jsx
 function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGst = true, bankAccounts: bankAccountsProp = [], gstRates: gstRatesProp = [] }) {
     const navigate = useNavigate();
+    const { openModal, closeModal } = useModal();
+    const API_BASE = "http://localhost:4000";
     
     // Get next invoice counter from localStorage or start at 1
     const getNextInvoiceCounter = () => {
@@ -155,9 +160,6 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isOpen, editData]);
 
-    // Force backend host (fast fix)
-    const API_BASE = "http://localhost:4000";
-
     async function parseJsonSafe(res) {
         const body = await res.json().catch(() => null);
         if (!body) return null;
@@ -254,6 +256,64 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
         } finally {
             setListsLoading(false);
         }
+    };
+
+    // 🎯 Add New Customer Modal (nested)
+    const handleAddCustomer = () => {
+        openModal(CustomerModal, {
+            onClose: () => closeModal(),
+            onSave: async (customerData) => {
+                try {
+                    const companyId = getCurrentCompany();
+                    const response = await authFetch(`${API_BASE}/api/customers`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ ...customerData, accountCompanyName: companyId })
+                    });
+                    const saved = await response.json();
+                    const newCustomer = saved.data || saved;
+                    console.log('✅ Customer saved:', newCustomer);
+                    
+                    // Refresh lists and auto-select new customer
+                    await fetchLists();
+                    const customerName = newCustomer.customerName || newCustomer.name || newCustomer.displayName || customerData.customerName;
+                    handleChange("customer", customerName);
+                    closeModal();
+                } catch (err) {
+                    console.error('❌ Failed to save customer:', err);
+                    alert('Failed to save customer. Please try again.');
+                }
+            }
+        });
+    };
+
+    // 🎯 Add New Item Modal (nested)
+    const handleAddItem = (rowIndex) => {
+        openModal(ItemModal, {
+            onClose: () => closeModal(),
+            onSave: async (itemData) => {
+                try {
+                    const companyId = getCurrentCompany();
+                    const response = await authFetch(`${API_BASE}/api/items`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ ...itemData, accountCompanyName: companyId })
+                    });
+                    const saved = await response.json();
+                    const newItem = saved.data || saved;
+                    console.log('✅ Item saved:', newItem);
+                    
+                    // Refresh lists and auto-select new item in the row
+                    await fetchLists();
+                    const itemName = newItem.itemName || newItem.name || itemData.itemName;
+                    handleItemChange(rowIndex, "goodsService", itemName);
+                    closeModal();
+                } catch (err) {
+                    console.error('❌ Failed to save item:', err);
+                    alert('Failed to save item. Please try again.');
+                }
+            }
+        });
     };
 
     const tryAutoFillRate = (value) => {
@@ -647,7 +707,7 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
         >
             <div className="bg-white rounded-lg shadow-xl w-full max-w-5xl mx-4 h-[90vh] flex flex-col">
                 {/* Modal Header */}
-                <div className="px-6 py-3 text-white rounded-t-lg flex-shrink-0" style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
+                <div className="px-6 py-3 text-white rounded-t-lg shrink-0" style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
                     <h3 className="text-lg font-semibold">
                         Create New Sales Invoice {withGst ? "" : "(Without GST)"}
                     </h3>
@@ -656,7 +716,7 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
                 {/* Modal Body */}
                 <div className="p-4 space-y-3 flex-1 flex flex-col overflow-y-auto" data-form-container onKeyDown={handleFormKeyDown}>
                     {/* Top Section - Customer & Invoice Details */}
-                    <div className="grid grid-cols-2 gap-4 flex-shrink-0">
+                    <div className="grid grid-cols-2 gap-4 shrink-0">
                         {/* Customer Selection */}
                         <div className="relative">
                             <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -692,7 +752,7 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
                                             </div>
                                         ))}
                                     <div
-                                        onClick={() => navigate("/customer")}
+                                        onClick={() => handleAddCustomer()}
                                         className="px-3 py-2 text-sm text-blue-600 font-semibold hover:bg-blue-50 cursor-pointer border-t border-gray-200"
                                     >
                                         + Add New Customer
@@ -713,21 +773,21 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
                                         value={formData.invoicePrefix}
                                         onChange={(e) => handleChange("invoicePrefix", e.target.value)}
                                         placeholder="Prefix"
-                                        className="w-14 min-w-[48px] border border-gray-300 rounded px-2 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                        className="w-14 min-w-12 border border-gray-300 rounded px-2 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
                                     />
                                     <input
                                         type="text"
                                         value={formData.invoiceNumber}
                                         readOnly
                                         title="Auto-generated invoice number (locked)"
-                                        className="w-20 min-w-[80px] border border-gray-300 rounded px-2 py-2 text-sm bg-gray-100 text-gray-600 cursor-not-allowed focus:outline-none"
+                                        className="w-20 min-w-20 border border-gray-300 rounded px-2 py-2 text-sm bg-gray-100 text-gray-600 cursor-not-allowed focus:outline-none"
                                     />
                                     <input
                                         type="text"
                                         value={formData.invoiceSuffix}
                                         onChange={(e) => handleChange("invoiceSuffix", e.target.value)}
                                         placeholder="Suffix (optional)"
-                                        className="flex-1 min-w-[80px] border border-gray-300 rounded px-2 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                        className="flex-1 min-w-20 border border-gray-300 rounded px-2 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
                                     />
                                 </div>
                             </div>
@@ -746,7 +806,7 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
                     </div>
 
                     {/* Items Table */}
-                    <div className="border border-gray-300 rounded-lg overflow-hidden flex-shrink-0 max-h-[250px] overflow-y-auto" data-items-table>
+                    <div className="border border-gray-300 rounded-lg overflow-hidden shrink-0 max-h-[250px] overflow-y-auto" data-items-table>
                         <table className="w-full text-sm">
                             <thead className="bg-gray-50 border-b border-gray-300 sticky top-0">
                                 <tr>
@@ -779,7 +839,7 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
                                                 onChange={(e) => {
                                                     const value = e.target.value;
                                                     if (value === "__ADD_NEW_ITEM__") {
-                                                        navigate("/items");
+                                                        handleAddItem(index);
                                                     } else {
                                                         handleItemChange(index, "goodsService", value);
                                                     }
@@ -889,7 +949,7 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
                     </div>
 
                     {/* Bottom Section - Payment & Summary */}
-                    <div className="grid grid-cols-2 gap-6 flex-shrink-0">
+                    <div className="grid grid-cols-2 gap-6 shrink-0">
                         {/* Payment Section */}
                         <div className="space-y-2">
                             <label className="flex items-center gap-2">
@@ -1147,12 +1207,12 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
                     </div>
 
                     {error && (
-                        <p className="text-sm text-red-500 flex-shrink-0">{error}</p>
+                        <p className="text-sm text-red-500 shrink-0">{error}</p>
                     )}
                 </div>
 
                 {/* Modal Footer */}
-                <div className="flex items-center justify-between px-6 py-3 border-t border-gray-200 bg-gray-50 rounded-b-lg flex-shrink-0">
+                <div className="flex items-center justify-between px-6 py-3 border-t border-gray-200 bg-gray-50 rounded-b-lg shrink-0">
                     {isEditMode ? (
                         <button
                             type="button"

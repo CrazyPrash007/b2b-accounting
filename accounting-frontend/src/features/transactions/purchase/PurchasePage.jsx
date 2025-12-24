@@ -7,6 +7,9 @@ import PdfPreviewModal from "../../../components/PdfPreviewModal";
 import { getCurrentCompany } from "../../../services/companyContextAccessor";
 import { exportTableToExcel } from "../../../utils/excelExport";
 import { authFetch } from "../../../services/apiClient";
+import { useModal } from "../../../hooks/useModal";
+import VendorModal from "../../party/vendor/components/VendorModal";
+import ItemModal from "../../items/items/components/ItemModal";
 
 /**
  * PurchaseInvoiceModal - Modal for creating/editing purchase invoices
@@ -14,6 +17,7 @@ import { authFetch } from "../../../services/apiClient";
  */
 function PurchaseInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGst = true, bankAccounts: bankAccountsProp = [], gstRates: gstRatesProp = [] }) {
     const navigate = useNavigate();
+    const { openModal, closeModal } = useModal();
     
     // Get next invoice counter from localStorage or start at 1
     const getNextInvoiceCounter = () => {
@@ -174,6 +178,64 @@ function PurchaseInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, wit
         } finally {
             setListsLoading(false);
         }
+    };
+
+    // 🎯 Add New Vendor Modal (nested)
+    const handleAddVendor = () => {
+        openModal(VendorModal, {
+            onClose: () => closeModal(),
+            onSave: async (vendorData) => {
+                try {
+                    const companyId = getCurrentCompany();
+                    const response = await authFetch(`${API_BASE}/api/vendors`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ ...vendorData, accountCompanyName: companyId })
+                    });
+                    const saved = await response.json();
+                    const newVendor = saved.data || saved;
+                    console.log('✅ Vendor saved:', newVendor);
+                    
+                    // Refresh lists and auto-select new vendor
+                    await fetchLists();
+                    const vendorName = newVendor.vendorName || newVendor.name || newVendor.displayName || vendorData.vendorName;
+                    handleChange("supplier", vendorName);
+                    closeModal();
+                } catch (err) {
+                    console.error('❌ Failed to save vendor:', err);
+                    alert('Failed to save vendor. Please try again.');
+                }
+            }
+        });
+    };
+
+    // 🎯 Add New Item Modal (nested)
+    const handleAddItem = (rowIndex) => {
+        openModal(ItemModal, {
+            onClose: () => closeModal(),
+            onSave: async (itemData) => {
+                try {
+                    const companyId = getCurrentCompany();
+                    const response = await authFetch(`${API_BASE}/api/items`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ ...itemData, accountCompanyName: companyId })
+                    });
+                    const saved = await response.json();
+                    const newItem = saved.data || saved;
+                    console.log('✅ Item saved:', newItem);
+                    
+                    // Refresh lists and auto-select new item in the row
+                    await fetchLists();
+                    const itemName = newItem.itemName || newItem.name || itemData.itemName;
+                    handleItemChange(rowIndex, "goodsService", itemName);
+                    closeModal();
+                } catch (err) {
+                    console.error('❌ Failed to save item:', err);
+                    alert('Failed to save item. Please try again.');
+                }
+            }
+        });
     };
 
     // When modal opens, seed form and fetch lists if needed (same behavior as Sales)
@@ -636,7 +698,7 @@ function PurchaseInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, wit
                                             </div>
                                         ))}
                                     <div
-                                        onClick={() => navigate("/vendor")}
+                                        onClick={() => handleAddVendor()}
                                         className="px-3 py-2 text-sm text-blue-600 font-semibold hover:bg-blue-50 cursor-pointer border-t border-gray-200"
                                     >
                                         + Add New Supplier
@@ -750,7 +812,7 @@ function PurchaseInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, wit
                                                 onChange={(e) => {
                                                     const value = e.target.value;
                                                     if (value === "__ADD_NEW_ITEM__") {
-                                                        navigate("/items");
+                                                        handleAddItem(index);
                                                     } else {
                                                         handleItemChange(index, "goodsService", value);
                                                     }

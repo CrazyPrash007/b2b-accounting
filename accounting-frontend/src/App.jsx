@@ -4,6 +4,7 @@ import { setCurrentCompany } from "./services/companyContextAccessor";
 import apiClient from "./services/apiClient";
 import AppRoutes from "./AppRoutes";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
+import { ModalProvider } from "./contexts/ModalContext";
 
 // --------------------------------------------------
 // Create Global Company Context
@@ -103,7 +104,9 @@ function AppContent() {
 
     return (
         <CompanyContext.Provider value={{ selectedCompany, setSelectedCompany }}>
-            <AppRoutes />
+            <ModalProvider>
+                <AppRoutes />
+            </ModalProvider>
         </CompanyContext.Provider>
     );
 }
