@@ -5,7 +5,7 @@ import apiClient from '../services/apiClient';
 const AuthContext = createContext(null);
 
 // Main app URL for redirects
-const MAIN_APP_URL = import.meta.env.VITE_MAIN_APP_URL || 'http://localhost:5173';
+const MAIN_APP_URL = import.meta.env.VITE_MAIN_APP_URL;
 
 // Extract token from URL hash (e.g., #token=proto-token:123...)
 function getTokenFromHash() {
@@ -42,9 +42,9 @@ export function AuthProvider({ children }) {
                 // Clear the hash from URL without reload
                 window.history.replaceState(null, '', window.location.pathname);
             }
-            
+
             const token = hashToken || localStorage.getItem('token');
-            
+
             if (!token) {
                 // No token - redirect to main app login
                 setAuth({ token: null, user: null, loading: false, error: 'No token' });
@@ -55,7 +55,7 @@ export function AuthProvider({ children }) {
             try {
                 // Validate token and get user info
                 const response = await apiClient.get('/api/auth/me');
-                
+
                 if (response.data?.success && response.data?.data) {
                     const user = response.data.data;
                     localStorage.setItem('accountingUser', JSON.stringify(user));
@@ -66,10 +66,10 @@ export function AuthProvider({ children }) {
             } catch (err) {
                 console.error('Auth validation failed:', err);
                 // Check if it's a network error vs auth error
-                const isNetworkError = err.message?.includes('No response') || 
-                                       err.message?.includes('Network') ||
-                                       err.message?.includes('ECONNREFUSED');
-                
+                const isNetworkError = err.message?.includes('No response') ||
+                    err.message?.includes('Network') ||
+                    err.message?.includes('ECONNREFUSED');
+
                 if (isNetworkError) {
                     // Backend might be down - try to use cached user if available
                     const cachedUser = JSON.parse(localStorage.getItem('accountingUser') || 'null');
@@ -79,7 +79,7 @@ export function AuthProvider({ children }) {
                         return;
                     }
                 }
-                
+
                 // Only clear token for actual auth failures (401)
                 if (err.message?.includes('401')) {
                     localStorage.removeItem('token');

@@ -18,24 +18,21 @@ export default function createResourceHook(api) {
 
         const load = useCallback(async () => {
             if (!selectedCompany) {
-                console.log('[useResourceFactory] No company selected, clearing rows');
                 setRows([]);
                 setLoading(false);
                 return;
             }
-            console.log('[useResourceFactory] Loading data for company:', selectedCompany);
+
             setLoading(true);
             setError(null);
 
             try {
                 const data = await api.list(selectedCompany);
-                console.log('[useResourceFactory] Loaded data:', data?.length, 'items');
                 const normalized = Array.isArray(data)
                     ? data.map(normalize)
                     : [];
                 setRows(normalized);
             } catch (err) {
-                console.error(`[useResourceFactory] Failed loading resource`, err);
                 setError(err);
                 setRows([]);
             } finally {

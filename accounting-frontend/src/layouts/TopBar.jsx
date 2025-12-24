@@ -6,7 +6,7 @@ import companyApi from "src/features/company/api/company.api";
 import { setCurrentCompany } from "src/services/companyContextAccessor";
 
 // Main app URL for navigation
-const MAIN_APP_URL = import.meta.env.VITE_MAIN_APP_URL || 'http://localhost:5173';
+const MAIN_APP_URL = import.meta.env.VITE_MAIN_APP_URL;
 
 // Lazy import AddCompanyForm
 let AddCompanyForm = null;
@@ -180,7 +180,7 @@ export default function TopBar() {
                         }}
                     >
                         <svg width="16" height="16" fill="#fff" viewBox="0 0 24 24">
-                            <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/>
+                            <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z" />
                         </svg>
                         Chat
                     </button>
@@ -330,7 +330,7 @@ export default function TopBar() {
                                 onMouseLeave={(e) => e.currentTarget.style.background = "#fff"}
                             >
                                 <svg width="18" height="18" fill="#54656f" viewBox="0 0 24 24">
-                                    <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/>
+                                    <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z" />
                                 </svg>
                                 <span style={{ color: "#333" }}>Back to Chat</span>
                             </div>
@@ -350,7 +350,7 @@ export default function TopBar() {
                                 onMouseLeave={(e) => e.currentTarget.style.background = "#fff"}
                             >
                                 <svg width="18" height="18" fill="#e53935" viewBox="0 0 24 24">
-                                    <path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/>
+                                    <path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z" />
                                 </svg>
                                 <span>Logout</span>
                             </div>
