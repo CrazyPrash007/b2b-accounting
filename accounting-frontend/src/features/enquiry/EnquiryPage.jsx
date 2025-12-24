@@ -697,6 +697,20 @@ export default function EnquiryPage() {
     const [filterState, setFilterState] = useState("");
     const [filterStatus, setFilterStatus] = useState("");
     const [search, setSearch] = useState("");
+    
+    // Unique categories from all enquiries
+    const [categories, setCategories] = useState([]);
+
+    // Extract unique categories from enquiries
+    useEffect(() => {
+        const allEnquiries = [...myEnquiries, ...publicEnquiries];
+        const uniqueCategories = [...new Set(
+            allEnquiries
+                .map(enq => enq.category)
+                .filter(cat => cat && cat.trim())
+        )].sort();
+        setCategories(uniqueCategories);
+    }, [myEnquiries, publicEnquiries]);
 
     // Apply filters
     useEffect(() => {
@@ -848,13 +862,16 @@ export default function EnquiryPage() {
                 )}
                 {activeTab === "public" && (
                     <>
-                        <input
-                            type="text"
-                            placeholder="Filter by category"
+                        <select
                             value={filterCategory}
                             onChange={(e) => setFilterCategory(e.target.value)}
-                            className="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 w-40"
-                        />
+                            className="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        >
+                            <option value="">All Categories</option>
+                            {categories.map(cat => (
+                                <option key={cat} value={cat}>{cat}</option>
+                            ))}
+                        </select>
                         <select
                             value={filterState}
                             onChange={(e) => setFilterState(e.target.value)}
