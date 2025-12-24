@@ -6,7 +6,7 @@ import purchaseApi from "./api/purchase.api";
 import PdfPreviewModal from "../../../components/PdfPreviewModal";
 import { getCurrentCompany } from "../../../services/companyContextAccessor";
 import { exportTableToExcel } from "../../../utils/excelExport";
-import { authFetch } from "../../../services/apiClient";
+import { authFetch, API_BASE_URL } from "../../../services/apiClient";
 
 /**
  * PurchaseInvoiceModal - Modal for creating/editing purchase invoices
@@ -14,7 +14,7 @@ import { authFetch } from "../../../services/apiClient";
  */
 function PurchaseInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGst = true, bankAccounts: bankAccountsProp = [], gstRates: gstRatesProp = [] }) {
     const navigate = useNavigate();
-    
+
     // Get next invoice counter from localStorage or start at 1
     const getNextInvoiceCounter = () => {
         const saved = localStorage.getItem('purchaseInvoiceCounter');
@@ -85,8 +85,8 @@ function PurchaseInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, wit
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [bankAccountsProp, gstRatesProp]);
 
-    // Force backend host (fast fix) - change if your API lives elsewhere
-    const API_BASE = "http://localhost:4000";
+    // Use API base URL from environment variable
+    const API_BASE = API_BASE_URL;
 
     async function parseJsonSafe(res) {
         const body = await res.json().catch(() => null);
@@ -261,7 +261,7 @@ function PurchaseInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, wit
     const handleChange = (field, value) => {
         setFormData((prev) => {
             const updated = { ...prev, [field]: value };
-            
+
             // If Pay Full checkbox is checked, auto-fill payment amount with total amount or due amount
             if (field === "payFull" && value === true) {
                 // In edit mode with partial payments, use due amount
@@ -296,7 +296,7 @@ function PurchaseInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, wit
                     updated.paymentAmount = String(total);
                 }
             }
-            
+
             return updated;
         });
         if (error) setError("");
@@ -1217,7 +1217,7 @@ export default function PurchasePage() {
             { header: 'Status', key: 'status' },
             { header: 'Due Amount', key: 'dueAmount' },
         ];
-        
+
         const exportData = filteredPurchases.map(purchase => ({
             date: formatDate(purchase.purchaseDate),
             invoiceNo: `${purchase.purchasePrefix || ''}${purchase.purchaseNumber || ''}${purchase.purchaseSuffix || ''}`,
@@ -1228,7 +1228,7 @@ export default function PurchasePage() {
             status: purchase.paymentStatus || '-',
             dueAmount: purchase.dueAmount || 0,
         }));
-        
+
         exportTableToExcel(exportData, columns, 'Purchase_Invoices_Report', 'Purchases');
     };
 
@@ -1468,7 +1468,7 @@ export default function PurchasePage() {
 
             {/* Toolbar */}
             <div className="flex items-center justify-end gap-2 px-4 py-2 border-b border-gray-100">
-                <button 
+                <button
                     onClick={handleExportToExcel}
                     className="flex items-center gap-2 px-3 py-1.5 text-gray-600 hover:bg-gray-100 rounded text-sm"
                     title="Export to Excel"

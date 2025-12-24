@@ -6,13 +6,13 @@ import receiptApi from "./api/receipt.api";
 import useReceipt from "./hooks/useReceipt";
 import { getCurrentCompany } from "../../../services/companyContextAccessor";
 import { exportTableToExcel } from "../../../utils/excelExport";
-import { authFetch } from "../../../services/apiClient";
+import { authFetch, API_BASE_URL } from "../../../services/apiClient";
 
 /**
  * ReceiptModal - Modal for creating/editing receipt (payment in) entries
  */
 function ReceiptModal({ isOpen, onClose, onSave, onDelete, editData }) {
-    const API_BASE = "http://localhost:4000"; // adjust if your API lives elsewhere
+    const API_BASE = API_BASE_URL;
 
     const [formData, setFormData] = useState({
         date: new Date().toISOString().split('T')[0],
@@ -248,7 +248,7 @@ function ReceiptModal({ isOpen, onClose, onSave, onDelete, editData }) {
     const handleInvoiceChange = (invoiceId) => {
         const selected = invoices.find(inv => inv.id === invoiceId);
         setSelectedInvoiceData(selected || null);
-        
+
         if (selected) {
             setFormData(prev => ({
                 ...prev,
@@ -304,7 +304,7 @@ function ReceiptModal({ isOpen, onClose, onSave, onDelete, editData }) {
 
         // Call parent save handler
         onSave(receiptData, isEditMode);
-        
+
         // Refresh invoices after payment to reflect updated due amounts
         if (formData.party && formData.invoiceId) {
             setTimeout(() => {
@@ -867,12 +867,12 @@ export default function ReceiptPage() {
             { header: 'Status', key: 'status' },
             { header: 'Description', key: 'description' },
         ];
-        
+
         const exportData = receipts.map(receipt => {
             const totalAmount = Number(receipt.amount || 0);
             const usedAmount = Number(receipt.usedAmount || 0);
             const remaining = receipt.calculatedRemainingAmount ?? receipt.remainingAmount ?? (totalAmount - usedAmount);
-            
+
             // Calculate status for export
             let statusText = 'Advance';
             if (receipt.receiptStatus) {
@@ -890,7 +890,7 @@ export default function ReceiptPage() {
             } else if (usedAmount > 0) {
                 statusText = remaining <= 0 ? 'Fully Used' : 'Partially Used';
             }
-            
+
             return {
                 date: formatDate(receipt.date),
                 party: receipt.party || '-',
@@ -903,17 +903,17 @@ export default function ReceiptPage() {
                 description: receipt.description || '-',
             };
         });
-        
+
         exportTableToExcel(exportData, columns, 'Receipts_Report', 'Receipts');
     };
 
     const getStatusBadge = (receipt) => {
         // Use the receiptStatus from backend if available, otherwise calculate
         const receiptStatus = receipt.receiptStatus;
-        
+
         let status = 'advance';
         let label = 'Advance';
-        
+
         if (receiptStatus) {
             // Use computed status from backend
             switch (receiptStatus) {
@@ -960,7 +960,7 @@ export default function ReceiptPage() {
             const usedAmount = Number(receipt.usedAmount || 0);
             const totalAmount = Number(receipt.amount || 0);
             const remainingAmount = receipt.calculatedRemainingAmount ?? receipt.remainingAmount ?? (totalAmount - usedAmount);
-            
+
             if (usedAmount > 0) {
                 if (remainingAmount <= 0) {
                     status = 'fully_used';
@@ -993,12 +993,12 @@ export default function ReceiptPage() {
         const totalAmount = Number(receipt.amount || 0);
         const usedAmount = Number(receipt.usedAmount || 0);
         const remaining = receipt.calculatedRemainingAmount ?? receipt.remainingAmount ?? (totalAmount - usedAmount);
-        
+
         // Don't show remaining for receipts linked directly to invoices
         if (receipt.invoiceId && !receipt.linkedSales?.length) {
             return '-';
         }
-        
+
         if (remaining <= 0) {
             return '₹0.00';
         }
@@ -1030,7 +1030,7 @@ export default function ReceiptPage() {
 
             {/* Toolbar (kept minimal like your original) */}
             <div className="flex items-center justify-end gap-2 px-4 py-2 border-b border-gray-100">
-                <button 
+                <button
                     onClick={handleExportToExcel}
                     className="flex items-center gap-2 px-3 py-1.5 text-gray-600 hover:bg-gray-100 rounded text-sm"
                     title="Export to Excel"

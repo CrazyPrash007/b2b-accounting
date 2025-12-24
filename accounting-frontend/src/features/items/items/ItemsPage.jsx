@@ -5,7 +5,7 @@ import useItem from "./hooks/useItem";
 import ItemTable from "./ItemTable";
 import { getCurrentCompany } from "../../../services/companyContextAccessor";
 import { exportTableToExcel } from "../../../utils/excelExport";
-import { authFetch } from "../../../services/apiClient";
+import { authFetch, API_BASE_URL } from "../../../services/apiClient";
 
 /**
  * Helper to safely parse backend JSON that might be { success, data, meta } or raw array
@@ -92,8 +92,8 @@ function ItemModal({ isOpen, onClose, onSave, onDelete, editData }) {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isOpen, editData]);
 
-    // Force backend host (fast fix)
-    const API_BASE = "http://localhost:4000";
+    // Use API base URL from environment variable
+    const API_BASE = API_BASE_URL;
 
     const fetchLists = async () => {
         setListsLoading(true);
@@ -282,7 +282,7 @@ function ItemModal({ isOpen, onClose, onSave, onDelete, editData }) {
                                         {u}
                                     </option>
                                 ))}
-                                <option value="__ADD_NEW__" style={{color: '#2563eb', fontWeight: '600'}}>+ Add New Unit</option>
+                                <option value="__ADD_NEW__" style={{ color: '#2563eb', fontWeight: '600' }}>+ Add New Unit</option>
                             </select>
                         </div>
 
@@ -307,7 +307,7 @@ function ItemModal({ isOpen, onClose, onSave, onDelete, editData }) {
                                         {c.name}
                                     </option>
                                 ))}
-                                <option value="__ADD_NEW__" style={{color: '#2563eb', fontWeight: '600'}}>+ Add New Category</option>
+                                <option value="__ADD_NEW__" style={{ color: '#2563eb', fontWeight: '600' }}>+ Add New Category</option>
                             </select>
                         </div>
 
@@ -355,7 +355,7 @@ function ItemModal({ isOpen, onClose, onSave, onDelete, editData }) {
                                         {b}
                                     </option>
                                 ))}
-                                <option value="__ADD_NEW__" style={{color: '#2563eb', fontWeight: '600'}}>+ Add New Brand</option>
+                                <option value="__ADD_NEW__" style={{ color: '#2563eb', fontWeight: '600' }}>+ Add New Brand</option>
                             </select>
                         </div>
 
@@ -577,7 +577,7 @@ export default function ItemsPage() {
             { header: 'Min Stock', key: 'minStock' },
             { header: 'Opening Date', key: 'openingDate' },
         ];
-        
+
         const exportData = items.map(item => ({
             itemName: item.itemName || item.name || '-',
             description: item.description || '-',
@@ -594,7 +594,7 @@ export default function ItemsPage() {
             minStock: item.minStock != null ? item.minStock : '-',
             openingDate: item.openingDate || '-',
         }));
-        
+
         exportTableToExcel(exportData, columns, 'Items_Report', 'Items');
     };
 
@@ -609,7 +609,7 @@ export default function ItemsPage() {
                     </button>
                 </div>
                 <div className="flex items-center gap-2">
-                    <button 
+                    <button
                         onClick={handleExportToExcel}
                         className="flex items-center gap-2 px-3 py-2 text-gray-600 hover:bg-gray-100 rounded text-sm"
                         title="Export to Excel"
