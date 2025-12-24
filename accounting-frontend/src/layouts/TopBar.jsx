@@ -169,7 +169,8 @@ export default function TopBar() {
                         style={{
                             background: "rgba(255,255,255,0.15)",
                             borderRadius: 6,
-                            padding: "6px 12px",
+                            padding: "0 12px",
+                            height: 36,
                             border: "1px solid rgba(255,255,255,0.3)",
                             color: "#fff",
                             display: "flex",
@@ -192,7 +193,8 @@ export default function TopBar() {
                             style={{
                                 background: "rgba(255,255,255,0.15)",
                                 borderRadius: 6,
-                                padding: "6px 12px",
+                                padding: "0 12px",
+                                height: 36,
                                 border: "1px solid rgba(255,255,255,0.3)",
                                 color: "#fff",
                                 display: "flex",
@@ -200,6 +202,7 @@ export default function TopBar() {
                                 gap: 8,
                                 minWidth: 140,
                                 cursor: "pointer",
+                                fontSize: 13,
                             }}
                         >
                             <span

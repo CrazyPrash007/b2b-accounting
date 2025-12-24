@@ -8,6 +8,7 @@ const auth = require('../middlewares/auth');
 router.use(auth);
 
 router.get('/', controller.listCompanies);
+router.get('/:id', controller.getOne);
 router.post('/', controller.createCompany);
 
 module.exports = router;
