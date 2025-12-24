@@ -15,6 +15,7 @@ import {
     FiBarChart2,
     FiPackage,
     FiLayers,
+    FiMessageSquare,
 } from "react-icons/fi";
 
 /**
@@ -131,6 +132,7 @@ export default function Sidebar() {
                     <Item title="Purchase" icon={<FiShoppingBag />} to="/purchase" />
                     <Item title="Income" icon={<FiFileText />} to="/income" />
                     <Item title="Expenses" icon={<FiFileText />} to="/expenses" />
+                    <Item title="Enquiry" icon={<FiMessageSquare />} to="/enquiry" />
                 </div>
 
                 {/* CORE ACCOUNTING */}
