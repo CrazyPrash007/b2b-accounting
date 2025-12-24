@@ -14,6 +14,33 @@ async function listCompanies(req, res, next) {
 }
 
 /**
+ * GET ONE COMPANY
+ * Fetch a single company by ID for the logged-in user
+ */
+async function getOne(req, res, next) {
+    try {
+        const Company = getCompanyModel();
+        const companyId = req.params.id;
+
+        const company = await Company.findOne({
+            _id: companyId,
+            owner: req.user.ownerId
+        }).lean();
+
+        if (!company) {
+            return res.status(404).json({
+                success: false,
+                error: { message: "Company not found" }
+            });
+        }
+
+        res.json({ success: true, data: company });
+    } catch (err) {
+        next(err);
+    }
+}
+
+/**
  * CREATE COMPANY
  * Creates a new company for the logged-in user
  */
@@ -94,4 +121,4 @@ async function createCompany(req, res, next) {
     }
 }
 
-module.exports = { listCompanies, createCompany };
+module.exports = { listCompanies, getOne, createCompany };
