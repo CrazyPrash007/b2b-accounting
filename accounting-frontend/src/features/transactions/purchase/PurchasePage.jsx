@@ -6,14 +6,10 @@ import purchaseApi from "./api/purchase.api";
 import PdfPreviewModal from "../../../components/PdfPreviewModal";
 import { getCurrentCompany } from "../../../services/companyContextAccessor";
 import { exportTableToExcel } from "../../../utils/excelExport";
-<<<<<<< HEAD
 import { authFetch, API_BASE_URL } from "../../../services/apiClient";
-=======
-import { authFetch } from "../../../services/apiClient";
 import { useModal } from "../../../hooks/useModal";
 import VendorModal from "../../party/vendor/components/VendorModal";
 import ItemModal from "../../items/items/components/ItemModal";
->>>>>>> upstream/trial
 
 /**
  * PurchaseInvoiceModal - Modal for creating/editing purchase invoices
@@ -21,12 +17,8 @@ import ItemModal from "../../items/items/components/ItemModal";
  */
 function PurchaseInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGst = true, bankAccounts: bankAccountsProp = [], gstRates: gstRatesProp = [] }) {
     const navigate = useNavigate();
-<<<<<<< HEAD
-
-=======
     const { openModal, closeModal } = useModal();
-    
->>>>>>> upstream/trial
+
     // Get next invoice counter from localStorage or start at 1
     const getNextInvoiceCounter = () => {
         const saved = localStorage.getItem('purchaseInvoiceCounter');
@@ -203,7 +195,7 @@ function PurchaseInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, wit
                     const saved = await response.json();
                     const newVendor = saved.data || saved;
                     console.log('✅ Vendor saved:', newVendor);
-                    
+
                     // Refresh lists and auto-select new vendor
                     await fetchLists();
                     const vendorName = newVendor.vendorName || newVendor.name || newVendor.displayName || vendorData.vendorName;
@@ -232,7 +224,7 @@ function PurchaseInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, wit
                     const saved = await response.json();
                     const newItem = saved.data || saved;
                     console.log('✅ Item saved:', newItem);
-                    
+
                     // Refresh lists and auto-select new item in the row
                     await fetchLists();
                     const itemName = newItem.itemName || newItem.name || itemData.itemName;

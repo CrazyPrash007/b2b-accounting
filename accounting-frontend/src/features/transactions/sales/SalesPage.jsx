@@ -5,15 +5,7 @@ import saleApi from "./api/sale.api";
 import PdfPreviewModal from "../../../components/PdfPreviewModal";
 import { getCurrentCompany } from "../../../services/companyContextAccessor";
 import { exportTableToExcel } from "../../../utils/excelExport";
-<<<<<<< HEAD
 import { authFetch, API_BASE_URL } from "../../../services/apiClient";
-
-// SalesInvoiceModal - replaces the existing modal in SalesPage.jsx
-function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGst = true, bankAccounts: bankAccountsProp = [], gstRates: gstRatesProp = [] }) {
-    const navigate = useNavigate();
-
-=======
-import { authFetch } from "../../../services/apiClient";
 import { useModal } from "../../../hooks/useModal";
 import CustomerModal from "../../party/customer/components/CustomerModal";
 import ItemModal from "../../items/items/components/ItemModal";
@@ -21,9 +13,8 @@ import ItemModal from "../../items/items/components/ItemModal";
 // SalesInvoiceModal - replaces the existing modal in SalesPage.jsx
 function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGst = true, bankAccounts: bankAccountsProp = [], gstRates: gstRatesProp = [] }) {
     const { openModal, closeModal } = useModal();
-    const API_BASE = "http://localhost:4000";
-    
->>>>>>> upstream/trial
+    const API_BASE = API_BASE_URL;
+
     // Get next invoice counter from localStorage or start at 1
     const getNextInvoiceCounter = () => {
         const saved = localStorage.getItem('salesInvoiceCounter');
@@ -167,12 +158,6 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isOpen, editData]);
 
-<<<<<<< HEAD
-    // Use API base URL from environment variable
-    const API_BASE = API_BASE_URL;
-
-=======
->>>>>>> upstream/trial
     async function parseJsonSafe(res) {
         const body = await res.json().catch(() => null);
         if (!body) return null;
@@ -286,7 +271,7 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
                     const saved = await response.json();
                     const newCustomer = saved.data || saved;
                     console.log('✅ Customer saved:', newCustomer);
-                    
+
                     // Refresh lists and auto-select new customer
                     await fetchLists();
                     const customerName = newCustomer.customerName || newCustomer.name || newCustomer.displayName || customerData.customerName;
@@ -315,7 +300,7 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
                     const saved = await response.json();
                     const newItem = saved.data || saved;
                     console.log('✅ Item saved:', newItem);
-                    
+
                     // Refresh lists and auto-select new item in the row
                     await fetchLists();
                     const itemName = newItem.itemName || newItem.name || itemData.itemName;

@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useContext, useMemo } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { CompanyContext } from "src/App";
-import { authFetch } from "src/services/apiClient";
+import { authFetch, API_BASE_URL } from "src/services/apiClient";
 import { getCurrentCompany } from "src/services/companyContextAccessor";
 import PdfPreviewModal from "src/components/PdfPreviewModal";
 import saleApi from "src/features/transactions/sales/api/sale.api";
@@ -10,7 +10,7 @@ import purchaseApi from "src/features/transactions/purchase/api/purchase.api";
 import receiptApi from "src/features/transactions/receipt/api/receipt.api";
 import paymentApi from "src/features/transactions/payment/api/payment.api";
 
-const API_BASE = "http://localhost:4000";
+const API_BASE = API_BASE_URL;
 
 async function parseJsonSafe(res) {
     const body = await res.json().catch(() => null);
@@ -55,7 +55,7 @@ export default function PartyHistoryPage() {
             try {
                 const companyId = getCurrentCompany();
                 const endpoint = isCustomer ? "customers" : "vendors";
-                
+
                 // Fetch party details
                 const partyRes = await authFetch(`${API_BASE}/api/${endpoint}/${id}?accountCompanyName=${companyId}`);
                 if (partyRes && partyRes.ok) {
@@ -81,7 +81,7 @@ export default function PartyHistoryPage() {
             try {
                 const companyId = getCurrentCompany();
                 const partyName = party.customerName || party.vendorName || party.name || "";
-                
+
                 const [salesRes, purchasesRes, receiptsRes, paymentsRes] = await Promise.allSettled([
                     authFetch(`${API_BASE}/api/sales?accountCompanyName=${companyId}`),
                     authFetch(`${API_BASE}/api/purchases?accountCompanyName=${companyId}`),
@@ -107,8 +107,8 @@ export default function PartyHistoryPage() {
                     return items.filter(item => {
                         const itemPartyId = item.partyId || item.customerId || item.vendorId;
                         const itemPartyName = item[partyField] || item.customerName || item.vendorName || item.customer || item.supplier;
-                        return itemPartyId === id || 
-                               (partyName && itemPartyName?.toLowerCase() === partyName.toLowerCase());
+                        return itemPartyId === id ||
+                            (partyName && itemPartyName?.toLowerCase() === partyName.toLowerCase());
                     });
                 };
 
@@ -130,9 +130,9 @@ export default function PartyHistoryPage() {
         const totalPurchases = purchases.reduce((sum, p) => sum + (parseFloat(p.totalAmount) || parseFloat(p.grandTotal) || 0), 0);
         const totalReceipts = receipts.reduce((sum, r) => sum + (parseFloat(r.amount) || 0), 0);
         const totalPayments = payments.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
-        
-        const balance = isCustomer 
-            ? (totalSales - totalReceipts) 
+
+        const balance = isCustomer
+            ? (totalSales - totalReceipts)
             : (totalPurchases - totalPayments);
 
         return { totalSales, totalPurchases, totalReceipts, totalPayments, balance };
@@ -180,7 +180,7 @@ export default function PartyHistoryPage() {
     const getPdfBlob = async () => {
         if (!selectedTxnForPdf) return null;
         const txnId = selectedTxnForPdf._id || selectedTxnForPdf.id;
-        
+
         switch (selectedTxnForPdf._type) {
             case 'sale':
                 return saleApi.getPdfBlob(txnId);
@@ -200,7 +200,7 @@ export default function PartyHistoryPage() {
         if (!selectedTxnForPdf) return 'document.pdf';
         const txn = selectedTxnForPdf;
         const ref = txn.invoiceNumber || txn.referenceNumber || txn.billNumber || txn._id;
-        
+
         switch (txn._type) {
             case 'sale':
                 return `SalesInvoice_${ref}.pdf`;
@@ -218,7 +218,7 @@ export default function PartyHistoryPage() {
     // Get modal title for PDF preview
     const getPdfTitle = () => {
         if (!selectedTxnForPdf) return 'PDF Preview';
-        
+
         switch (selectedTxnForPdf._type) {
             case 'sale':
                 return 'Sales Invoice Preview';
@@ -330,7 +330,7 @@ export default function PartyHistoryPage() {
         return (
             <div className="h-full flex flex-col items-center justify-center text-gray-500">
                 <p className="text-lg">{partyLabel} not found</p>
-                <button 
+                <button
                     onClick={() => navigate(-1)}
                     className="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
                 >
@@ -348,7 +348,7 @@ export default function PartyHistoryPage() {
             <div className="px-6 py-4 border-b border-gray-200">
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-4">
-                        <button 
+                        <button
                             onClick={() => navigate(-1)}
                             className="text-gray-500 hover:text-gray-700"
                         >
@@ -446,16 +446,14 @@ export default function PartyHistoryPage() {
                         <button
                             key={tab.key}
                             onClick={() => setActiveTab(tab.key)}
-                            className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
-                                activeTab === tab.key
+                            className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === tab.key
                                     ? 'text-blue-600 border-blue-600'
                                     : 'text-gray-500 border-transparent hover:text-gray-700'
-                            }`}
+                                }`}
                         >
                             {tab.label}
-                            <span className={`ml-2 px-2 py-0.5 text-xs rounded-full ${
-                                activeTab === tab.key ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-500'
-                            }`}>
+                            <span className={`ml-2 px-2 py-0.5 text-xs rounded-full ${activeTab === tab.key ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-500'
+                                }`}>
                                 {tab.count}
                             </span>
                         </button>
@@ -481,10 +479,10 @@ export default function PartyHistoryPage() {
                         </thead>
                         <tbody className="divide-y divide-gray-200">
                             {(activeTab === 'all' ? allTransactions :
-                              activeTab === 'sales' ? sales.map(s => ({ ...s, _type: 'sale', _date: s.date || s.invoiceDate })) :
-                              activeTab === 'purchases' ? purchases.map(p => ({ ...p, _type: 'purchase', _date: p.date || p.invoiceDate })) :
-                              activeTab === 'receipts' ? receipts.map(r => ({ ...r, _type: 'receipt', _date: r.date })) :
-                              payments.map(p => ({ ...p, _type: 'payment', _date: p.date }))
+                                activeTab === 'sales' ? sales.map(s => ({ ...s, _type: 'sale', _date: s.date || s.invoiceDate })) :
+                                    activeTab === 'purchases' ? purchases.map(p => ({ ...p, _type: 'purchase', _date: p.date || p.invoiceDate })) :
+                                        activeTab === 'receipts' ? receipts.map(r => ({ ...r, _type: 'receipt', _date: r.date })) :
+                                            payments.map(p => ({ ...p, _type: 'payment', _date: p.date }))
                             ).map((txn, idx) => {
                                 // Determine status based on transaction type and payment info
                                 const getStatus = () => {
@@ -501,7 +499,7 @@ export default function PartyHistoryPage() {
                                     return 'Unpaid';
                                 };
                                 const status = getStatus();
-                                const statusStyle = 
+                                const statusStyle =
                                     status === 'Paid' || status === 'Completed' || status === 'paid' || status === 'completed'
                                         ? 'bg-green-50 text-green-700'
                                         : status === 'Partial' || status === 'partial'
@@ -514,15 +512,14 @@ export default function PartyHistoryPage() {
                                             {formatDate(txn._date || txn.date || txn.invoiceDate)}
                                         </td>
                                         <td className="px-4 py-3">
-                                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                                                txn._type === 'sale' ? 'bg-green-100 text-green-800' :
-                                                txn._type === 'purchase' ? 'bg-orange-100 text-orange-800' :
-                                                txn._type === 'receipt' ? 'bg-blue-100 text-blue-800' :
-                                                'bg-red-100 text-red-800'
-                                            }`}>
+                                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${txn._type === 'sale' ? 'bg-green-100 text-green-800' :
+                                                    txn._type === 'purchase' ? 'bg-orange-100 text-orange-800' :
+                                                        txn._type === 'receipt' ? 'bg-blue-100 text-blue-800' :
+                                                            'bg-red-100 text-red-800'
+                                                }`}>
                                                 {txn._type === 'sale' ? 'Sale' :
-                                                 txn._type === 'purchase' ? 'Purchase' :
-                                                 txn._type === 'receipt' ? 'Receipt' : 'Payment'}
+                                                    txn._type === 'purchase' ? 'Purchase' :
+                                                        txn._type === 'receipt' ? 'Receipt' : 'Payment'}
                                             </span>
                                         </td>
                                         <td className="px-4 py-3 text-sm text-gray-900 font-medium">
@@ -536,12 +533,11 @@ export default function PartyHistoryPage() {
                                             )}
                                         </td>
                                         <td className="px-4 py-3 text-sm text-gray-600 max-w-xs truncate">
-                                            {txn.description || txn.notes || 
-                                             (txn.items?.length ? `${txn.items.length} item(s)` : '-')}
+                                            {txn.description || txn.notes ||
+                                                (txn.items?.length ? `${txn.items.length} item(s)` : '-')}
                                         </td>
-                                        <td className={`px-4 py-3 text-sm font-medium text-right ${
-                                            txn._type === 'sale' || txn._type === 'receipt' ? 'text-green-600' : 'text-red-600'
-                                        }`}>
+                                        <td className={`px-4 py-3 text-sm font-medium text-right ${txn._type === 'sale' || txn._type === 'receipt' ? 'text-green-600' : 'text-red-600'
+                                            }`}>
                                             {formatCurrency(txn.totalAmount || txn.grandTotal || txn.amount)}
                                         </td>
                                         <td className="px-4 py-3 text-sm">
@@ -565,17 +561,17 @@ export default function PartyHistoryPage() {
                                     </tr>
                                 );
                             })}
-                            {(activeTab === 'all' ? allTransactions : 
-                              activeTab === 'sales' ? sales :
-                              activeTab === 'purchases' ? purchases :
-                              activeTab === 'receipts' ? receipts : payments
+                            {(activeTab === 'all' ? allTransactions :
+                                activeTab === 'sales' ? sales :
+                                    activeTab === 'purchases' ? purchases :
+                                        activeTab === 'receipts' ? receipts : payments
                             ).length === 0 && (
-                                <tr>
-                                    <td colSpan={8} className="px-4 py-8 text-center text-gray-500">
-                                        No {activeTab === 'all' ? 'transactions' : activeTab} found for this {partyLabel.toLowerCase()}
-                                    </td>
-                                </tr>
-                            )}
+                                    <tr>
+                                        <td colSpan={8} className="px-4 py-8 text-center text-gray-500">
+                                            No {activeTab === 'all' ? 'transactions' : activeTab} found for this {partyLabel.toLowerCase()}
+                                        </td>
+                                    </tr>
+                                )}
                         </tbody>
                     </table>
                 </div>
