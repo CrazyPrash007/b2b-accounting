@@ -5,7 +5,9 @@ import apiClient from '../services/apiClient';
 const AuthContext = createContext(null);
 
 // Main app URL for redirects
-const MAIN_APP_URL = import.meta.env.VITE_MAIN_APP_URL;
+const MAIN_APP_URL =
+    import.meta.env.VITE_MAIN_APP_URL ||
+    (typeof window !== 'undefined' ? window.location.origin : '');
 
 // Extract token from URL hash (e.g., #token=proto-token:123...)
 function getTokenFromHash() {
