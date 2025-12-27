@@ -6,13 +6,13 @@ import paymentApi from "./api/payment.api";
 import usePayment from "./hooks/usePayment";
 import { getCurrentCompany } from "../../../services/companyContextAccessor";
 import { exportTableToExcel } from "../../../utils/excelExport";
-import { authFetch } from "../../../services/apiClient";
+import { authFetch, API_BASE_URL } from "../../../services/apiClient";
 
 /**
  * PaymentModal - Modal for creating/editing payment out entries
  */
 function PaymentModal({ isOpen, onClose, onSave, onDelete, editData }) {
-    const API_BASE = "http://localhost:4000"; // adjust if your API lives elsewhere
+    const API_BASE = API_BASE_URL;
 
     const [formData, setFormData] = useState({
         date: new Date().toISOString().split('T')[0],
@@ -248,7 +248,7 @@ function PaymentModal({ isOpen, onClose, onSave, onDelete, editData }) {
     const handleInvoiceChange = (invoiceId) => {
         const selected = invoices.find(inv => inv.id === invoiceId);
         setSelectedInvoiceData(selected || null);
-        
+
         if (selected) {
             setFormData(prev => ({
                 ...prev,
@@ -304,7 +304,7 @@ function PaymentModal({ isOpen, onClose, onSave, onDelete, editData }) {
 
         // Call parent save handler
         onSave(paymentData, isEditMode);
-        
+
         // Refresh invoices after payment to reflect updated due amounts
         if (formData.party && formData.invoiceId) {
             setTimeout(() => {
@@ -325,10 +325,10 @@ function PaymentModal({ isOpen, onClose, onSave, onDelete, editData }) {
             e.preventDefault();
             const form = e.target.closest('form') || e.target.closest('[data-form-container]');
             if (!form) return;
-            
+
             const inputs = Array.from(form.querySelectorAll('input, select, textarea'));
             const currentIndex = inputs.indexOf(e.target);
-            
+
             if (currentIndex !== -1 && currentIndex < inputs.length - 1) {
                 inputs[currentIndex + 1].focus();
             }
@@ -865,7 +865,7 @@ export default function PaymentPage() {
             { header: 'Reference Number', key: 'referenceNumber' },
             { header: 'Description', key: 'description' },
         ];
-        
+
         const exportData = payments.map(payment => ({
             date: formatDate(payment.date),
             party: payment.party || '-',
@@ -875,7 +875,7 @@ export default function PaymentPage() {
             referenceNumber: payment.referenceNumber || '-',
             description: payment.description || '-',
         }));
-        
+
         exportTableToExcel(exportData, columns, 'Payments_Report', 'Payments');
     };
 
@@ -883,7 +883,7 @@ export default function PaymentPage() {
         // Determine status: if invoice is linked, get status from invoice, otherwise show 'advance'
         let status = 'advance';
         let label = 'Advance';
-        
+
         if (payment.invoiceId && payment.invoiceStatus) {
             // Use invoice payment status
             const invStatus = payment.invoiceStatus;
@@ -939,7 +939,7 @@ export default function PaymentPage() {
 
             {/* Toolbar (kept minimal like ReceiptPage) */}
             <div className="flex items-center justify-end gap-2 px-4 py-2 border-b border-gray-100">
-                <button 
+                <button
                     onClick={handleExportToExcel}
                     className="flex items-center gap-2 px-3 py-1.5 text-gray-600 hover:bg-gray-100 rounded text-sm"
                     title="Export to Excel"
@@ -966,116 +966,116 @@ export default function PaymentPage() {
             >
                 <div className="border border-gray-400 rounded overflow-hidden h-full">
                     <div className="overflow-x-auto h-full">
-                    <table className="min-w-[1000px] w-full border-collapse text-sm" style={{ borderSpacing: 0 }}>
-                        <thead className="sticky top-0 z-10 bg-white">
-                            <tr className="border-b border-gray-400">
-                                <th className="min-w-[110px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-gray-400 cursor-grab">⋮⋮</span>
-                                        <span>Date</span>
-                                    </div>
-                                </th>
-                                <th className="min-w-[160px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-gray-400 cursor-grab">⋮⋮</span>
-                                        <span>Party</span>
-                                    </div>
-                                </th>
-                                <th className="min-w-[130px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-gray-400 cursor-grab">⋮⋮</span>
-                                        <span>Amount</span>
-                                    </div>
-                                </th>
-                                <th className="min-w-[140px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-gray-400 cursor-grab">⋮⋮</span>
-                                        <span>Payment Method</span>
-                                    </div>
-                                </th>
-                                <th className="min-w-[120px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-gray-400 cursor-grab">⋮⋮</span>
-                                        <span>Invoice</span>
-                                    </div>
-                                </th>
-                                <th className="min-w-[130px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-gray-400 cursor-grab">⋮⋮</span>
-                                        <span>Reference</span>
-                                    </div>
-                                </th>
-                                <th className="min-w-[100px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-gray-400 cursor-grab">⋮⋮</span>
-                                        <span>Status</span>
-                                    </div>
-                                </th>
-                                <th className="min-w-[100px] h-9 px-4 text-left text-sm font-medium text-gray-700 sticky right-0 z-20 bg-gray-100 border-l border-gray-400" style={{ boxShadow: '-4px 0 8px -2px rgba(0, 0, 0, 0.15)' }}>
-                                    Actions
-                                </th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {payments.map((payment, rowIndex) => (
-                                <tr
-                                    key={payment.id || payment._id || rowIndex}
-                                    className={`border-b border-gray-400 hover:bg-blue-100 transition-colors ${rowIndex % 2 === 0 ? 'bg-blue-50/40' : 'bg-white'}`}
-                                >
-                                    <td className={getCellClasses(rowIndex, 0) + " text-left text-gray-600"} onClick={() => handleCellClick(rowIndex, 0)}>
-                                        {formatDate(payment.date)}
-                                    </td>
-                                    <td className={getCellClasses(rowIndex, 1) + " text-left text-blue-600"} onClick={() => handleCellClick(rowIndex, 1)}>
-                                        {payment.party}
-                                    </td>
-                                    <td className={getCellClasses(rowIndex, 2) + " text-left text-red-600 font-medium"} onClick={() => handleCellClick(rowIndex, 2)}>
-                                        {formatCurrency(payment.amount)}
-                                    </td>
-                                    <td className={getCellClasses(rowIndex, 3) + " text-left text-gray-600"} onClick={() => handleCellClick(rowIndex, 3)}>
-                                        <span className="inline-flex items-center px-2 py-0.5 rounded bg-gray-100 text-gray-700 text-xs">
-                                            {payment.paymentMethod}
-                                        </span>
-                                    </td>
-                                    <td className={getCellClasses(rowIndex, 4) + " text-left text-gray-600"} onClick={() => handleCellClick(rowIndex, 4)}>
-                                        {payment.invoice || "-"}
-                                    </td>
-                                    <td className={getCellClasses(rowIndex, 5) + " text-left text-gray-600"} onClick={() => handleCellClick(rowIndex, 5)}>
-                                        {payment.referenceNumber || "-"}
-                                    </td>
-                                    <td className={getCellClasses(rowIndex, 6) + " text-left text-gray-600"} onClick={() => handleCellClick(rowIndex, 6)}>
-                                        {getStatusBadge(payment)}
-                                    </td>
-                                    <td className={`h-8 px-4 text-left sticky right-0 z-10 border-l border-gray-400 ${rowIndex % 2 === 0 ? 'bg-blue-50' : 'bg-white'}`} style={{ boxShadow: '-4px 0 8px -2px rgba(0, 0, 0, 0.1)' }}>
-                                        <div className="flex items-center justify-end gap-2">
-                                            <button onClick={() => handleDownloadPDF(payment)} className="text-purple-600 hover:underline text-sm" title="Export as PDF">PDF</button>
-                                            <button onClick={() => handleEditPayment(payment)} className="text-blue-600 hover:underline text-sm">Edit</button>
-                                            <button onClick={() => handleDeletePayment(payment)} className="text-gray-400 hover:text-gray-600" title="Delete">
-                                                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                                                    <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z" />
-                                                </svg>
-                                            </button>
+                        <table className="min-w-[1000px] w-full border-collapse text-sm" style={{ borderSpacing: 0 }}>
+                            <thead className="sticky top-0 z-10 bg-white">
+                                <tr className="border-b border-gray-400">
+                                    <th className="min-w-[110px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-gray-400 cursor-grab">⋮⋮</span>
+                                            <span>Date</span>
                                         </div>
-                                    </td>
+                                    </th>
+                                    <th className="min-w-[160px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-gray-400 cursor-grab">⋮⋮</span>
+                                            <span>Party</span>
+                                        </div>
+                                    </th>
+                                    <th className="min-w-[130px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-gray-400 cursor-grab">⋮⋮</span>
+                                            <span>Amount</span>
+                                        </div>
+                                    </th>
+                                    <th className="min-w-[140px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-gray-400 cursor-grab">⋮⋮</span>
+                                            <span>Payment Method</span>
+                                        </div>
+                                    </th>
+                                    <th className="min-w-[120px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-gray-400 cursor-grab">⋮⋮</span>
+                                            <span>Invoice</span>
+                                        </div>
+                                    </th>
+                                    <th className="min-w-[130px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-gray-400 cursor-grab">⋮⋮</span>
+                                            <span>Reference</span>
+                                        </div>
+                                    </th>
+                                    <th className="min-w-[100px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-gray-400 cursor-grab">⋮⋮</span>
+                                            <span>Status</span>
+                                        </div>
+                                    </th>
+                                    <th className="min-w-[100px] h-9 px-4 text-left text-sm font-medium text-gray-700 sticky right-0 z-20 bg-gray-100 border-l border-gray-400" style={{ boxShadow: '-4px 0 8px -2px rgba(0, 0, 0, 0.15)' }}>
+                                        Actions
+                                    </th>
                                 </tr>
-                            ))}
-                            {/* Empty rows */}
-                            {emptyRows.map((_, idx) => {
-                                const rowIndex = payments.length + idx;
-                                return (
-                                    <tr key={`empty-${idx}`} className={`border-b border-gray-400 hover:bg-blue-100 transition-colors ${rowIndex % 2 === 0 ? 'bg-blue-50/40' : 'bg-white'}`}>
-                                        <td className={getCellClasses(rowIndex, 0)}></td>
-                                        <td className={getCellClasses(rowIndex, 1)}></td>
-                                        <td className={getCellClasses(rowIndex, 2)}></td>
-                                        <td className={getCellClasses(rowIndex, 3)}></td>
-                                        <td className={getCellClasses(rowIndex, 4)}></td>
-                                        <td className={getCellClasses(rowIndex, 5)}></td>
-                                        <td className={getCellClasses(rowIndex, 6)}></td>
-                                        <td className={`h-8 px-4 sticky right-0 z-10 border-l border-gray-400 ${rowIndex % 2 === 0 ? 'bg-blue-50' : 'bg-white'}`}></td>
+                            </thead>
+                            <tbody>
+                                {payments.map((payment, rowIndex) => (
+                                    <tr
+                                        key={payment.id || payment._id || rowIndex}
+                                        className={`border-b border-gray-400 hover:bg-blue-100 transition-colors ${rowIndex % 2 === 0 ? 'bg-blue-50/40' : 'bg-white'}`}
+                                    >
+                                        <td className={getCellClasses(rowIndex, 0) + " text-left text-gray-600"} onClick={() => handleCellClick(rowIndex, 0)}>
+                                            {formatDate(payment.date)}
+                                        </td>
+                                        <td className={getCellClasses(rowIndex, 1) + " text-left text-blue-600"} onClick={() => handleCellClick(rowIndex, 1)}>
+                                            {payment.party}
+                                        </td>
+                                        <td className={getCellClasses(rowIndex, 2) + " text-left text-red-600 font-medium"} onClick={() => handleCellClick(rowIndex, 2)}>
+                                            {formatCurrency(payment.amount)}
+                                        </td>
+                                        <td className={getCellClasses(rowIndex, 3) + " text-left text-gray-600"} onClick={() => handleCellClick(rowIndex, 3)}>
+                                            <span className="inline-flex items-center px-2 py-0.5 rounded bg-gray-100 text-gray-700 text-xs">
+                                                {payment.paymentMethod}
+                                            </span>
+                                        </td>
+                                        <td className={getCellClasses(rowIndex, 4) + " text-left text-gray-600"} onClick={() => handleCellClick(rowIndex, 4)}>
+                                            {payment.invoice || "-"}
+                                        </td>
+                                        <td className={getCellClasses(rowIndex, 5) + " text-left text-gray-600"} onClick={() => handleCellClick(rowIndex, 5)}>
+                                            {payment.referenceNumber || "-"}
+                                        </td>
+                                        <td className={getCellClasses(rowIndex, 6) + " text-left text-gray-600"} onClick={() => handleCellClick(rowIndex, 6)}>
+                                            {getStatusBadge(payment)}
+                                        </td>
+                                        <td className={`h-8 px-4 text-left sticky right-0 z-10 border-l border-gray-400 ${rowIndex % 2 === 0 ? 'bg-blue-50' : 'bg-white'}`} style={{ boxShadow: '-4px 0 8px -2px rgba(0, 0, 0, 0.1)' }}>
+                                            <div className="flex items-center justify-end gap-2">
+                                                <button onClick={() => handleDownloadPDF(payment)} className="text-purple-600 hover:underline text-sm" title="Export as PDF">PDF</button>
+                                                <button onClick={() => handleEditPayment(payment)} className="text-blue-600 hover:underline text-sm">Edit</button>
+                                                <button onClick={() => handleDeletePayment(payment)} className="text-gray-400 hover:text-gray-600" title="Delete">
+                                                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                                                        <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z" />
+                                                    </svg>
+                                                </button>
+                                            </div>
+                                        </td>
                                     </tr>
-                                );
-                            })}
-                        </tbody>
-                    </table>
+                                ))}
+                                {/* Empty rows */}
+                                {emptyRows.map((_, idx) => {
+                                    const rowIndex = payments.length + idx;
+                                    return (
+                                        <tr key={`empty-${idx}`} className={`border-b border-gray-400 hover:bg-blue-100 transition-colors ${rowIndex % 2 === 0 ? 'bg-blue-50/40' : 'bg-white'}`}>
+                                            <td className={getCellClasses(rowIndex, 0)}></td>
+                                            <td className={getCellClasses(rowIndex, 1)}></td>
+                                            <td className={getCellClasses(rowIndex, 2)}></td>
+                                            <td className={getCellClasses(rowIndex, 3)}></td>
+                                            <td className={getCellClasses(rowIndex, 4)}></td>
+                                            <td className={getCellClasses(rowIndex, 5)}></td>
+                                            <td className={getCellClasses(rowIndex, 6)}></td>
+                                            <td className={`h-8 px-4 sticky right-0 z-10 border-l border-gray-400 ${rowIndex % 2 === 0 ? 'bg-blue-50' : 'bg-white'}`}></td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             </div>

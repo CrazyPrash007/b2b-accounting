@@ -5,7 +5,7 @@ import useExpense from "./hooks/useExpense";
 import { exportTableToExcel } from "../../../utils/excelExport";
 import expenseApi from "./api/expense.api";
 import { CompanyContext } from "src/App";
-import { authFetch } from "../../../services/apiClient";
+import { authFetch, API_BASE_URL } from "../../../services/apiClient";
 
 /**
  * ExpenseModal - Modal for creating/editing expenses
@@ -442,7 +442,7 @@ export default function ExpensePage() {
             { header: 'Payment Method', key: 'paymentMethod' },
             { header: 'Description', key: 'description' },
         ];
-        
+
         const exportData = expenses.map(expense => ({
             date: formatDate(expense.date),
             billName: expense.billName || '-',
@@ -451,7 +451,7 @@ export default function ExpensePage() {
             paymentMethod: expense.paymentMethod || '-',
             description: expense.description || '-',
         }));
-        
+
         exportTableToExcel(exportData, columns, 'Expense_Report', 'Expense');
     };
 
@@ -515,7 +515,7 @@ export default function ExpensePage() {
         try {
             const id = expense._id ?? expense.id;
             if (!id) throw new Error("Invalid expense id");
-            const backendBase = "http://localhost:4000";
+            const backendBase = API_BASE_URL;
 
             const res = await authFetch(`${backendBase}/api/expense/${id}/receipt`, {
                 method: 'GET',
@@ -582,7 +582,7 @@ export default function ExpensePage() {
 
             {/* Toolbar - Icons commented out as per requirement */}
             <div className="flex items-center justify-end gap-2 px-4 py-2 border-b border-gray-100">
-                <button 
+                <button
                     onClick={handleExportToExcel}
                     className="flex items-center gap-2 px-3 py-1.5 text-gray-600 hover:bg-gray-100 rounded text-sm"
                     title="Export to Excel"

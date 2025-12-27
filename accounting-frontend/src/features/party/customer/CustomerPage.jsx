@@ -5,7 +5,7 @@ import useCustomer from "./hooks/useCustomer";
 import { exportTableToExcel } from "../../../utils/excelExport";
 
 // Fullstack API URL for chat invitees
-const FULLSTACK_API_URL = import.meta.env.VITE_FULLSTACK_API_URL || "http://localhost:5000/api";
+const FULLSTACK_API_URL = import.meta.env.VITE_FULLSTACK_API_URL || import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api";
 
 /**
  * Helper function to add party as invitee in fullstack chat
@@ -652,7 +652,7 @@ export default function CustomerPage() {
                     openingBalanceType: customerData.openingBalanceType || "Credit",
                     openingBalanceAmount: customerData.openingBalanceAmount || 0,
                 });
-                
+
                 // Add customer as invitee in fullstack chat (only for new customers)
                 if (customerData.mobileNumber) {
                     addPartyAsInvitee(customerData);
@@ -701,7 +701,7 @@ export default function CustomerPage() {
             { header: 'State', key: 'billingState' },
             { header: 'Opening Balance', key: 'openingBalance' },
         ];
-        
+
         const exportData = customers.map(customer => ({
             customerName: customer.customerName || '-',
             mobileNumber: customer.mobileNumber || '-',
@@ -713,7 +713,7 @@ export default function CustomerPage() {
             billingState: customer.billingState || '-',
             openingBalance: customer.openingBalanceAmount ? `₹${customer.openingBalanceAmount} (${customer.openingBalanceType})` : '-',
         }));
-        
+
         exportTableToExcel(exportData, columns, 'Customers_Report', 'Customers');
     };
 
@@ -782,7 +782,7 @@ export default function CustomerPage() {
 
             {/* Toolbar - Icons commented out */}
             <div className="flex items-center justify-end gap-2 px-4 py-2 border-b border-gray-100">
-                <button 
+                <button
                     onClick={handleExportToExcel}
                     className="flex items-center gap-2 px-3 py-1.5 text-gray-600 hover:bg-gray-100 rounded text-sm"
                     title="Export to Excel"

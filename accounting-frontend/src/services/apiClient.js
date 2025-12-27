@@ -2,13 +2,15 @@
 import axios from "axios";
 import { getCurrentCompany } from "./companyContextAccessor";
 
-const baseURL =
+export const API_BASE_URL =
     import.meta.env.VITE_API_BASE_URL && import.meta.env.VITE_API_BASE_URL.length
         ? import.meta.env.VITE_API_BASE_URL
         : (typeof window !== "undefined" ? window.location.origin : "");
 
+const baseURL = API_BASE_URL;
+
 // Main app URL for auth redirects
-const MAIN_APP_URL = import.meta.env.VITE_MAIN_APP_URL || 'http://localhost:5173';
+const MAIN_APP_URL = import.meta.env.VITE_MAIN_APP_URL;
 
 const apiClient = axios.create({
     baseURL,
@@ -28,7 +30,7 @@ apiClient.interceptors.request.use(
         const token = localStorage.getItem('token');
         if (token) {
             config.headers.Authorization = token;
-            
+
             // Also set x-owner-id for backward compatibility
             const match = token.match(/proto-token:([0-9a-fA-F]{24})$/);
             if (match) {
@@ -61,7 +63,7 @@ apiClient.interceptors.response.use(
             if (err.config?.url?.includes('/api/auth/')) {
                 return Promise.reject(new Error('401 Authentication required'));
             }
-            
+
             console.warn('Authentication failed - redirecting to login');
             localStorage.removeItem('token');
             localStorage.removeItem('accountingUser');
@@ -91,7 +93,7 @@ export function authFetch(url, options = {}) {
         'Accept': 'application/json',
         ...(options.headers || {}),
     };
-    
+
     if (token) {
         headers['Authorization'] = token;
         const match = token.match(/proto-token:([0-9a-fA-F]{24})$/);
@@ -99,7 +101,7 @@ export function authFetch(url, options = {}) {
             headers['x-owner-id'] = match[1];
         }
     }
-    
+
     return fetch(url, {
         ...options,
         headers,

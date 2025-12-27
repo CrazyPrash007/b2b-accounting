@@ -6,7 +6,7 @@ import purchaseApi from "./api/purchase.api";
 import PdfPreviewModal from "../../../components/PdfPreviewModal";
 import { getCurrentCompany } from "../../../services/companyContextAccessor";
 import { exportTableToExcel } from "../../../utils/excelExport";
-import { authFetch } from "../../../services/apiClient";
+import { authFetch, API_BASE_URL } from "../../../services/apiClient";
 import { useModal } from "../../../hooks/useModal";
 import VendorModal from "../../party/vendor/components/VendorModal";
 import ItemModal from "../../items/items/components/ItemModal";
@@ -18,7 +18,7 @@ import ItemModal from "../../items/items/components/ItemModal";
 function PurchaseInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGst = true, bankAccounts: bankAccountsProp = [], gstRates: gstRatesProp = [] }) {
     const navigate = useNavigate();
     const { openModal, closeModal } = useModal();
-    
+
     // Get next invoice counter from localStorage or start at 1
     const getNextInvoiceCounter = () => {
         const saved = localStorage.getItem('purchaseInvoiceCounter');
@@ -89,8 +89,8 @@ function PurchaseInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, wit
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [bankAccountsProp, gstRatesProp]);
 
-    // Force backend host (fast fix) - change if your API lives elsewhere
-    const API_BASE = "http://localhost:4000";
+    // Use API base URL from environment variable
+    const API_BASE = API_BASE_URL;
 
     async function parseJsonSafe(res) {
         const body = await res.json().catch(() => null);
@@ -195,7 +195,7 @@ function PurchaseInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, wit
                     const saved = await response.json();
                     const newVendor = saved.data || saved;
                     console.log('✅ Vendor saved:', newVendor);
-                    
+
                     // Refresh lists and auto-select new vendor
                     await fetchLists();
                     const vendorName = newVendor.vendorName || newVendor.name || newVendor.displayName || vendorData.vendorName;
@@ -224,7 +224,7 @@ function PurchaseInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, wit
                     const saved = await response.json();
                     const newItem = saved.data || saved;
                     console.log('✅ Item saved:', newItem);
-                    
+
                     // Refresh lists and auto-select new item in the row
                     await fetchLists();
                     const itemName = newItem.itemName || newItem.name || itemData.itemName;
@@ -323,7 +323,7 @@ function PurchaseInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, wit
     const handleChange = (field, value) => {
         setFormData((prev) => {
             const updated = { ...prev, [field]: value };
-            
+
             // If Pay Full checkbox is checked, auto-fill payment amount with total amount or due amount
             if (field === "payFull" && value === true) {
                 // In edit mode with partial payments, use due amount
@@ -358,7 +358,7 @@ function PurchaseInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, wit
                     updated.paymentAmount = String(total);
                 }
             }
-            
+
             return updated;
         });
         if (error) setError("");
@@ -1183,11 +1183,12 @@ export default function PurchasePage() {
     // Fetch bank accounts and GST rates from backend instead of localStorage
     useEffect(() => {
         let mounted = true;
+        const companyId = getCurrentCompany();
 
         async function fetchBanks() {
             setLoadingBanks(true);
             try {
-                const res = await fetch('/api/bank');
+                const res = await authFetch(`${API_BASE_URL}/api/bank?accountCompanyName=${companyId}`);
                 if (!res.ok) {
                     console.warn('Failed to fetch banks', res.status);
                     return;
@@ -1206,7 +1207,7 @@ export default function PurchasePage() {
         async function fetchGst() {
             setLoadingGst(true);
             try {
-                const res = await fetch('/api/gst');
+                const res = await authFetch(`${API_BASE_URL}/api/gst?accountCompanyName=${companyId}`);
                 if (!res.ok) {
                     console.warn('Failed to fetch gst rates', res.status);
                     return;
@@ -1287,7 +1288,7 @@ export default function PurchasePage() {
             { header: 'Status', key: 'status' },
             { header: 'Type', key: 'type' },
         ];
-        
+
         const exportData = filteredPurchases.map(purchase => ({
             date: formatDate(purchase.purchaseDate),
             invoiceNo: `${purchase.purchasePrefix || ''}${purchase.purchaseNumber || ''}${purchase.purchaseSuffix || ''}`,
@@ -1298,7 +1299,7 @@ export default function PurchasePage() {
             status: purchase.paymentStatus || '-',
             dueAmount: purchase.dueAmount || 0,
         }));
-        
+
         exportTableToExcel(exportData, columns, 'Purchase_Invoices_Report', 'Purchases');
     };
 
@@ -1538,7 +1539,7 @@ export default function PurchasePage() {
 
             {/* Toolbar */}
             <div className="flex items-center justify-end gap-2 px-4 py-2 border-b border-gray-100">
-                <button 
+                <button
                     onClick={handleExportToExcel}
                     className="flex items-center gap-2 px-3 py-1.5 text-gray-600 hover:bg-gray-100 rounded text-sm"
                     title="Export to Excel"

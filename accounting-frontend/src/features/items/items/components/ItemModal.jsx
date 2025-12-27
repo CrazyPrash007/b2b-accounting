@@ -1,7 +1,7 @@
 // ItemModal.jsx - Extracted modal component for reusability
 import React, { useState, useEffect, useRef } from "react";
 import { useModal } from "../../../../hooks/useModal";
-import { authFetch } from "../../../../services/apiClient";
+import { authFetch, API_BASE_URL } from "../../../../services/apiClient";
 import { getCurrentCompany } from "../../../../services/companyContextAccessor";
 
 // Import nested modals
@@ -22,7 +22,7 @@ async function parseJsonSafe(res) {
 
 export default function ItemModal({ isOpen, onClose, onSave, onDelete, editData }) {
     const { openModal, closeModal } = useModal();
-    const API_BASE = "http://localhost:4000";
+    const API_BASE = API_BASE_URL;
 
     // Global search state
     const [globalSearchQuery, setGlobalSearchQuery] = useState("");
@@ -69,7 +69,7 @@ export default function ItemModal({ isOpen, onClose, onSave, onDelete, editData 
         try {
             const companyId = getCurrentCompany();
             console.log('📦 Fetching lists for company:', companyId);
-            
+
             const [unitsRes, catsRes, brandsRes, gstRes] = await Promise.allSettled([
                 authFetch(`${API_BASE}/api/unit?accountCompanyName=${companyId}`),
                 authFetch(`${API_BASE}/api/item-categories?accountCompanyName=${companyId}`),
@@ -159,7 +159,7 @@ export default function ItemModal({ isOpen, onClose, onSave, onDelete, editData 
     useEffect(() => {
         const handleClickOutside = (event) => {
             if (
-                searchDropdownRef.current && 
+                searchDropdownRef.current &&
                 !searchDropdownRef.current.contains(event.target) &&
                 globalSearchRef.current &&
                 !globalSearchRef.current.contains(event.target)
@@ -174,7 +174,7 @@ export default function ItemModal({ isOpen, onClose, onSave, onDelete, editData 
     // Handle selecting an item from global search
     const handleSelectGlobalItem = async (selectedItem) => {
         const companyId = getCurrentCompany();
-        
+
         // Fill the form with selected item's details
         setItemName(selectedItem.itemName || "");
         setDescription(selectedItem.description || "");
@@ -187,7 +187,7 @@ export default function ItemModal({ isOpen, onClose, onSave, onDelete, editData 
         const createIfMissing = async (endpoint, field, value, payloadKey) => {
             if (!value || value.trim() === '') return;
             const trimmed = value.trim();
-            
+
             // Check if already exists in current list
             let exists = false;
             if (field === 'unit') {
@@ -209,13 +209,13 @@ export default function ItemModal({ isOpen, onClose, onSave, onDelete, editData 
                     } else if (field === 'gst') {
                         payload.rate = Number(trimmed);
                     }
-                    
+
                     const res = await authFetch(`${API_BASE}/api/${endpoint}`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(payload)
                     });
-                    
+
                     if (res && res.ok) {
                         console.log(`✅ Auto-created ${field}:`, trimmed);
                     }
@@ -324,7 +324,7 @@ export default function ItemModal({ isOpen, onClose, onSave, onDelete, editData 
                     const saved = await response.json();
                     const newUnit = saved.data || saved;
                     console.log('✅ Unit saved:', newUnit);
-                    
+
                     await fetchLists();
                     setUnit(newUnit.aliasName || unitData.aliasName || unitData.name);
                     closeModal();
@@ -351,7 +351,7 @@ export default function ItemModal({ isOpen, onClose, onSave, onDelete, editData 
                     const saved = await response.json();
                     const newCategory = saved.data || saved;
                     console.log('✅ Category saved:', newCategory);
-                    
+
                     await fetchLists();
                     setCategory(newCategory.name || categoryData.name);
                     closeModal();
@@ -378,7 +378,7 @@ export default function ItemModal({ isOpen, onClose, onSave, onDelete, editData 
                     const saved = await response.json();
                     const newBrand = saved.data || saved;
                     console.log('✅ Brand saved:', newBrand);
-                    
+
                     await fetchLists();
                     setBrandName(newBrand.brandName || brandData.brandName);
                     closeModal();
@@ -405,7 +405,7 @@ export default function ItemModal({ isOpen, onClose, onSave, onDelete, editData 
                     const saved = await response.json();
                     const newGst = saved.data || saved;
                     console.log('✅ GST saved:', newGst);
-                    
+
                     await fetchLists();
                     setGstRate(String(newGst.rate || gstData.rate));
                     closeModal();
@@ -509,10 +509,10 @@ export default function ItemModal({ isOpen, onClose, onSave, onDelete, editData 
                                 </div>
                             )}
                         </div>
-                        
+
                         {/* Search Results Dropdown */}
                         {showSearchDropdown && globalSearchResults.length > 0 && (
-                            <div 
+                            <div
                                 ref={searchDropdownRef}
                                 className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-64 overflow-y-auto"
                             >
@@ -542,7 +542,7 @@ export default function ItemModal({ isOpen, onClose, onSave, onDelete, editData 
                                 ))}
                             </div>
                         )}
-                        
+
                         {/* No results message */}
                         {showSearchDropdown && globalSearchResults.length === 0 && globalSearchQuery.trim().length >= 2 && !isSearching && (
                             <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg p-4 text-center text-gray-500 text-sm">

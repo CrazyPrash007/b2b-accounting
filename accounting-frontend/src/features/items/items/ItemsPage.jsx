@@ -144,7 +144,7 @@ export default function ItemsPage() {
             { header: 'Min Stock', key: 'minStock' },
             { header: 'Opening Date', key: 'openingDate' },
         ];
-        
+
         const exportData = items.map(item => ({
             itemName: item.itemName || item.name || '-',
             description: item.description || '-',
@@ -161,7 +161,7 @@ export default function ItemsPage() {
             minStock: item.minStock != null ? item.minStock : '-',
             openingDate: item.openingDate || '-',
         }));
-        
+
         exportTableToExcel(exportData, columns, 'Items_Report', 'Items');
     };
 
@@ -176,7 +176,7 @@ export default function ItemsPage() {
                     </button>
                 </div>
                 <div className="flex items-center gap-2">
-                    <button 
+                    <button
                         onClick={handleExportToExcel}
                         className="flex items-center gap-2 px-3 py-2 text-gray-600 hover:bg-gray-100 rounded text-sm"
                         title="Export to Excel"
