@@ -1,6 +1,5 @@
 // SalesPage.jsx
 import React, { useState, useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
 import useSale from "./hooks/useSale";
 import saleApi from "./api/sale.api";
 import PdfPreviewModal from "../../../components/PdfPreviewModal";
@@ -13,7 +12,6 @@ import ItemModal from "../../items/items/components/ItemModal";
 
 // SalesInvoiceModal - replaces the existing modal in SalesPage.jsx
 function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGst = true, bankAccounts: bankAccountsProp = [], gstRates: gstRatesProp = [] }) {
-    const navigate = useNavigate();
     const { openModal, closeModal } = useModal();
     const API_BASE = "http://localhost:4000";
     
@@ -70,11 +68,11 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
     const [bankAccounts, setBankAccounts] = useState(bankAccountsProp || []);
 
     const [listsLoading, setListsLoading] = useState(false);
-    const [listsError, setListsError] = useState(null);
+    const [listsError, setListsError] = useState(null); // eslint-disable-line no-unused-vars
 
     // Autocomplete dropdown state
     const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
-    const [customerSearchTerm, setCustomerSearchTerm] = useState("");
+    const [customerSearchTerm, setCustomerSearchTerm] = useState(""); // eslint-disable-line no-unused-vars
 
     // Default GST options if no rates provided from props/api
     const defaultGstOptions = ["0", "5", "12", "18", "28"];
@@ -316,7 +314,7 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
         });
     };
 
-    const tryAutoFillRate = (value) => {
+    const _tryAutoFillRate = (value) => {
         if (!value) return "";
         const match = itemsList.find(i => {
             const name = (i._displayName || i.itemName || i.name || "").toString().trim().toLowerCase();
@@ -567,7 +565,7 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
         return hasGoodsService && hasQty && hasRate;
     };
 
-    const isCurrentRowComplete = (index) => {
+    const _isCurrentRowComplete = (index) => {
         if (index < 0 || index >= formData.items.length) return false;
         return isRowComplete(formData.items[index]);
     };
@@ -707,10 +705,18 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
         >
             <div className="bg-white rounded-lg shadow-xl w-full max-w-5xl mx-4 h-[90vh] flex flex-col">
                 {/* Modal Header */}
-                <div className="px-6 py-3 text-white rounded-t-lg shrink-0" style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
+                <div className="flex items-center justify-between px-6 py-3 text-white rounded-t-lg shrink-0" style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
                     <h3 className="text-lg font-semibold">
                         Create New Sales Invoice {withGst ? "" : "(Without GST)"}
                     </h3>
+                    <button
+                        onClick={onClose}
+                        className="text-white/80 hover:text-white transition-colors"
+                    >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
                 </div>
 
                 {/* Modal Body */}
@@ -1255,7 +1261,7 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
  */
 export default function SalesPage() {
     // Server-backed invoices and CRUD helpers (match ItemsPage pattern)
-    const { rows: invoices = [], loading: invoicesLoading, error: invoicesError, reload, create, update, remove } = useSale({ useLocalFallback: false });
+    const { rows: invoices = [], loading: invoicesLoading, error: invoicesError, reload, create, update, remove } = useSale({ useLocalFallback: false }); // eslint-disable-line no-unused-vars
 
     const [selectedCell, setSelectedCell] = useState(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -1385,9 +1391,9 @@ export default function SalesPage() {
             { header: 'Customer', key: 'customer' },
             { header: 'Amount', key: 'amount' },
             { header: 'GST', key: 'gst' },
-            { header: 'Type', key: 'type' },
-            { header: 'Status', key: 'status' },
             { header: 'Due Amount', key: 'dueAmount' },
+            { header: 'Status', key: 'status' },
+            { header: 'Type', key: 'type' },
         ];
         
         const exportData = filteredInvoices.map(invoice => ({
@@ -1537,10 +1543,7 @@ export default function SalesPage() {
                 err?.response?.data?.message ||
                 err?.message ||
                 "Failed to save invoice";
-            setError(serverMsg);
             alert(`Save failed: ${serverMsg}`);
-        } finally {
-            setSaving(false);
         }
     };
 
@@ -1551,8 +1554,6 @@ export default function SalesPage() {
         if (!window.confirm("Are you sure you want to delete this invoice?")) return;
 
         try {
-            setSaving(true);
-            setError(null);
             await remove(id);
             if (typeof reload === 'function') await reload();
 
@@ -1561,10 +1562,7 @@ export default function SalesPage() {
         } catch (err) {
             console.error("Failed to delete invoice:", err);
             const msg = err?.response?.data?.error?.message || err?.message || "Failed to delete invoice";
-            setError(msg);
             alert(msg);
-        } finally {
-            setSaving(false);
         }
     };
 
@@ -1700,23 +1698,22 @@ export default function SalesPage() {
                                             <span>GST</span>
                                         </div>
                                     </th>
-                                    <th className="min-w-[120px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                    <th className="min-w-[130px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
                                         <div className="flex items-center gap-2">
                                             <span className="text-gray-400 cursor-grab">⋮⋮</span>
-                                            <span>Type</span>
+                                            <span>Due Amount</span>
                                         </div>
                                     </th>
-                                    {/* Payment column removed as requested */}
                                     <th className="min-w-[120px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
                                         <div className="flex items-center gap-2">
                                             <span className="text-gray-400 cursor-grab">⋮⋮</span>
                                             <span>Status</span>
                                         </div>
                                     </th>
-                                    <th className="min-w-[130px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                    <th className="min-w-[120px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
                                         <div className="flex items-center gap-2">
                                             <span className="text-gray-400 cursor-grab">⋮⋮</span>
-                                            <span>Due Amount</span>
+                                            <span>Type</span>
                                         </div>
                                     </th>
                                     <th className="min-w-[100px] h-9 px-4 text-left text-sm font-medium text-gray-700 sticky right-0 z-20 bg-gray-100 border-l border-gray-400" style={{ boxShadow: '-4px 0 8px -2px rgba(0, 0, 0, 0.15)' }}>
@@ -1762,12 +1759,10 @@ export default function SalesPage() {
                                             {invoice.withGst ? formatCurrency(invoice.gstAmount) : "-"}
                                         </td>
                                         <td
-                                            className={getCellClasses(rowIndex, 5) + " text-left"}
+                                            className={getCellClasses(rowIndex, 5) + " text-left text-gray-600 font-medium"}
                                             onClick={() => handleCellClick(rowIndex, 5)}
                                         >
-                                            <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${invoice.withGst ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'}`}>
-                                                {invoice.withGst ? "With GST" : "Without GST"}
-                                            </span>
+                                            {invoice.dueAmount != null && invoice.dueAmount > 0 ? formatCurrency(invoice.dueAmount) : "-"}
                                         </td>
                                         <td
                                             className={getCellClasses(rowIndex, 6) + " text-left"}
@@ -1797,10 +1792,12 @@ export default function SalesPage() {
                                             })()}
                                         </td>
                                         <td
-                                            className={getCellClasses(rowIndex, 7) + " text-left text-gray-600 font-medium"}
+                                            className={getCellClasses(rowIndex, 7) + " text-left"}
                                             onClick={() => handleCellClick(rowIndex, 7)}
                                         >
-                                            {invoice.dueAmount != null && invoice.dueAmount > 0 ? formatCurrency(invoice.dueAmount) : "-"}
+                                            <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${invoice.withGst ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'}`}>
+                                                {invoice.withGst ? "With GST" : "Without GST"}
+                                            </span>
                                         </td>
                                         <td className={`h-8 px-4 text-left sticky right-0 z-10 border-l border-gray-400 ${rowIndex % 2 === 0 ? 'bg-blue-50' : 'bg-white'}`} style={{ boxShadow: '-4px 0 8px -2px rgba(0, 0, 0, 0.1)' }}>
                                             <div className="flex items-center justify-end gap-2">

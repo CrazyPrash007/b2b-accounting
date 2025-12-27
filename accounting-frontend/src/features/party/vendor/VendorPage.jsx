@@ -3,6 +3,51 @@ import React, { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import useVendor from "./hooks/useVendor";
 import { exportTableToExcel } from "../../../utils/excelExport";
+
+// Fullstack API URL for chat invitees
+const FULLSTACK_API_URL = import.meta.env.VITE_FULLSTACK_API_URL || "http://localhost:5000/api";
+
+/**
+ * Helper function to add party as invitee in fullstack chat
+ */
+async function addPartyAsInvitee(partyData) {
+    const phone = partyData.mobileNumber?.trim();
+    if (!phone) return; // No phone number, skip
+
+    try {
+        const token = localStorage.getItem('token');
+        if (!token) return;
+
+        // Extract userId from token
+        const match = token.match(/proto-token:([0-9a-fA-F]{24})$/);
+        if (!match) return;
+
+        const response = await fetch(`${FULLSTACK_API_URL}/manual-contacts`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': token,
+                'X-User-Id': match[1],
+                'user-id': match[1],
+            },
+            body: JSON.stringify({
+                name: partyData.vendorName || partyData.customerName || partyData.name,
+                companyName: partyData.companyName || '',
+                phoneNumbers: [phone],
+            }),
+        });
+
+        if (response.ok) {
+            console.log('[VendorPage] Added party as invitee in chat:', partyData.vendorName);
+        } else {
+            const errorData = await response.json().catch(() => ({}));
+            console.warn('[VendorPage] Failed to add invitee:', errorData.message || response.statusText);
+        }
+    } catch (err) {
+        // Silently fail - this is a non-critical feature
+        console.warn('[VendorPage] Error adding party as invitee:', err.message);
+    }
+}
 /**
  * VendorModal - Modal for creating/editing vendors
  */
@@ -582,6 +627,11 @@ export default function VendorPage() {
                 await update(vendorData.id, payloadCommon);
             } else {
                 await create(payloadCommon);
+                
+                // Add vendor as invitee in fullstack chat (only for new vendors)
+                if (vendorData.mobileNumber) {
+                    addPartyAsInvitee(vendorData);
+                }
             }
 
             setIsModalOpen(false);
@@ -766,16 +816,22 @@ export default function VendorPage() {
                                         <span>Mobile</span>
                                     </div>
                                 </th>
-                                <th className="min-w-[180px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-gray-400 cursor-grab">⋮⋮</span>
-                                        <span>Email</span>
-                                    </div>
-                                </th>
                                 <th className="min-w-[150px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
                                     <div className="flex items-center gap-2">
                                         <span className="text-gray-400 cursor-grab">⋮⋮</span>
                                         <span>Company</span>
+                                    </div>
+                                </th>
+                                <th className="min-w-[140px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-gray-400 cursor-grab">⋮⋮</span>
+                                        <span>Balance</span>
+                                    </div>
+                                </th>
+                                <th className="min-w-[180px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-gray-400 cursor-grab">⋮⋮</span>
+                                        <span>Email</span>
                                     </div>
                                 </th>
                                 <th className="min-w-[110px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
@@ -802,12 +858,6 @@ export default function VendorPage() {
                                         <span>State</span>
                                     </div>
                                 </th>
-                                <th className="min-w-[140px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-gray-400 cursor-grab">⋮⋮</span>
-                                        <span>Balance</span>
-                                    </div>
-                                </th>
                                 <th className="min-w-[100px] h-9 px-4 text-left text-sm font-medium text-gray-700 sticky right-0 z-20 bg-gray-100 border-l border-gray-400" style={{ boxShadow: '-4px 0 8px -2px rgba(0, 0, 0, 0.15)' }}>
                                     Actions
                                 </th>
@@ -818,66 +868,67 @@ export default function VendorPage() {
                             {vendors.map((vendor, rowIndex) => (
                                 <tr
                                     key={vendor.id || vendor._id || rowIndex}
-                                    className={`border-b border-gray-400 hover:bg-blue-100 transition-colors ${rowIndex % 2 === 0 ? 'bg-blue-50/40' : 'bg-white'}`}
+                                    className={`border-b border-gray-400 hover:bg-blue-100 transition-colors cursor-pointer ${rowIndex % 2 === 0 ? 'bg-blue-50/40' : 'bg-white'}`}
+                                    onClick={() => navigate(`/vendor/${vendor.id || vendor._id}`)}
                                 >
                                     <td
                                         className={getCellClasses(rowIndex, 0) + " text-left text-blue-600"}
-                                        onClick={() => handleCellClick(rowIndex, 0)}
+                                        onClick={(e) => { e.stopPropagation(); handleCellClick(rowIndex, 0); navigate(`/vendor/${vendor.id || vendor._id}`); }}
                                     >
                                         {vendor.vendorName}
                                     </td>
                                     <td
                                         className={getCellClasses(rowIndex, 1) + " text-left text-gray-600"}
-                                        onClick={() => handleCellClick(rowIndex, 1)}
+                                        onClick={(e) => { e.stopPropagation(); handleCellClick(rowIndex, 1); navigate(`/vendor/${vendor.id || vendor._id}`); }}
                                     >
                                         {vendor.mobileNumber || "-"}
                                     </td>
                                     <td
                                         className={getCellClasses(rowIndex, 2) + " text-left text-gray-600"}
-                                        onClick={() => handleCellClick(rowIndex, 2)}
-                                    >
-                                        {vendor.emailAddress || "-"}
-                                    </td>
-                                    <td
-                                        className={getCellClasses(rowIndex, 3) + " text-left text-gray-600"}
-                                        onClick={() => handleCellClick(rowIndex, 3)}
+                                        onClick={(e) => { e.stopPropagation(); handleCellClick(rowIndex, 2); navigate(`/vendor/${vendor.id || vendor._id}`); }}
                                     >
                                         {vendor.companyName || "-"}
                                     </td>
                                     <td
+                                        className={getCellClasses(rowIndex, 3) + " text-left text-gray-600"}
+                                        onClick={(e) => { e.stopPropagation(); handleCellClick(rowIndex, 3); navigate(`/vendor/${vendor.id || vendor._id}`); }}
+                                    >
+                                        {vendor.openingBalanceAmount ? `₹${vendor.openingBalanceAmount} (${vendor.openingBalanceType})` : '-'}
+                                    </td>
+                                    <td
                                         className={getCellClasses(rowIndex, 4) + " text-left text-gray-600"}
-                                        onClick={() => handleCellClick(rowIndex, 4)}
+                                        onClick={(e) => { e.stopPropagation(); handleCellClick(rowIndex, 4); navigate(`/vendor/${vendor.id || vendor._id}`); }}
+                                    >
+                                        {vendor.emailAddress || "-"}
+                                    </td>
+                                    <td
+                                        className={getCellClasses(rowIndex, 5) + " text-left text-gray-600"}
+                                        onClick={(e) => { e.stopPropagation(); handleCellClick(rowIndex, 5); navigate(`/vendor/${vendor.id || vendor._id}`); }}
                                     >
                                         {vendor.gstType || "-"}
                                     </td>
                                     <td
-                                        className={getCellClasses(rowIndex, 5) + " text-left text-gray-600"}
-                                        onClick={() => handleCellClick(rowIndex, 5)}
+                                        className={getCellClasses(rowIndex, 6) + " text-left text-gray-600"}
+                                        onClick={(e) => { e.stopPropagation(); handleCellClick(rowIndex, 6); navigate(`/vendor/${vendor.id || vendor._id}`); }}
                                     >
                                         {vendor.billingAddress || "-"}
                                     </td>
                                     <td
-                                        className={getCellClasses(rowIndex, 6) + " text-left text-gray-600"}
-                                        onClick={() => handleCellClick(rowIndex, 6)}
+                                        className={getCellClasses(rowIndex, 7) + " text-left text-gray-600"}
+                                        onClick={(e) => { e.stopPropagation(); handleCellClick(rowIndex, 7); navigate(`/vendor/${vendor.id || vendor._id}`); }}
                                     >
                                         {vendor.billingDistrict || "-"}
                                     </td>
                                     <td
-                                        className={getCellClasses(rowIndex, 7) + " text-left text-gray-600"}
-                                        onClick={() => handleCellClick(rowIndex, 7)}
+                                        className={getCellClasses(rowIndex, 8) + " text-left text-gray-600"}
+                                        onClick={(e) => { e.stopPropagation(); handleCellClick(rowIndex, 8); navigate(`/vendor/${vendor.id || vendor._id}`); }}
                                     >
                                         {vendor.billingState || "-"}
                                     </td>
-                                    <td
-                                        className={getCellClasses(rowIndex, 8) + " text-left text-gray-600"}
-                                        onClick={() => handleCellClick(rowIndex, 8)}
-                                    >
-                                        {vendor.openingBalanceAmount ? `₹${vendor.openingBalanceAmount} (${vendor.openingBalanceType})` : '-'}
-                                    </td>
-                                    <td className={`h-8 px-4 text-left sticky right-0 z-10 border-l border-gray-400 ${rowIndex % 2 === 0 ? 'bg-blue-50' : 'bg-white'}`} style={{ boxShadow: '-4px 0 8px -2px rgba(0, 0, 0, 0.1)' }}>
+                                    <td className={`h-8 px-4 text-left sticky right-0 z-10 border-l border-gray-400 ${rowIndex % 2 === 0 ? 'bg-blue-50' : 'bg-white'}`} style={{ boxShadow: '-4px 0 8px -2px rgba(0, 0, 0, 0.1)' }} onClick={(e) => e.stopPropagation()}>
                                         <div className="flex items-center justify-end gap-2">
                                             <button
-                                                onClick={() => handleEditVendor(vendor)}
+                                                onClick={(e) => { e.stopPropagation(); handleEditVendor(vendor); }}
                                                 className="text-blue-600 hover:underline text-sm"
                                             >
                                                 Edit

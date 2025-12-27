@@ -24,6 +24,14 @@ export default function ItemModal({ isOpen, onClose, onSave, onDelete, editData 
     const { openModal, closeModal } = useModal();
     const API_BASE = "http://localhost:4000";
 
+    // Global search state
+    const [globalSearchQuery, setGlobalSearchQuery] = useState("");
+    const [globalSearchResults, setGlobalSearchResults] = useState([]);
+    const [isSearching, setIsSearching] = useState(false);
+    const [showSearchDropdown, setShowSearchDropdown] = useState(false);
+    const globalSearchRef = useRef(null);
+    const searchDropdownRef = useRef(null);
+
     // Form fields
     const [itemName, setItemName] = useState("");
     const [description, setDescription] = useState("");
@@ -119,10 +127,128 @@ export default function ItemModal({ isOpen, onClose, onSave, onDelete, editData 
         }
     };
 
+    // Global search for items across all users
+    useEffect(() => {
+        if (!globalSearchQuery || globalSearchQuery.trim().length < 2) {
+            setGlobalSearchResults([]);
+            setShowSearchDropdown(false);
+            return;
+        }
+
+        const debounceTimer = setTimeout(async () => {
+            setIsSearching(true);
+            try {
+                const res = await authFetch(`${API_BASE}/api/items/global-search?q=${encodeURIComponent(globalSearchQuery.trim())}&limit=15`);
+                if (res && res.ok) {
+                    const data = await parseJsonSafe(res);
+                    setGlobalSearchResults(Array.isArray(data) ? data : []);
+                    setShowSearchDropdown(true);
+                }
+            } catch (err) {
+                console.error("Global search failed:", err);
+                setGlobalSearchResults([]);
+            } finally {
+                setIsSearching(false);
+            }
+        }, 300);
+
+        return () => clearTimeout(debounceTimer);
+    }, [globalSearchQuery]);
+
+    // Close dropdown when clicking outside
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (
+                searchDropdownRef.current && 
+                !searchDropdownRef.current.contains(event.target) &&
+                globalSearchRef.current &&
+                !globalSearchRef.current.contains(event.target)
+            ) {
+                setShowSearchDropdown(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    // Handle selecting an item from global search
+    const handleSelectGlobalItem = async (selectedItem) => {
+        const companyId = getCurrentCompany();
+        
+        // Fill the form with selected item's details
+        setItemName(selectedItem.itemName || "");
+        setDescription(selectedItem.description || "");
+        setItemType(selectedItem.itemType || "Goods");
+        setUnit(selectedItem.unit || "");
+        setBrandName(selectedItem.brandName || "");
+        setGstRate(selectedItem.gstRate != null ? String(selectedItem.gstRate) : "");
+
+        // Auto-create missing entries in respective tables
+        const createIfMissing = async (endpoint, field, value, payloadKey) => {
+            if (!value || value.trim() === '') return;
+            const trimmed = value.trim();
+            
+            // Check if already exists in current list
+            let exists = false;
+            if (field === 'unit') {
+                exists = unitsList.some(u => u.toLowerCase() === trimmed.toLowerCase());
+            } else if (field === 'brand') {
+                exists = brandsList.some(b => b.toLowerCase() === trimmed.toLowerCase());
+            } else if (field === 'gst') {
+                exists = gstList.some(g => String(g) === String(trimmed));
+            }
+
+            if (!exists) {
+                try {
+                    const payload = { accountCompanyName: companyId };
+                    if (field === 'unit') {
+                        payload.aliasName = trimmed;
+                        payload.fullName = trimmed;
+                    } else if (field === 'brand') {
+                        payload.brandName = trimmed;
+                    } else if (field === 'gst') {
+                        payload.rate = Number(trimmed);
+                    }
+                    
+                    const res = await authFetch(`${API_BASE}/api/${endpoint}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    
+                    if (res && res.ok) {
+                        console.log(`✅ Auto-created ${field}:`, trimmed);
+                    }
+                } catch (err) {
+                    console.warn(`Could not auto-create ${field}:`, err);
+                }
+            }
+        };
+
+        // Create missing entries
+        await Promise.all([
+            createIfMissing('unit', 'unit', selectedItem.unit),
+            createIfMissing('brand', 'brand', selectedItem.brandName),
+            createIfMissing('gst', 'gst', selectedItem.gstRate != null ? String(selectedItem.gstRate) : null)
+        ]);
+
+        // Refresh lists to include new entries
+        await fetchLists();
+
+        // Clear search
+        setGlobalSearchQuery("");
+        setGlobalSearchResults([]);
+        setShowSearchDropdown(false);
+    };
+
     // Fetch dropdown lists when modal opens
     useEffect(() => {
         if (isOpen) {
             fetchLists();
+            // Reset global search on modal open
+            setGlobalSearchQuery("");
+            setGlobalSearchResults([]);
+            setShowSearchDropdown(false);
         }
     }, [isOpen]);
 
@@ -344,7 +470,7 @@ export default function ItemModal({ isOpen, onClose, onSave, onDelete, editData 
     return (
         <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl mx-4 flex flex-col max-h-[85vh]" onClick={(e) => e.stopPropagation()}>
             {/* Modal Header */}
-            <div className="flex items-center justify-between px-6 py-4 rounded-t-xl bg-linear-to-r from-blue-600 to-indigo-600">
+            <div className="flex items-center justify-between px-6 py-4 rounded-t-xl" style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
                 <h3 className="text-lg font-semibold text-white">
                     {isEditMode ? "Edit Item" : "New Item"}
                 </h3>
@@ -357,6 +483,75 @@ export default function ItemModal({ isOpen, onClose, onSave, onDelete, editData 
                     </svg>
                 </button>
             </div>
+
+            {/* Global Search Bar - Only show when not in edit mode */}
+            {!isEditMode && (
+                <div className="px-6 py-3 bg-gradient-to-r from-gray-50 to-blue-50 border-b border-gray-200">
+                    <div className="relative">
+                        <label className="block text-xs font-medium text-gray-500 mb-1.5">
+                            🔍 Search existing items from all users to auto-fill form
+                        </label>
+                        <div className="relative">
+                            <input
+                                ref={globalSearchRef}
+                                type="text"
+                                value={globalSearchQuery}
+                                onChange={(e) => setGlobalSearchQuery(e.target.value)}
+                                placeholder="Type item name to search..."
+                                className="w-full border border-gray-300 rounded-lg px-4 py-2.5 pl-10 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white shadow-sm"
+                            />
+                            <svg className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                            </svg>
+                            {isSearching && (
+                                <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-blue-500 border-t-transparent"></div>
+                                </div>
+                            )}
+                        </div>
+                        
+                        {/* Search Results Dropdown */}
+                        {showSearchDropdown && globalSearchResults.length > 0 && (
+                            <div 
+                                ref={searchDropdownRef}
+                                className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-64 overflow-y-auto"
+                            >
+                                {globalSearchResults.map((item, idx) => (
+                                    <button
+                                        key={idx}
+                                        onClick={() => handleSelectGlobalItem(item)}
+                                        className="w-full px-4 py-3 text-left hover:bg-blue-50 border-b border-gray-100 last:border-b-0 transition-colors"
+                                    >
+                                        <div className="flex items-center justify-between">
+                                            <div>
+                                                <div className="font-medium text-gray-900">{item.itemName}</div>
+                                                <div className="text-xs text-gray-500 mt-0.5">
+                                                    {[item.itemType, item.unit, item.brandName, item.gstRate != null ? `GST ${item.gstRate}%` : null]
+                                                        .filter(Boolean)
+                                                        .join(' • ')}
+                                                </div>
+                                                {item.description && (
+                                                    <div className="text-xs text-gray-400 truncate max-w-md mt-0.5">{item.description}</div>
+                                                )}
+                                            </div>
+                                            <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
+                                                {item.popularity || 1} {item.popularity === 1 ? 'user' : 'users'}
+                                            </span>
+                                        </div>
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+                        
+                        {/* No results message */}
+                        {showSearchDropdown && globalSearchResults.length === 0 && globalSearchQuery.trim().length >= 2 && !isSearching && (
+                            <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg p-4 text-center text-gray-500 text-sm">
+                                No items found matching "{globalSearchQuery}"
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
 
             {/* Modal Body - Scrollable */}
             <div className="px-6 py-5 overflow-y-auto flex-1" data-form-container onKeyDown={handleKeyDown}>

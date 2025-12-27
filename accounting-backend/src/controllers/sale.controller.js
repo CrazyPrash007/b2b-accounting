@@ -96,9 +96,9 @@ async function list(req, res, next) {
         const sortObj = {};
         if (sort) {
             const [k, d] = sort.split(":");
-            sortObj[k || "invoiceDate"] = d === "desc" ? -1 : 1;
+            sortObj[k || "createdAt"] = d === "desc" ? -1 : 1;
         } else {
-            sortObj.invoiceDate = -1;
+            sortObj.createdAt = -1; // Sort by recently created first
         }
 
         const skip = (Number(page) - 1) * Number(limit);
@@ -289,6 +289,30 @@ async function create(req, res, next) {
 
         const doc = await Sale.create(payload);
 
+        // Auto-create receipt if payment was received (excluding advance payment)
+        const directPayment = payload.isPaymentReceived && payload.paymentAmount > 0;
+        if (directPayment) {
+            const invLabel = `${doc.invoicePrefix || ''}${doc.invoiceNumber || ''}${doc.invoiceSuffix || ''}`.trim();
+            
+            await Receipt.create({
+                ownerId,
+                accountCompanyName: companyId,
+                partyId: doc.customerId,
+                party: doc.customer,
+                invoiceId: doc._id,
+                invoiceLabel: invLabel,
+                date: doc.invoiceDate || new Date(),
+                amount: payload.paymentAmount,
+                paymentMethod: payload.paymentMode || 'Cash',
+                referenceNumber: payload.refNo || '',
+                description: `Payment received for invoice ${invLabel}`,
+                usedAmount: payload.paymentAmount, // Fully used
+                remainingAmount: 0, // No remaining
+                createdBy: req.user.id,
+                updatedBy: req.user.id
+            });
+        }
+
         // Update advance receipt to track usage
         if (payload._advanceReceipt) {
             const { id: receiptId, amount: advanceAmount, previousUsed, totalAmount } = payload._advanceReceipt;
@@ -456,6 +480,32 @@ async function remove(req, res, next) {
             }
         }
 
+        // Delete auto-generated receipts linked to this sale
+        // (receipts created during sale creation, not advance receipts)
+        await Receipt.updateMany(
+            {
+                ownerId,
+                accountCompanyName: companyId,
+                invoiceId: sale._id,
+                isDeleted: false,
+                // Only delete receipts that match the sale's payment amount
+                // to avoid deleting manually created receipts
+                $or: [
+                    { description: { $regex: `Payment received for invoice.*${sale.invoiceNumber}`, $options: 'i' } },
+                    { 
+                        // Also check if amount matches and it's the only linked sale
+                        amount: sale.paymentAmount,
+                        usedAmount: sale.paymentAmount,
+                        remainingAmount: 0
+                    }
+                ]
+            },
+            { 
+                isDeleted: true, 
+                updatedBy: req.user.id 
+            }
+        );
+
         const updated = await Sale.findOneAndUpdate(
             { _id: req.params.id, ownerId, accountCompanyName: companyId },
             { isDeleted: true, updatedBy: req.user.id },
@@ -500,15 +550,34 @@ async function exportPDF(req, res, next) {
         }
 
         // Fetch all receipts linked to this sale
+        // Include both direct receipts and advance receipts
         const receipts = await Receipt.find({
-            invoiceId: sale._id,
+            $or: [
+                { invoiceId: sale._id }, // Direct payment receipts
+                { _id: sale.advanceReceiptId }, // Advance receipt if used
+                { 'linkedSales.saleId': sale._id } // Receipts linked via linkedSales array
+            ],
             ownerId,
             accountCompanyName: companyId,
             isDeleted: false
         }).sort({ date: 1 }).lean();
 
+        // Transform receipts to include proper amount for this sale
+        const transformedReceipts = receipts.map(receipt => {
+            // If this is an advance receipt, find the amount used for this specific sale
+            if (receipt._id.toString() === sale.advanceReceiptId?.toString()) {
+                const linkedSale = receipt.linkedSales?.find(ls => ls.saleId?.toString() === sale._id.toString());
+                return {
+                    ...receipt,
+                    amount: linkedSale?.amountUsed || sale.advanceAmountUsed || receipt.amount,
+                    isAdvance: true
+                };
+            }
+            return receipt;
+        });
+
         // Generate PDF
-        const pdfBuffer = await generateSalesInvoicePDF(sale, company, customer, receipts);
+        const pdfBuffer = await generateSalesInvoicePDF(sale, company, customer, transformedReceipts);
 
         // Set response headers
         const invoiceNumber = `${sale.invoicePrefix}${sale.invoiceNumber}${sale.invoiceSuffix}`;

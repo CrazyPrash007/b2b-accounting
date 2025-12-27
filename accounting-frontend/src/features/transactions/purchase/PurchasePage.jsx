@@ -653,10 +653,18 @@ function PurchaseInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, wit
         >
             <div className="bg-white rounded-lg shadow-xl w-full max-w-5xl mx-4 h-[90vh] flex flex-col">
                 {/* Modal Header */}
-                <div className="px-6 py-3 rounded-t-lg shrink-0" style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
+                <div className="flex items-center justify-between px-6 py-3 rounded-t-lg shrink-0" style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
                     <h3 className="text-lg font-semibold text-white">
                         Create New Purchase Invoice {withGst ? "" : "(Without GST)"}
                     </h3>
+                    <button
+                        onClick={onClose}
+                        className="text-white/80 hover:text-white transition-colors"
+                    >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
                 </div>
 
                 {/* Modal Body */}
@@ -1275,9 +1283,9 @@ export default function PurchasePage() {
             { header: 'Vendor', key: 'vendor' },
             { header: 'Amount', key: 'amount' },
             { header: 'GST', key: 'gst' },
-            { header: 'Type', key: 'type' },
-            { header: 'Status', key: 'status' },
             { header: 'Due Amount', key: 'dueAmount' },
+            { header: 'Status', key: 'status' },
+            { header: 'Type', key: 'type' },
         ];
         
         const exportData = filteredPurchases.map(purchase => ({
@@ -1590,23 +1598,22 @@ export default function PurchasePage() {
                                             <span>GST</span>
                                         </div>
                                     </th>
-                                    <th className="min-w-[120px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                    <th className="min-w-[130px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
                                         <div className="flex items-center gap-2">
                                             <span className="text-gray-400 cursor-grab">⋮⋮</span>
-                                            <span>Type</span>
+                                            <span>Due Amount</span>
                                         </div>
                                     </th>
-                                    {/* Payment column removed as requested */}
                                     <th className="min-w-[120px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
                                         <div className="flex items-center gap-2">
                                             <span className="text-gray-400 cursor-grab">⋮⋮</span>
                                             <span>Status</span>
                                         </div>
                                     </th>
-                                    <th className="min-w-[130px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                    <th className="min-w-[120px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
                                         <div className="flex items-center gap-2">
                                             <span className="text-gray-400 cursor-grab">⋮⋮</span>
-                                            <span>Due Amount</span>
+                                            <span>Type</span>
                                         </div>
                                     </th>
                                     <th className="min-w-[100px] h-9 px-4 text-left text-sm font-medium text-gray-700 sticky right-0 z-20 bg-gray-100 border-l border-gray-400" style={{ boxShadow: '-4px 0 8px -2px rgba(0, 0, 0, 0.15)' }}>
@@ -1652,12 +1659,10 @@ export default function PurchasePage() {
                                             {invoice.withGst ? formatCurrency(invoice.gstAmount) : "-"}
                                         </td>
                                         <td
-                                            className={getCellClasses(rowIndex, 5) + " text-left"}
+                                            className={getCellClasses(rowIndex, 5) + " text-left text-gray-600 font-medium"}
                                             onClick={() => handleCellClick(rowIndex, 5)}
                                         >
-                                            <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${invoice.withGst ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'}`}>
-                                                {invoice.withGst ? "With GST" : "Without GST"}
-                                            </span>
+                                            {invoice.dueAmount != null && invoice.dueAmount > 0 ? formatCurrency(invoice.dueAmount) : "-"}
                                         </td>
                                         <td
                                             className={getCellClasses(rowIndex, 6) + " text-left"}
@@ -1679,10 +1684,12 @@ export default function PurchasePage() {
                                             })()}
                                         </td>
                                         <td
-                                            className={getCellClasses(rowIndex, 7) + " text-left text-gray-600 font-medium"}
+                                            className={getCellClasses(rowIndex, 7) + " text-left"}
                                             onClick={() => handleCellClick(rowIndex, 7)}
                                         >
-                                            {invoice.dueAmount != null && invoice.dueAmount > 0 ? formatCurrency(invoice.dueAmount) : "-"}
+                                            <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${invoice.withGst ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'}`}>
+                                                {invoice.withGst ? "With GST" : "Without GST"}
+                                            </span>
                                         </td>
                                         <td className={`h-8 px-4 text-left sticky right-0 z-10 border-l border-gray-400 ${rowIndex % 2 === 0 ? 'bg-blue-50' : 'bg-white'}`} style={{ boxShadow: '-4px 0 8px -2px rgba(0, 0, 0, 0.1)' }}>
                                             <div className="flex items-center justify-end gap-2">
