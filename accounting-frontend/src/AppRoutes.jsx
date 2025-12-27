@@ -9,6 +9,7 @@ import GstPage from "src/features/items/gst/GstPage";
 import UnitPage from "src/features/items/unit/UnitPage";
 import CustomerPage from "src/features/party/customer/CustomerPage";
 import VendorPage from "src/features/party/vendor/VendorPage";
+import PartyHistoryPage from "src/features/party/PartyHistoryPage";
 import BankPage from "src/features/account/bank/BankPage";
 import BrandPage from "src/features/account/brand/BrandPage";
 import ExpensePage from "src/features/transactions/expense/ExpensePage";
@@ -30,7 +31,9 @@ export default function AppRoutes() {
                 <Route path="gst" element={<GstPage />} />
                 <Route path="unit" element={<UnitPage />} />
                 <Route path="customer" element={<CustomerPage />} />
+                <Route path="customer/:id" element={<PartyHistoryPage />} />
                 <Route path="vendor" element={<VendorPage />} />
+                <Route path="vendor/:id" element={<PartyHistoryPage />} />
                 <Route path="bank" element={<BankPage />} />
                 <Route path="brand" element={<BrandPage />} />
                 <Route path="expenses" element={<ExpensePage />} />

@@ -59,7 +59,9 @@ async function list(req, res, next) {
         if (sort) {
             const [k, dir] = sort.split(":");
             sortObj[k || "createdAt"] = dir === "desc" ? -1 : 1;
-        } else sortObj.createdAt = -1;
+        } else {
+            sortObj.createdAt = -1; // Sort by recently created first
+        }
 
         const skip = (Number(page) - 1) * Number(limit);
 
@@ -163,6 +165,29 @@ async function create(req, res, next) {
 
         const doc = await Purchase.create(payload);
 
+        // Auto-create payment if payment was made
+        const directPayment = payload.isPaymentMade && payload.paymentAmount > 0;
+        if (directPayment) {
+            const Payment = require("../models/Payment");
+            const invLabel = `${doc.billNumber || doc.invoiceNumber || ''}`.trim();
+            
+            await Payment.create({
+                ownerId,
+                accountCompanyName: companyId,
+                partyId: doc.vendorId,
+                party: doc.supplier,
+                invoiceId: doc._id,
+                invoiceLabel: invLabel,
+                date: doc.invoiceDate || new Date(),
+                amount: payload.paymentAmount,
+                paymentMethod: payload.paymentMode || 'Cash',
+                referenceNumber: payload.refNo || '',
+                description: `Payment made for invoice ${invLabel}`,
+                createdBy: req.user.id,
+                updatedBy: req.user.id
+            });
+        }
+
         res.status(201).json({ success: true, data: doc });
 
     } catch (err) {
@@ -245,6 +270,25 @@ async function remove(req, res, next) {
 
         if (!doc)
             return res.status(404).json({ success: false, error: { message: "Not found" } });
+
+        // Remove auto-generated payment for this purchase
+        const invLabel = doc.purchaseInvoiceNumber;
+        if (invLabel) {
+            const descPattern = new RegExp(`Payment made for invoice ${invLabel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i');
+            const autoPayment = await Payment.findOne({
+                invoiceId: doc._id,
+                ownerId,
+                accountCompanyName: companyId,
+                description: descPattern,
+                amount: doc.paymentAmount,
+                usedAmount: doc.paymentAmount,
+                remainingAmount: 0
+            });
+
+            if (autoPayment) {
+                await Payment.findByIdAndUpdate(autoPayment._id, { isDeleted: true });
+            }
+        }
 
         res.json({ success: true, data: doc });
 

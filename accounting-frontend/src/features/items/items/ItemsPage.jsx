@@ -1,10 +1,10 @@
 // ItemsPage.jsx
-import React, { useState, useEffect, useRef } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import React, { useState, useEffect } from "react";
+import { useLocation } from "react-router-dom";
 import useItem from "./hooks/useItem";
 import ItemTable from "./ItemTable";
-import { getCurrentCompany } from "../../../services/companyContextAccessor";
 import { exportTableToExcel } from "../../../utils/excelExport";
+<<<<<<< HEAD
 import { authFetch, API_BASE_URL } from "../../../services/apiClient";
 
 /**
@@ -436,13 +436,18 @@ function ItemModal({ isOpen, onClose, onSave, onDelete, editData }) {
 
 /**
  * ItemsPage - main page (keeps existing in-memory items flow)
+=======
+import ItemModal from "./components/ItemModal";
+
+/**
+ * ItemsPage - main page for Items management
+>>>>>>> upstream/trial
  */
 export default function ItemsPage() {
-    const navigate = useNavigate();
     const location = useLocation();
 
     // Use server-backed items (rows) and CRUD helpers from your custom hook
-    const { rows: items = [], loading, error, reload, create, update, remove } = useItem({ useLocalFallback: true });
+    const { rows: items = [], reload, create, update, remove } = useItem({ useLocalFallback: true });
 
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingItem, setEditingItem] = useState(null);
@@ -518,10 +523,9 @@ export default function ItemsPage() {
             setEditingItem(null);
             reload();
         } catch (err) {
-            // Try to extract server-side error message (many backends return { success:false, error:{ message } })
+            // Try to extract server-side error message
             console.error("Failed to save item:", err);
 
-            // 1) axios-like shape: err.response.data
             const serverMsg =
                 err?.response?.data?.error?.message ||
                 err?.response?.data?.message ||
@@ -530,12 +534,11 @@ export default function ItemsPage() {
                 err?.message ||
                 "Unknown error";
 
-            // 2) If fetch wrapper threw a Response-like error with body, try to read it (best-effort)
             if (err?.response?.text) {
                 try {
                     const txt = await err.response.text();
                     console.error("Server response text:", txt);
-                } catch (e) {
+                } catch {
                     /* ignore */
                 }
             }
@@ -544,7 +547,6 @@ export default function ItemsPage() {
         }
     };
 
-
     const handleDeleteItem = async (id) => {
         if (!window.confirm("Are you sure you want to delete this item?")) return;
 
@@ -552,7 +554,6 @@ export default function ItemsPage() {
             await remove(id);
             setIsModalOpen(false);
             setEditingItem(null);
-            // reload list
             reload();
         } catch (err) {
             console.error("Failed to delete item:", err);
@@ -629,8 +630,12 @@ export default function ItemsPage() {
             {/* Table */}
             <ItemTable items={items} onEdit={handleEditItem} />
 
-            {/* Modal */}
-            <ItemModal isOpen={isModalOpen} onClose={handleCloseModal} onSave={handleSaveItem} onDelete={handleDeleteItem} editData={editingItem} />
+            {/* Modal with Backdrop */}
+            {isModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={handleCloseModal}>
+                    <ItemModal isOpen={isModalOpen} onClose={handleCloseModal} onSave={handleSaveItem} onDelete={handleDeleteItem} editData={editingItem} />
+                </div>
+            )}
         </div>
     );
 }
