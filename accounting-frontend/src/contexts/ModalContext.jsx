@@ -29,9 +29,9 @@ export function ModalProvider({ children }) {
                 isOpen: true, // Force isOpen to true for consistency
             }
         };
-        
+
         setModalStack(prev => [...prev, modalEntry]);
-        console.log('📂 Modal opened. Stack depth:', modalStack.length + 1);
+
     };
 
     /**
@@ -40,7 +40,7 @@ export function ModalProvider({ children }) {
     const closeModal = () => {
         setModalStack(prev => {
             const newStack = prev.slice(0, -1);
-            console.log('📂 Modal closed. Stack depth:', newStack.length);
+
             return newStack;
         });
     };
@@ -49,24 +49,24 @@ export function ModalProvider({ children }) {
      * Closes all modals at once
      */
     const closeAllModals = () => {
-        console.log('📂 All modals closed');
+
         setModalStack([]);
     };
 
     return (
         <ModalContext.Provider value={{ modalStack, openModal, closeModal, closeAllModals }}>
             {children}
-            
+
             {/* Render all modals in the stack with progressive z-index */}
             {modalStack.map((modal, index) => {
                 const Component = modal.component;
                 const zIndex = 50 + index; // Increment z-index for each layer
                 const backdropOpacity = Math.min(0.3 + (index * 0.1), 0.7); // Progressive darkening
-                
+
                 return (
-                    <div 
+                    <div
                         key={modal.id}
-                        style={{ 
+                        style={{
                             position: 'fixed',
                             inset: 0,
                             zIndex,

@@ -270,7 +270,7 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
                     });
                     const saved = await response.json();
                     const newCustomer = saved.data || saved;
-                    console.log('✅ Customer saved:', newCustomer);
+
 
                     // Refresh lists and auto-select new customer
                     await fetchLists();
@@ -299,7 +299,7 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
                     });
                     const saved = await response.json();
                     const newItem = saved.data || saved;
-                    console.log('✅ Item saved:', newItem);
+
 
                     // Refresh lists and auto-select new item in the row
                     await fetchLists();
