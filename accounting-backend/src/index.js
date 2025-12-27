@@ -24,12 +24,34 @@ const errorHandler = require('./middlewares/errorHandler');
 
 const PORT = process.env.PORT || 4000;
 
+const allowedOrigins = [
+    "https://b2bbilling.com",
+    "https://www.b2bbilling.com",
+    "https://accounting.b2bbilling.com",
+    "https://b2b-accounting.vercel.app",
+    "https://b2b-fullstack.vercel.app",
+    "http://localhost:5174",
+    "http://localhost:4000"
+];
+
+const corsOptions = {
+    origin: (origin, callback) => {
+        if (!origin) return callback(null, true);
+        if (allowedOrigins.indexOf(origin) === -1) {
+            const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
+            return callback(new Error(msg), false);
+        }
+        return callback(null, true);
+    },
+    credentials: true
+};
+
 async function start() {
     await connect(process.env.MONGO_URI);
     await connectChatStarter(process.env.CHAT_STARTER_MONGO_URI);
     const app = express();
 
-    app.use(cors({ origin: true, credentials: true }));
+    app.use(cors(corsOptions));
     app.use(express.json());
 
     // Health

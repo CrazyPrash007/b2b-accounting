@@ -6,7 +6,10 @@ import purchaseApi from "./api/purchase.api";
 import PdfPreviewModal from "../../../components/PdfPreviewModal";
 import { getCurrentCompany } from "../../../services/companyContextAccessor";
 import { exportTableToExcel } from "../../../utils/excelExport";
-import { authFetch } from "../../../services/apiClient";
+import { authFetch, API_BASE_URL } from "../../../services/apiClient";
+import { useModal } from "../../../hooks/useModal";
+import VendorModal from "../../party/vendor/components/VendorModal";
+import ItemModal from "../../items/items/components/ItemModal";
 
 /**
  * PurchaseInvoiceModal - Modal for creating/editing purchase invoices
@@ -14,7 +17,8 @@ import { authFetch } from "../../../services/apiClient";
  */
 function PurchaseInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGst = true, bankAccounts: bankAccountsProp = [], gstRates: gstRatesProp = [] }) {
     const navigate = useNavigate();
-    
+    const { openModal, closeModal } = useModal();
+
     // Get next invoice counter from localStorage or start at 1
     const getNextInvoiceCounter = () => {
         const saved = localStorage.getItem('purchaseInvoiceCounter');
@@ -85,8 +89,8 @@ function PurchaseInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, wit
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [bankAccountsProp, gstRatesProp]);
 
-    // Force backend host (fast fix) - change if your API lives elsewhere
-    const API_BASE = "http://localhost:4000";
+    // Use API base URL from environment variable
+    const API_BASE = API_BASE_URL;
 
     async function parseJsonSafe(res) {
         const body = await res.json().catch(() => null);
@@ -176,6 +180,64 @@ function PurchaseInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, wit
         }
     };
 
+    // 🎯 Add New Vendor Modal (nested)
+    const handleAddVendor = () => {
+        openModal(VendorModal, {
+            onClose: () => closeModal(),
+            onSave: async (vendorData) => {
+                try {
+                    const companyId = getCurrentCompany();
+                    const response = await authFetch(`${API_BASE}/api/vendors`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ ...vendorData, accountCompanyName: companyId })
+                    });
+                    const saved = await response.json();
+                    const newVendor = saved.data || saved;
+                    console.log('✅ Vendor saved:', newVendor);
+
+                    // Refresh lists and auto-select new vendor
+                    await fetchLists();
+                    const vendorName = newVendor.vendorName || newVendor.name || newVendor.displayName || vendorData.vendorName;
+                    handleChange("supplier", vendorName);
+                    closeModal();
+                } catch (err) {
+                    console.error('❌ Failed to save vendor:', err);
+                    alert('Failed to save vendor. Please try again.');
+                }
+            }
+        });
+    };
+
+    // 🎯 Add New Item Modal (nested)
+    const handleAddItem = (rowIndex) => {
+        openModal(ItemModal, {
+            onClose: () => closeModal(),
+            onSave: async (itemData) => {
+                try {
+                    const companyId = getCurrentCompany();
+                    const response = await authFetch(`${API_BASE}/api/items`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ ...itemData, accountCompanyName: companyId })
+                    });
+                    const saved = await response.json();
+                    const newItem = saved.data || saved;
+                    console.log('✅ Item saved:', newItem);
+
+                    // Refresh lists and auto-select new item in the row
+                    await fetchLists();
+                    const itemName = newItem.itemName || newItem.name || itemData.itemName;
+                    handleItemChange(rowIndex, "goodsService", itemName);
+                    closeModal();
+                } catch (err) {
+                    console.error('❌ Failed to save item:', err);
+                    alert('Failed to save item. Please try again.');
+                }
+            }
+        });
+    };
+
     // When modal opens, seed form and fetch lists if needed (same behavior as Sales)
     useEffect(() => {
         if (isOpen) {
@@ -261,7 +323,7 @@ function PurchaseInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, wit
     const handleChange = (field, value) => {
         setFormData((prev) => {
             const updated = { ...prev, [field]: value };
-            
+
             // If Pay Full checkbox is checked, auto-fill payment amount with total amount or due amount
             if (field === "payFull" && value === true) {
                 // In edit mode with partial payments, use due amount
@@ -296,7 +358,7 @@ function PurchaseInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, wit
                     updated.paymentAmount = String(total);
                 }
             }
-            
+
             return updated;
         });
         if (error) setError("");
@@ -591,10 +653,18 @@ function PurchaseInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, wit
         >
             <div className="bg-white rounded-lg shadow-xl w-full max-w-5xl mx-4 h-[90vh] flex flex-col">
                 {/* Modal Header */}
-                <div className="px-6 py-3 rounded-t-lg shrink-0" style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
+                <div className="flex items-center justify-between px-6 py-3 rounded-t-lg shrink-0" style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
                     <h3 className="text-lg font-semibold text-white">
                         Create New Purchase Invoice {withGst ? "" : "(Without GST)"}
                     </h3>
+                    <button
+                        onClick={onClose}
+                        className="text-white/80 hover:text-white transition-colors"
+                    >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
                 </div>
 
                 {/* Modal Body */}
@@ -636,7 +706,7 @@ function PurchaseInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, wit
                                             </div>
                                         ))}
                                     <div
-                                        onClick={() => navigate("/vendor")}
+                                        onClick={() => handleAddVendor()}
                                         className="px-3 py-2 text-sm text-blue-600 font-semibold hover:bg-blue-50 cursor-pointer border-t border-gray-200"
                                     >
                                         + Add New Supplier
@@ -750,7 +820,7 @@ function PurchaseInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, wit
                                                 onChange={(e) => {
                                                     const value = e.target.value;
                                                     if (value === "__ADD_NEW_ITEM__") {
-                                                        navigate("/items");
+                                                        handleAddItem(index);
                                                     } else {
                                                         handleItemChange(index, "goodsService", value);
                                                     }
@@ -1113,11 +1183,12 @@ export default function PurchasePage() {
     // Fetch bank accounts and GST rates from backend instead of localStorage
     useEffect(() => {
         let mounted = true;
+        const companyId = getCurrentCompany();
 
         async function fetchBanks() {
             setLoadingBanks(true);
             try {
-                const res = await fetch('/api/bank');
+                const res = await authFetch(`${API_BASE_URL}/api/bank?accountCompanyName=${companyId}`);
                 if (!res.ok) {
                     console.warn('Failed to fetch banks', res.status);
                     return;
@@ -1136,7 +1207,7 @@ export default function PurchasePage() {
         async function fetchGst() {
             setLoadingGst(true);
             try {
-                const res = await fetch('/api/gst');
+                const res = await authFetch(`${API_BASE_URL}/api/gst?accountCompanyName=${companyId}`);
                 if (!res.ok) {
                     console.warn('Failed to fetch gst rates', res.status);
                     return;
@@ -1213,11 +1284,11 @@ export default function PurchasePage() {
             { header: 'Vendor', key: 'vendor' },
             { header: 'Amount', key: 'amount' },
             { header: 'GST', key: 'gst' },
-            { header: 'Type', key: 'type' },
-            { header: 'Status', key: 'status' },
             { header: 'Due Amount', key: 'dueAmount' },
+            { header: 'Status', key: 'status' },
+            { header: 'Type', key: 'type' },
         ];
-        
+
         const exportData = filteredPurchases.map(purchase => ({
             date: formatDate(purchase.purchaseDate),
             invoiceNo: `${purchase.purchasePrefix || ''}${purchase.purchaseNumber || ''}${purchase.purchaseSuffix || ''}`,
@@ -1228,7 +1299,7 @@ export default function PurchasePage() {
             status: purchase.paymentStatus || '-',
             dueAmount: purchase.dueAmount || 0,
         }));
-        
+
         exportTableToExcel(exportData, columns, 'Purchase_Invoices_Report', 'Purchases');
     };
 
@@ -1468,7 +1539,7 @@ export default function PurchasePage() {
 
             {/* Toolbar */}
             <div className="flex items-center justify-end gap-2 px-4 py-2 border-b border-gray-100">
-                <button 
+                <button
                     onClick={handleExportToExcel}
                     className="flex items-center gap-2 px-3 py-1.5 text-gray-600 hover:bg-gray-100 rounded text-sm"
                     title="Export to Excel"
@@ -1528,23 +1599,22 @@ export default function PurchasePage() {
                                             <span>GST</span>
                                         </div>
                                     </th>
-                                    <th className="min-w-[120px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                    <th className="min-w-[130px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
                                         <div className="flex items-center gap-2">
                                             <span className="text-gray-400 cursor-grab">⋮⋮</span>
-                                            <span>Type</span>
+                                            <span>Due Amount</span>
                                         </div>
                                     </th>
-                                    {/* Payment column removed as requested */}
                                     <th className="min-w-[120px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
                                         <div className="flex items-center gap-2">
                                             <span className="text-gray-400 cursor-grab">⋮⋮</span>
                                             <span>Status</span>
                                         </div>
                                     </th>
-                                    <th className="min-w-[130px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                    <th className="min-w-[120px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
                                         <div className="flex items-center gap-2">
                                             <span className="text-gray-400 cursor-grab">⋮⋮</span>
-                                            <span>Due Amount</span>
+                                            <span>Type</span>
                                         </div>
                                     </th>
                                     <th className="min-w-[100px] h-9 px-4 text-left text-sm font-medium text-gray-700 sticky right-0 z-20 bg-gray-100 border-l border-gray-400" style={{ boxShadow: '-4px 0 8px -2px rgba(0, 0, 0, 0.15)' }}>
@@ -1590,12 +1660,10 @@ export default function PurchasePage() {
                                             {invoice.withGst ? formatCurrency(invoice.gstAmount) : "-"}
                                         </td>
                                         <td
-                                            className={getCellClasses(rowIndex, 5) + " text-left"}
+                                            className={getCellClasses(rowIndex, 5) + " text-left text-gray-600 font-medium"}
                                             onClick={() => handleCellClick(rowIndex, 5)}
                                         >
-                                            <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${invoice.withGst ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'}`}>
-                                                {invoice.withGst ? "With GST" : "Without GST"}
-                                            </span>
+                                            {invoice.dueAmount != null && invoice.dueAmount > 0 ? formatCurrency(invoice.dueAmount) : "-"}
                                         </td>
                                         <td
                                             className={getCellClasses(rowIndex, 6) + " text-left"}
@@ -1617,10 +1685,12 @@ export default function PurchasePage() {
                                             })()}
                                         </td>
                                         <td
-                                            className={getCellClasses(rowIndex, 7) + " text-left text-gray-600 font-medium"}
+                                            className={getCellClasses(rowIndex, 7) + " text-left"}
                                             onClick={() => handleCellClick(rowIndex, 7)}
                                         >
-                                            {invoice.dueAmount != null && invoice.dueAmount > 0 ? formatCurrency(invoice.dueAmount) : "-"}
+                                            <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${invoice.withGst ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'}`}>
+                                                {invoice.withGst ? "With GST" : "Without GST"}
+                                            </span>
                                         </td>
                                         <td className={`h-8 px-4 text-left sticky right-0 z-10 border-l border-gray-400 ${rowIndex % 2 === 0 ? 'bg-blue-50' : 'bg-white'}`} style={{ boxShadow: '-4px 0 8px -2px rgba(0, 0, 0, 0.1)' }}>
                                             <div className="flex items-center justify-end gap-2">

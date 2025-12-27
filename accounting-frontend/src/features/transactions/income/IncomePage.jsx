@@ -5,7 +5,7 @@ import useIncome from "./hooks/useIncome";
 import { exportTableToExcel } from "../../../utils/excelExport";
 import incomeApi from "./api/income.api";
 import { CompanyContext } from "src/App";
-import { authFetch } from "../../../services/apiClient";
+import { authFetch, API_BASE_URL } from "../../../services/apiClient";
 
 
 /**
@@ -171,6 +171,14 @@ function IncomeModal({ isOpen, onClose, onSave, onDelete, editData }) {
                             onChange={(e) => handleChange("date", e.target.value)}
                             className="border border-white/30 bg-white/20 text-white rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-white/50"
                         />
+                        <button
+                            onClick={onClose}
+                            className="text-white/80 hover:text-white transition-colors ml-2"
+                        >
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
                     </div>
                 </div>
 
@@ -418,7 +426,7 @@ export default function IncomePage() {
             { header: 'Payment Method', key: 'paymentMethod' },
             { header: 'Description', key: 'description' },
         ];
-        
+
         const exportData = incomes.map(income => ({
             date: formatDate(income.date),
             billName: income.billName || '-',
@@ -427,7 +435,7 @@ export default function IncomePage() {
             paymentMethod: income.paymentMethod || '-',
             description: income.description || '-',
         }));
-        
+
         exportTableToExcel(exportData, columns, 'Income_Report', 'Income');
     };
 
@@ -492,8 +500,8 @@ export default function IncomePage() {
             const id = income._id ?? income.id;
             if (!id) throw new Error("Invalid income id");
 
-            // Match backendBase used elsewhere in this file (keep in sync)
-            const backendBase = "http://localhost:4000";
+            // Use API base URL from environment variable
+            const backendBase = API_BASE_URL;
 
             // Fetch binary from backend (absolute URL to avoid vite/dev-server proxy issues)
             const res = await authFetch(`${backendBase}/api/income/${id}/receipt`, {
@@ -566,7 +574,7 @@ export default function IncomePage() {
 
             {/* Toolbar - Icons commented out as per requirement */}
             <div className="flex items-center justify-end gap-2 px-4 py-2 border-b border-gray-100">
-                <button 
+                <button
                     onClick={handleExportToExcel}
                     className="flex items-center gap-2 px-3 py-1.5 text-gray-600 hover:bg-gray-100 rounded text-sm"
                     title="Export to Excel"

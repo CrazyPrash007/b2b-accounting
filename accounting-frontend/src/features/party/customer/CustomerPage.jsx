@@ -4,6 +4,51 @@ import { useNavigate, useLocation } from "react-router-dom";
 import useCustomer from "./hooks/useCustomer";
 import { exportTableToExcel } from "../../../utils/excelExport";
 
+// Fullstack API URL for chat invitees
+const FULLSTACK_API_URL = import.meta.env.VITE_FULLSTACK_API_URL || import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api";
+
+/**
+ * Helper function to add party as invitee in fullstack chat
+ */
+async function addPartyAsInvitee(partyData) {
+    const phone = partyData.mobileNumber?.trim();
+    if (!phone) return; // No phone number, skip
+
+    try {
+        const token = localStorage.getItem('token');
+        if (!token) return;
+
+        // Extract userId from token
+        const match = token.match(/proto-token:([0-9a-fA-F]{24})$/);
+        if (!match) return;
+
+        const response = await fetch(`${FULLSTACK_API_URL}/manual-contacts`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': token,
+                'X-User-Id': match[1],
+                'user-id': match[1],
+            },
+            body: JSON.stringify({
+                name: partyData.customerName || partyData.vendorName || partyData.name,
+                companyName: partyData.companyName || '',
+                phoneNumbers: [phone],
+            }),
+        });
+
+        if (response.ok) {
+            console.log('[CustomerPage] Added party as invitee in chat:', partyData.customerName);
+        } else {
+            const errorData = await response.json().catch(() => ({}));
+            console.warn('[CustomerPage] Failed to add invitee:', errorData.message || response.statusText);
+        }
+    } catch (err) {
+        // Silently fail - this is a non-critical feature
+        console.warn('[CustomerPage] Error adding party as invitee:', err.message);
+    }
+}
+
 /**
  * CustomerModal - Modal for creating/editing customers
  */
@@ -607,6 +652,11 @@ export default function CustomerPage() {
                     openingBalanceType: customerData.openingBalanceType || "Credit",
                     openingBalanceAmount: customerData.openingBalanceAmount || 0,
                 });
+
+                // Add customer as invitee in fullstack chat (only for new customers)
+                if (customerData.mobileNumber) {
+                    addPartyAsInvitee(customerData);
+                }
             }
             setIsModalOpen(false);
             setEditingCustomer(null);
@@ -651,7 +701,7 @@ export default function CustomerPage() {
             { header: 'State', key: 'billingState' },
             { header: 'Opening Balance', key: 'openingBalance' },
         ];
-        
+
         const exportData = customers.map(customer => ({
             customerName: customer.customerName || '-',
             mobileNumber: customer.mobileNumber || '-',
@@ -663,7 +713,7 @@ export default function CustomerPage() {
             billingState: customer.billingState || '-',
             openingBalance: customer.openingBalanceAmount ? `₹${customer.openingBalanceAmount} (${customer.openingBalanceType})` : '-',
         }));
-        
+
         exportTableToExcel(exportData, columns, 'Customers_Report', 'Customers');
     };
 
@@ -732,7 +782,7 @@ export default function CustomerPage() {
 
             {/* Toolbar - Icons commented out */}
             <div className="flex items-center justify-end gap-2 px-4 py-2 border-b border-gray-100">
-                <button 
+                <button
                     onClick={handleExportToExcel}
                     className="flex items-center gap-2 px-3 py-1.5 text-gray-600 hover:bg-gray-100 rounded text-sm"
                     title="Export to Excel"
@@ -791,16 +841,22 @@ export default function CustomerPage() {
                                             <span>Mobile</span>
                                         </div>
                                     </th>
-                                    <th className="min-w-[180px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
-                                        <div className="flex items-center gap-2">
-                                            <span className="text-gray-400 cursor-grab">⋮⋮</span>
-                                            <span>Email</span>
-                                        </div>
-                                    </th>
                                     <th className="min-w-[150px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
                                         <div className="flex items-center gap-2">
                                             <span className="text-gray-400 cursor-grab">⋮⋮</span>
                                             <span>Company</span>
+                                        </div>
+                                    </th>
+                                    <th className="min-w-[140px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-gray-400 cursor-grab">⋮⋮</span>
+                                            <span>Balance</span>
+                                        </div>
+                                    </th>
+                                    <th className="min-w-[180px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-gray-400 cursor-grab">⋮⋮</span>
+                                            <span>Email</span>
                                         </div>
                                     </th>
                                     <th className="min-w-[110px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
@@ -827,12 +883,6 @@ export default function CustomerPage() {
                                             <span>State</span>
                                         </div>
                                     </th>
-                                    <th className="min-w-[140px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
-                                        <div className="flex items-center gap-2">
-                                            <span className="text-gray-400 cursor-grab">⋮⋮</span>
-                                            <span>Balance</span>
-                                        </div>
-                                    </th>
                                     <th className="min-w-[100px] h-9 px-4 text-left text-sm font-medium text-gray-700 sticky right-0 z-20 bg-gray-100 border-l border-gray-400" style={{ boxShadow: '-4px 0 8px -2px rgba(0, 0, 0, 0.15)' }}>
                                         Actions
                                     </th>
@@ -843,66 +893,67 @@ export default function CustomerPage() {
                                 {customers.map((customer, rowIndex) => (
                                     <tr
                                         key={customer.id || customer._id || rowIndex}
-                                        className={`border-b border-gray-400 hover:bg-blue-100 transition-colors ${rowIndex % 2 === 0 ? 'bg-blue-50/40' : 'bg-white'}`}
+                                        className={`border-b border-gray-400 hover:bg-blue-100 transition-colors cursor-pointer ${rowIndex % 2 === 0 ? 'bg-blue-50/40' : 'bg-white'}`}
+                                        onClick={() => navigate(`/customer/${customer.id || customer._id}`)}
                                     >
                                         <td
                                             className={getCellClasses(rowIndex, 0) + " text-left text-blue-600"}
-                                            onClick={() => handleCellClick(rowIndex, 0)}
+                                            onClick={(e) => { e.stopPropagation(); handleCellClick(rowIndex, 0); navigate(`/customer/${customer.id || customer._id}`); }}
                                         >
                                             {customer.customerName}
                                         </td>
                                         <td
                                             className={getCellClasses(rowIndex, 1) + " text-left text-gray-600"}
-                                            onClick={() => handleCellClick(rowIndex, 1)}
+                                            onClick={(e) => { e.stopPropagation(); handleCellClick(rowIndex, 1); navigate(`/customer/${customer.id || customer._id}`); }}
                                         >
                                             {customer.mobileNumber || "-"}
                                         </td>
                                         <td
                                             className={getCellClasses(rowIndex, 2) + " text-left text-gray-600"}
-                                            onClick={() => handleCellClick(rowIndex, 2)}
-                                        >
-                                            {customer.emailAddress || "-"}
-                                        </td>
-                                        <td
-                                            className={getCellClasses(rowIndex, 3) + " text-left text-gray-600"}
-                                            onClick={() => handleCellClick(rowIndex, 3)}
+                                            onClick={(e) => { e.stopPropagation(); handleCellClick(rowIndex, 2); navigate(`/customer/${customer.id || customer._id}`); }}
                                         >
                                             {customer.companyName || "-"}
                                         </td>
                                         <td
+                                            className={getCellClasses(rowIndex, 3) + " text-left text-gray-600"}
+                                            onClick={(e) => { e.stopPropagation(); handleCellClick(rowIndex, 3); navigate(`/customer/${customer.id || customer._id}`); }}
+                                        >
+                                            {customer.openingBalanceAmount ? `₹${customer.openingBalanceAmount} (${customer.openingBalanceType})` : '-'}
+                                        </td>
+                                        <td
                                             className={getCellClasses(rowIndex, 4) + " text-left text-gray-600"}
-                                            onClick={() => handleCellClick(rowIndex, 4)}
+                                            onClick={(e) => { e.stopPropagation(); handleCellClick(rowIndex, 4); navigate(`/customer/${customer.id || customer._id}`); }}
+                                        >
+                                            {customer.emailAddress || "-"}
+                                        </td>
+                                        <td
+                                            className={getCellClasses(rowIndex, 5) + " text-left text-gray-600"}
+                                            onClick={(e) => { e.stopPropagation(); handleCellClick(rowIndex, 5); navigate(`/customer/${customer.id || customer._id}`); }}
                                         >
                                             {customer.gstType || "-"}
                                         </td>
                                         <td
-                                            className={getCellClasses(rowIndex, 5) + " text-left text-gray-600"}
-                                            onClick={() => handleCellClick(rowIndex, 5)}
+                                            className={getCellClasses(rowIndex, 6) + " text-left text-gray-600"}
+                                            onClick={(e) => { e.stopPropagation(); handleCellClick(rowIndex, 6); navigate(`/customer/${customer.id || customer._id}`); }}
                                         >
                                             {customer.billingAddress || "-"}
                                         </td>
                                         <td
-                                            className={getCellClasses(rowIndex, 6) + " text-left text-gray-600"}
-                                            onClick={() => handleCellClick(rowIndex, 6)}
+                                            className={getCellClasses(rowIndex, 7) + " text-left text-gray-600"}
+                                            onClick={(e) => { e.stopPropagation(); handleCellClick(rowIndex, 7); navigate(`/customer/${customer.id || customer._id}`); }}
                                         >
                                             {customer.billingDistrict || "-"}
                                         </td>
                                         <td
-                                            className={getCellClasses(rowIndex, 7) + " text-left text-gray-600"}
-                                            onClick={() => handleCellClick(rowIndex, 7)}
+                                            className={getCellClasses(rowIndex, 8) + " text-left text-gray-600"}
+                                            onClick={(e) => { e.stopPropagation(); handleCellClick(rowIndex, 8); navigate(`/customer/${customer.id || customer._id}`); }}
                                         >
                                             {customer.billingState || "-"}
                                         </td>
-                                        <td
-                                            className={getCellClasses(rowIndex, 8) + " text-left text-gray-600"}
-                                            onClick={() => handleCellClick(rowIndex, 8)}
-                                        >
-                                            {customer.openingBalanceAmount ? `₹${customer.openingBalanceAmount} (${customer.openingBalanceType})` : '-'}
-                                        </td>
-                                        <td className={`h-8 px-4 text-left sticky right-0 z-10 border-l border-gray-400 ${rowIndex % 2 === 0 ? 'bg-blue-50' : 'bg-white'}`} style={{ boxShadow: '-4px 0 8px -2px rgba(0, 0, 0, 0.1)' }}>
+                                        <td className={`h-8 px-4 text-left sticky right-0 z-10 border-l border-gray-400 ${rowIndex % 2 === 0 ? 'bg-blue-50' : 'bg-white'}`} style={{ boxShadow: '-4px 0 8px -2px rgba(0, 0, 0, 0.1)' }} onClick={(e) => e.stopPropagation()}>
                                             <div className="flex items-center justify-end gap-2">
                                                 <button
-                                                    onClick={() => handleEditCustomer(customer)}
+                                                    onClick={(e) => { e.stopPropagation(); handleEditCustomer(customer); }}
                                                     className="text-blue-600 hover:underline text-sm"
                                                 >
                                                     Edit
