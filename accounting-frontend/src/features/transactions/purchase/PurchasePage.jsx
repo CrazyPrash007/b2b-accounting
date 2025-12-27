@@ -194,7 +194,7 @@ function PurchaseInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, wit
                     });
                     const saved = await response.json();
                     const newVendor = saved.data || saved;
-                    console.log('✅ Vendor saved:', newVendor);
+
 
                     // Refresh lists and auto-select new vendor
                     await fetchLists();
@@ -223,7 +223,7 @@ function PurchaseInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, wit
                     });
                     const saved = await response.json();
                     const newItem = saved.data || saved;
-                    console.log('✅ Item saved:', newItem);
+
 
                     // Refresh lists and auto-select new item in the row
                     await fetchLists();
