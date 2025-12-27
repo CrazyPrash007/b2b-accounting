@@ -1,16 +1,19 @@
 // SalesPage.jsx
 import React, { useState, useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
 import useSale from "./hooks/useSale";
 import saleApi from "./api/sale.api";
 import PdfPreviewModal from "../../../components/PdfPreviewModal";
 import { getCurrentCompany } from "../../../services/companyContextAccessor";
 import { exportTableToExcel } from "../../../utils/excelExport";
 import { authFetch, API_BASE_URL } from "../../../services/apiClient";
+import { useModal } from "../../../hooks/useModal";
+import CustomerModal from "../../party/customer/components/CustomerModal";
+import ItemModal from "../../items/items/components/ItemModal";
 
 // SalesInvoiceModal - replaces the existing modal in SalesPage.jsx
 function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGst = true, bankAccounts: bankAccountsProp = [], gstRates: gstRatesProp = [] }) {
-    const navigate = useNavigate();
+    const { openModal, closeModal } = useModal();
+    const API_BASE = API_BASE_URL;
 
     // Get next invoice counter from localStorage or start at 1
     const getNextInvoiceCounter = () => {
@@ -65,11 +68,11 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
     const [bankAccounts, setBankAccounts] = useState(bankAccountsProp || []);
 
     const [listsLoading, setListsLoading] = useState(false);
-    const [listsError, setListsError] = useState(null);
+    const [listsError, setListsError] = useState(null); // eslint-disable-line no-unused-vars
 
     // Autocomplete dropdown state
     const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
-    const [customerSearchTerm, setCustomerSearchTerm] = useState("");
+    const [customerSearchTerm, setCustomerSearchTerm] = useState(""); // eslint-disable-line no-unused-vars
 
     // Default GST options if no rates provided from props/api
     const defaultGstOptions = ["0", "5", "12", "18", "28"];
@@ -154,9 +157,6 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isOpen, editData]);
-
-    // Use API base URL from environment variable
-    const API_BASE = API_BASE_URL;
 
     async function parseJsonSafe(res) {
         const body = await res.json().catch(() => null);
@@ -256,7 +256,65 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
         }
     };
 
-    const tryAutoFillRate = (value) => {
+    // 🎯 Add New Customer Modal (nested)
+    const handleAddCustomer = () => {
+        openModal(CustomerModal, {
+            onClose: () => closeModal(),
+            onSave: async (customerData) => {
+                try {
+                    const companyId = getCurrentCompany();
+                    const response = await authFetch(`${API_BASE}/api/customers`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ ...customerData, accountCompanyName: companyId })
+                    });
+                    const saved = await response.json();
+                    const newCustomer = saved.data || saved;
+                    console.log('✅ Customer saved:', newCustomer);
+
+                    // Refresh lists and auto-select new customer
+                    await fetchLists();
+                    const customerName = newCustomer.customerName || newCustomer.name || newCustomer.displayName || customerData.customerName;
+                    handleChange("customer", customerName);
+                    closeModal();
+                } catch (err) {
+                    console.error('❌ Failed to save customer:', err);
+                    alert('Failed to save customer. Please try again.');
+                }
+            }
+        });
+    };
+
+    // 🎯 Add New Item Modal (nested)
+    const handleAddItem = (rowIndex) => {
+        openModal(ItemModal, {
+            onClose: () => closeModal(),
+            onSave: async (itemData) => {
+                try {
+                    const companyId = getCurrentCompany();
+                    const response = await authFetch(`${API_BASE}/api/items`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ ...itemData, accountCompanyName: companyId })
+                    });
+                    const saved = await response.json();
+                    const newItem = saved.data || saved;
+                    console.log('✅ Item saved:', newItem);
+
+                    // Refresh lists and auto-select new item in the row
+                    await fetchLists();
+                    const itemName = newItem.itemName || newItem.name || itemData.itemName;
+                    handleItemChange(rowIndex, "goodsService", itemName);
+                    closeModal();
+                } catch (err) {
+                    console.error('❌ Failed to save item:', err);
+                    alert('Failed to save item. Please try again.');
+                }
+            }
+        });
+    };
+
+    const _tryAutoFillRate = (value) => {
         if (!value) return "";
         const match = itemsList.find(i => {
             const name = (i._displayName || i.itemName || i.name || "").toString().trim().toLowerCase();
@@ -507,7 +565,7 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
         return hasGoodsService && hasQty && hasRate;
     };
 
-    const isCurrentRowComplete = (index) => {
+    const _isCurrentRowComplete = (index) => {
         if (index < 0 || index >= formData.items.length) return false;
         return isRowComplete(formData.items[index]);
     };
@@ -647,16 +705,24 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
         >
             <div className="bg-white rounded-lg shadow-xl w-full max-w-5xl mx-4 h-[90vh] flex flex-col">
                 {/* Modal Header */}
-                <div className="px-6 py-3 text-white rounded-t-lg flex-shrink-0" style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
+                <div className="flex items-center justify-between px-6 py-3 text-white rounded-t-lg shrink-0" style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
                     <h3 className="text-lg font-semibold">
                         Create New Sales Invoice {withGst ? "" : "(Without GST)"}
                     </h3>
+                    <button
+                        onClick={onClose}
+                        className="text-white/80 hover:text-white transition-colors"
+                    >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
                 </div>
 
                 {/* Modal Body */}
                 <div className="p-4 space-y-3 flex-1 flex flex-col overflow-y-auto" data-form-container onKeyDown={handleFormKeyDown}>
                     {/* Top Section - Customer & Invoice Details */}
-                    <div className="grid grid-cols-2 gap-4 flex-shrink-0">
+                    <div className="grid grid-cols-2 gap-4 shrink-0">
                         {/* Customer Selection */}
                         <div className="relative">
                             <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -692,7 +758,7 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
                                             </div>
                                         ))}
                                     <div
-                                        onClick={() => navigate("/customer")}
+                                        onClick={() => handleAddCustomer()}
                                         className="px-3 py-2 text-sm text-blue-600 font-semibold hover:bg-blue-50 cursor-pointer border-t border-gray-200"
                                     >
                                         + Add New Customer
@@ -713,21 +779,21 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
                                         value={formData.invoicePrefix}
                                         onChange={(e) => handleChange("invoicePrefix", e.target.value)}
                                         placeholder="Prefix"
-                                        className="w-14 min-w-[48px] border border-gray-300 rounded px-2 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                        className="w-14 min-w-12 border border-gray-300 rounded px-2 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
                                     />
                                     <input
                                         type="text"
                                         value={formData.invoiceNumber}
                                         readOnly
                                         title="Auto-generated invoice number (locked)"
-                                        className="w-20 min-w-[80px] border border-gray-300 rounded px-2 py-2 text-sm bg-gray-100 text-gray-600 cursor-not-allowed focus:outline-none"
+                                        className="w-20 min-w-20 border border-gray-300 rounded px-2 py-2 text-sm bg-gray-100 text-gray-600 cursor-not-allowed focus:outline-none"
                                     />
                                     <input
                                         type="text"
                                         value={formData.invoiceSuffix}
                                         onChange={(e) => handleChange("invoiceSuffix", e.target.value)}
                                         placeholder="Suffix (optional)"
-                                        className="flex-1 min-w-[80px] border border-gray-300 rounded px-2 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                        className="flex-1 min-w-20 border border-gray-300 rounded px-2 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
                                     />
                                 </div>
                             </div>
@@ -746,7 +812,7 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
                     </div>
 
                     {/* Items Table */}
-                    <div className="border border-gray-300 rounded-lg overflow-hidden flex-shrink-0 max-h-[250px] overflow-y-auto" data-items-table>
+                    <div className="border border-gray-300 rounded-lg overflow-hidden shrink-0 max-h-[250px] overflow-y-auto" data-items-table>
                         <table className="w-full text-sm">
                             <thead className="bg-gray-50 border-b border-gray-300 sticky top-0">
                                 <tr>
@@ -779,7 +845,7 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
                                                 onChange={(e) => {
                                                     const value = e.target.value;
                                                     if (value === "__ADD_NEW_ITEM__") {
-                                                        navigate("/items");
+                                                        handleAddItem(index);
                                                     } else {
                                                         handleItemChange(index, "goodsService", value);
                                                     }
@@ -889,7 +955,7 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
                     </div>
 
                     {/* Bottom Section - Payment & Summary */}
-                    <div className="grid grid-cols-2 gap-6 flex-shrink-0">
+                    <div className="grid grid-cols-2 gap-6 shrink-0">
                         {/* Payment Section */}
                         <div className="space-y-2">
                             <label className="flex items-center gap-2">
@@ -1147,12 +1213,12 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
                     </div>
 
                     {error && (
-                        <p className="text-sm text-red-500 flex-shrink-0">{error}</p>
+                        <p className="text-sm text-red-500 shrink-0">{error}</p>
                     )}
                 </div>
 
                 {/* Modal Footer */}
-                <div className="flex items-center justify-between px-6 py-3 border-t border-gray-200 bg-gray-50 rounded-b-lg flex-shrink-0">
+                <div className="flex items-center justify-between px-6 py-3 border-t border-gray-200 bg-gray-50 rounded-b-lg shrink-0">
                     {isEditMode ? (
                         <button
                             type="button"
@@ -1195,7 +1261,7 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
  */
 export default function SalesPage() {
     // Server-backed invoices and CRUD helpers (match ItemsPage pattern)
-    const { rows: invoices = [], loading: invoicesLoading, error: invoicesError, reload, create, update, remove } = useSale({ useLocalFallback: false });
+    const { rows: invoices = [], loading: invoicesLoading, error: invoicesError, reload, create, update, remove } = useSale({ useLocalFallback: false }); // eslint-disable-line no-unused-vars
 
     const [selectedCell, setSelectedCell] = useState(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -1325,9 +1391,9 @@ export default function SalesPage() {
             { header: 'Customer', key: 'customer' },
             { header: 'Amount', key: 'amount' },
             { header: 'GST', key: 'gst' },
-            { header: 'Type', key: 'type' },
-            { header: 'Status', key: 'status' },
             { header: 'Due Amount', key: 'dueAmount' },
+            { header: 'Status', key: 'status' },
+            { header: 'Type', key: 'type' },
         ];
 
         const exportData = filteredInvoices.map(invoice => ({
@@ -1477,10 +1543,7 @@ export default function SalesPage() {
                 err?.response?.data?.message ||
                 err?.message ||
                 "Failed to save invoice";
-            setError(serverMsg);
             alert(`Save failed: ${serverMsg}`);
-        } finally {
-            setSaving(false);
         }
     };
 
@@ -1491,8 +1554,6 @@ export default function SalesPage() {
         if (!window.confirm("Are you sure you want to delete this invoice?")) return;
 
         try {
-            setSaving(true);
-            setError(null);
             await remove(id);
             if (typeof reload === 'function') await reload();
 
@@ -1501,10 +1562,7 @@ export default function SalesPage() {
         } catch (err) {
             console.error("Failed to delete invoice:", err);
             const msg = err?.response?.data?.error?.message || err?.message || "Failed to delete invoice";
-            setError(msg);
             alert(msg);
-        } finally {
-            setSaving(false);
         }
     };
 
@@ -1640,23 +1698,22 @@ export default function SalesPage() {
                                             <span>GST</span>
                                         </div>
                                     </th>
-                                    <th className="min-w-[120px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                    <th className="min-w-[130px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
                                         <div className="flex items-center gap-2">
                                             <span className="text-gray-400 cursor-grab">⋮⋮</span>
-                                            <span>Type</span>
+                                            <span>Due Amount</span>
                                         </div>
                                     </th>
-                                    {/* Payment column removed as requested */}
                                     <th className="min-w-[120px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
                                         <div className="flex items-center gap-2">
                                             <span className="text-gray-400 cursor-grab">⋮⋮</span>
                                             <span>Status</span>
                                         </div>
                                     </th>
-                                    <th className="min-w-[130px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                    <th className="min-w-[120px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
                                         <div className="flex items-center gap-2">
                                             <span className="text-gray-400 cursor-grab">⋮⋮</span>
-                                            <span>Due Amount</span>
+                                            <span>Type</span>
                                         </div>
                                     </th>
                                     <th className="min-w-[100px] h-9 px-4 text-left text-sm font-medium text-gray-700 sticky right-0 z-20 bg-gray-100 border-l border-gray-400" style={{ boxShadow: '-4px 0 8px -2px rgba(0, 0, 0, 0.15)' }}>
@@ -1702,12 +1759,10 @@ export default function SalesPage() {
                                             {invoice.withGst ? formatCurrency(invoice.gstAmount) : "-"}
                                         </td>
                                         <td
-                                            className={getCellClasses(rowIndex, 5) + " text-left"}
+                                            className={getCellClasses(rowIndex, 5) + " text-left text-gray-600 font-medium"}
                                             onClick={() => handleCellClick(rowIndex, 5)}
                                         >
-                                            <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${invoice.withGst ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'}`}>
-                                                {invoice.withGst ? "With GST" : "Without GST"}
-                                            </span>
+                                            {invoice.dueAmount != null && invoice.dueAmount > 0 ? formatCurrency(invoice.dueAmount) : "-"}
                                         </td>
                                         <td
                                             className={getCellClasses(rowIndex, 6) + " text-left"}
@@ -1737,10 +1792,12 @@ export default function SalesPage() {
                                             })()}
                                         </td>
                                         <td
-                                            className={getCellClasses(rowIndex, 7) + " text-left text-gray-600 font-medium"}
+                                            className={getCellClasses(rowIndex, 7) + " text-left"}
                                             onClick={() => handleCellClick(rowIndex, 7)}
                                         >
-                                            {invoice.dueAmount != null && invoice.dueAmount > 0 ? formatCurrency(invoice.dueAmount) : "-"}
+                                            <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${invoice.withGst ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'}`}>
+                                                {invoice.withGst ? "With GST" : "Without GST"}
+                                            </span>
                                         </td>
                                         <td className={`h-8 px-4 text-left sticky right-0 z-10 border-l border-gray-400 ${rowIndex % 2 === 0 ? 'bg-blue-50' : 'bg-white'}`} style={{ boxShadow: '-4px 0 8px -2px rgba(0, 0, 0, 0.1)' }}>
                                             <div className="flex items-center justify-end gap-2">

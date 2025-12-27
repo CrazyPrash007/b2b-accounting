@@ -12,6 +12,67 @@ function toObjectId(id) {
     }
 }
 
+/* ============================= GLOBAL SEARCH (All Users) ============================= */
+async function globalSearch(req, res, next) {
+    try {
+        const { q, limit = 20 } = req.query;
+
+        if (!q || q.trim().length < 2) {
+            return res.json({ success: true, data: [] });
+        }
+
+        const searchTerm = q.trim();
+
+        // Search across all items from all users (for suggestion/autocomplete)
+        const items = await Item.aggregate([
+            {
+                $match: {
+                    isDeleted: false,
+                    $or: [
+                        { name: { $regex: searchTerm, $options: "i" } },
+                        { itemName: { $regex: searchTerm, $options: "i" } },
+                        { description: { $regex: searchTerm, $options: "i" } }
+                    ]
+                }
+            },
+            {
+                // Group by item name to get unique items with their details
+                $group: {
+                    _id: { $toLower: "$name" },
+                    itemName: { $first: "$name" },
+                    description: { $first: "$description" },
+                    itemType: { $first: { $ifNull: ["$itemType", "$type"] } },
+                    unit: { $first: "$unit" },
+                    brandName: { $first: "$brandName" },
+                    gstRate: { $first: "$gstRate" },
+                    category: { $first: "$category" },
+                    count: { $sum: 1 }
+                }
+            },
+            { $sort: { count: -1 } }, // Most common items first
+            { $limit: Number(limit) },
+            {
+                $project: {
+                    _id: 0,
+                    itemName: 1,
+                    description: 1,
+                    itemType: 1,
+                    unit: 1,
+                    brandName: 1,
+                    gstRate: 1,
+                    category: 1,
+                    popularity: "$count"
+                }
+            }
+        ]);
+
+        return res.json({ success: true, data: items });
+
+    } catch (err) {
+        next(err);
+    }
+}
+
 /* ============================= LIST ============================= */
 async function list(req, res, next) {
     try {
@@ -270,4 +331,4 @@ async function remove(req, res, next) {
     }
 }
 
-module.exports = { list, getOne, create, update, remove };
+module.exports = { list, getOne, create, update, remove, globalSearch };

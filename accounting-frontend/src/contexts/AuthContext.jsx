@@ -9,12 +9,24 @@ const MAIN_APP_URL = import.meta.env.VITE_MAIN_APP_URL;
 
 // Extract token from URL hash (e.g., #token=proto-token:123...)
 function getTokenFromHash() {
-    const hash = window.location.hash;
-    if (hash && hash.includes('token=')) {
-        const tokenMatch = hash.match(/token=([^&]+)/);
-        if (tokenMatch) {
-            return decodeURIComponent(tokenMatch[1]);
+    try {
+        const hash = window.location.hash;
+        if (!hash || !hash.includes('token=')) {
+            return null;
         }
+
+        // Match token parameter from hash
+        const tokenMatch = hash.match(/[#&]token=([^&]+)/);
+        if (tokenMatch && tokenMatch[1]) {
+            const token = decodeURIComponent(tokenMatch[1]);
+            // Validate token format (proto-token:ObjectId)
+            if (token.match(/^proto-token:[0-9a-fA-F]{24}$/)) {
+                return token;
+            }
+            console.warn('[AUTH] Invalid token format in URL hash:', token);
+        }
+    } catch (err) {
+        console.error('[AUTH] Error parsing token from hash:', err);
     }
     return null;
 }
@@ -31,62 +43,99 @@ export function AuthProvider({ children }) {
         }
     });
 
+    // Track if we've already attempted auth validation to prevent loops
+    const authAttemptedRef = React.useRef(false);
+
     // Validate auth on mount
     useEffect(() => {
+        // Prevent multiple validation attempts
+        if (authAttemptedRef.current) {
+            return;
+        }
+        authAttemptedRef.current = true;
+
         async function validateAuth() {
-            // First, check if token is passed via URL hash (from main app redirect)
-            const hashToken = getTokenFromHash();
-            if (hashToken) {
-                // Store the token from URL and clear the hash
-                localStorage.setItem('token', hashToken);
-                // Clear the hash from URL without reload
-                window.history.replaceState(null, '', window.location.pathname);
-            }
-
-            const token = hashToken || localStorage.getItem('token');
-
-            if (!token) {
-                // No token - redirect to main app login
-                setAuth({ token: null, user: null, loading: false, error: 'No token' });
-                redirectToLogin();
-                return;
-            }
-
             try {
+                // First, check if token is passed via URL hash (from main app redirect)
+                const hashToken = getTokenFromHash();
+                let tokenToUse = hashToken;
+
+                if (hashToken) {
+                    console.log('[AUTH] Token received from URL hash');
+                    // Store the token from URL
+                    localStorage.setItem('token', hashToken);
+                    // Clear the hash from URL without reload (do this immediately)
+                    window.history.replaceState(null, '', window.location.pathname + window.location.search);
+                } else {
+                    // Try to get token from localStorage
+                    tokenToUse = localStorage.getItem('token');
+                }
+
+                if (!tokenToUse) {
+                    console.warn('[AUTH] No token found - redirecting to login');
+                    setAuth({ token: null, user: null, loading: false, error: 'No token' });
+                    // Add a small delay before redirect to prevent race conditions
+                    setTimeout(redirectToLogin, 500);
+                    return;
+                }
+
+                console.log('[AUTH] Validating token...');
+
                 // Validate token and get user info
                 const response = await apiClient.get('/api/auth/me');
 
                 if (response.data?.success && response.data?.data) {
                     const user = response.data.data;
+                    console.log('[AUTH] Validation successful, user:', user.name);
                     localStorage.setItem('accountingUser', JSON.stringify(user));
-                    setAuth({ token, user, loading: false, error: null });
+                    setAuth({ token: tokenToUse, user, loading: false, error: null });
                 } else {
                     throw new Error('Invalid response from auth endpoint');
                 }
             } catch (err) {
-                console.error('Auth validation failed:', err);
+                console.error('[AUTH] Validation failed:', err.message);
+
                 // Check if it's a network error vs auth error
                 const isNetworkError = err.message?.includes('No response') ||
                     err.message?.includes('Network') ||
-                    err.message?.includes('ECONNREFUSED');
+                    err.message?.includes('ECONNREFUSED') ||
+                    err.code === 'ECONNREFUSED' ||
+                    err.code === 'ERR_NETWORK';
 
                 if (isNetworkError) {
+                    console.warn('[AUTH] Network error - attempting to use cached data');
                     // Backend might be down - try to use cached user if available
                     const cachedUser = JSON.parse(localStorage.getItem('accountingUser') || 'null');
-                    if (cachedUser) {
-                        console.warn('Using cached user due to network error');
-                        setAuth({ token, user: cachedUser, loading: false, error: null });
+                    const cachedToken = localStorage.getItem('token');
+
+                    if (cachedUser && cachedToken) {
+                        console.log('[AUTH] Using cached user:', cachedUser.name);
+                        setAuth({ token: cachedToken, user: cachedUser, loading: false, error: null });
                         return;
                     }
                 }
 
-                // Only clear token for actual auth failures (401)
+                // Only clear and redirect for actual auth failures (401)
                 if (err.message?.includes('401')) {
+                    console.warn('[AUTH] 401 Unauthorized - clearing credentials');
                     localStorage.removeItem('token');
                     localStorage.removeItem('accountingUser');
+                    setAuth({ token: null, user: null, loading: false, error: err.message });
+                    setTimeout(redirectToLogin, 500);
+                    return;
                 }
-                setAuth({ token: null, user: null, loading: false, error: err.message });
-                redirectToLogin();
+
+                // For other errors, don't redirect immediately - user might refresh
+                console.warn('[AUTH] Non-401 error - keeping current state');
+                const cachedUser = JSON.parse(localStorage.getItem('accountingUser') || 'null');
+                const cachedToken = localStorage.getItem('token');
+
+                if (cachedUser && cachedToken) {
+                    setAuth({ token: cachedToken, user: cachedUser, loading: false, error: null });
+                } else {
+                    setAuth({ token: null, user: null, loading: false, error: err.message });
+                    setTimeout(redirectToLogin, 1000);
+                }
             }
         }
 
@@ -101,8 +150,12 @@ export function AuthProvider({ children }) {
     }, [auth.token]);
 
     const redirectToLogin = () => {
-        // Redirect to main app login page
-        window.location.href = `${MAIN_APP_URL}?redirect=accounting`;
+        console.log('[AUTH] Redirecting to main app login');
+        // Clear any existing timers to prevent multiple redirects
+        const currentPath = window.location.pathname;
+        const redirectParam = currentPath !== '/' ? `&redirect_to=${encodeURIComponent(currentPath)}` : '';
+        // Redirect to main app login page with accounting redirect marker
+        window.location.href = `${MAIN_APP_URL}?redirect=accounting${redirectParam}`;
     };
 
     const logout = () => {
