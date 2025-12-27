@@ -1183,11 +1183,12 @@ export default function PurchasePage() {
     // Fetch bank accounts and GST rates from backend instead of localStorage
     useEffect(() => {
         let mounted = true;
+        const companyId = getCurrentCompany();
 
         async function fetchBanks() {
             setLoadingBanks(true);
             try {
-                const res = await fetch('/api/bank');
+                const res = await authFetch(`${API_BASE_URL}/api/bank?accountCompanyName=${companyId}`);
                 if (!res.ok) {
                     console.warn('Failed to fetch banks', res.status);
                     return;
@@ -1206,7 +1207,7 @@ export default function PurchasePage() {
         async function fetchGst() {
             setLoadingGst(true);
             try {
-                const res = await fetch('/api/gst');
+                const res = await authFetch(`${API_BASE_URL}/api/gst?accountCompanyName=${companyId}`);
                 if (!res.ok) {
                     console.warn('Failed to fetch gst rates', res.status);
                     return;
