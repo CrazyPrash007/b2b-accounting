@@ -2,6 +2,7 @@
 const Sale = require("../models/Sale");
 const Receipt = require("../models/Receipt");
 const Customer = require("../models/Customer");
+const Item = require("../models/Item");
 const { getCompanyModel } = require("../models/Company");
 const { generateSalesInvoicePDF } = require("../utils/pdfGenerator");
 const mongoose = require("mongoose");
@@ -11,6 +12,79 @@ function toObjectId(v) {
     if (!v) return null;
     try { return new mongoose.Types.ObjectId(v); }
     catch { return null; }
+}
+
+/* --------------------- Stock Management --------------------- */
+/**
+ * Update item stock when a sale is created
+ * Decreases stock by the quantity sold
+ */
+async function decreaseItemStock(items, ownerId, companyId) {
+    const bulkOps = [];
+    
+    for (const item of items) {
+        if (item.itemId && item.qty > 0) {
+            bulkOps.push({
+                updateOne: {
+                    filter: {
+                        _id: item.itemId,
+                        ownerId,
+                        accountCompanyName: companyId,
+                        isDeleted: false
+                    },
+                    update: {
+                        $inc: { openingStock: -item.qty }
+                    }
+                }
+            });
+        }
+    }
+    
+    if (bulkOps.length > 0) {
+        await Item.bulkWrite(bulkOps);
+    }
+}
+
+/**
+ * Restore item stock when a sale is deleted or updated
+ * Increases stock by the quantity previously sold
+ */
+async function increaseItemStock(items, ownerId, companyId) {
+    const bulkOps = [];
+    
+    for (const item of items) {
+        if (item.itemId && item.qty > 0) {
+            bulkOps.push({
+                updateOne: {
+                    filter: {
+                        _id: item.itemId,
+                        ownerId,
+                        accountCompanyName: companyId,
+                        isDeleted: false
+                    },
+                    update: {
+                        $inc: { openingStock: item.qty }
+                    }
+                }
+            });
+        }
+    }
+    
+    if (bulkOps.length > 0) {
+        await Item.bulkWrite(bulkOps);
+    }
+}
+
+/**
+ * Handle stock adjustment when sale items are updated
+ * Restores old quantities and decreases new quantities
+ */
+async function adjustItemStock(oldItems, newItems, ownerId, companyId) {
+    // First, restore stock from old items
+    await increaseItemStock(oldItems, ownerId, companyId);
+    
+    // Then, decrease stock for new items
+    await decreaseItemStock(newItems, ownerId, companyId);
 }
 
 /* --------------------- Compute Totals --------------------- */
@@ -289,6 +363,9 @@ async function create(req, res, next) {
 
         const doc = await Sale.create(payload);
 
+        // Decrease stock for sold items
+        await decreaseItemStock(payload.items, ownerId, companyId);
+
         // Auto-create receipt if payment was received (excluding advance payment)
         const directPayment = payload.isPaymentReceived && payload.paymentAmount > 0;
         if (directPayment) {
@@ -422,6 +499,11 @@ async function update(req, res, next) {
 
         Object.assign(payload, totals);
 
+        // Adjust stock if items were changed
+        if (payload.items) {
+            await adjustItemStock(old.items, payload.items, ownerId, companyId);
+        }
+
         const doc = await Sale.findOneAndUpdate(
             { _id: id, ownerId, accountCompanyName: companyId },
             payload,
@@ -505,6 +587,9 @@ async function remove(req, res, next) {
                 updatedBy: req.user.id 
             }
         );
+
+        // Restore stock for deleted sale items
+        await increaseItemStock(sale.items, ownerId, companyId);
 
         const updated = await Sale.findOneAndUpdate(
             { _id: req.params.id, ownerId, accountCompanyName: companyId },
