@@ -43,6 +43,10 @@ const create = Joi.object({
         .try(Joi.number(), Joi.string().trim().allow(''), Joi.allow(null))
         .optional(),
 
+    // Chat integration
+    chatUserId: Joi.string().trim().allow('', null).optional(),
+    chatConversationId: Joi.string().trim().allow('', null).optional(),
+
     isActive: Joi.boolean().optional(),
 });
 

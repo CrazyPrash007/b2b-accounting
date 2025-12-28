@@ -5,6 +5,7 @@ import EnquiryTable from "./EnquiryTable";
 import itemApi from "src/features/items/items/api/item.api";
 import apiClient from "src/services/apiClient";
 import { CompanyContext } from "src/App";
+import { useAuth } from "src/contexts/AuthContext";
 
 // Indian states list
 const INDIAN_STATES = [
@@ -23,8 +24,9 @@ const INDIAN_STATES = [
 function CreateEnquiryModal({ isOpen, onClose, onSave, editData }) {
     const context = useContext(CompanyContext);
     const selectedCompany = context?.selectedCompany || "";
+    const { user } = useAuth();
     const dropdownRef = useRef(null);
-    
+
     const [enquiryType, setEnquiryType] = useState("buy");
     const [productName, setProductName] = useState("");
     const [category, setCategory] = useState("");
@@ -34,14 +36,18 @@ function CreateEnquiryModal({ isOpen, onClose, onSave, editData }) {
     const [expectedPrice, setExpectedPrice] = useState("");
     const [description, setDescription] = useState("");
     const [targetStates, setTargetStates] = useState([]);
-    const [creatorName, setCreatorName] = useState("");
-    const [creatorCompany, setCreatorCompany] = useState("");
-    const [creatorState, setCreatorState] = useState("");
-    const [creatorMobile, setCreatorMobile] = useState("");
-    const [creatorEmail, setCreatorEmail] = useState("");
     const [validUntil, setValidUntil] = useState("");
     const [error, setError] = useState("");
-    
+
+    // Auto-fetched company details (read-only)
+    const [companyDetails, setCompanyDetails] = useState({
+        creatorName: "",
+        creatorCompany: "",
+        creatorState: "",
+        creatorMobile: "",
+        creatorEmail: ""
+    });
+
     // Items dropdown
     const [items, setItems] = useState([]);
     const [showItemDropdown, setShowItemDropdown] = useState(false);
@@ -52,21 +58,24 @@ function CreateEnquiryModal({ isOpen, onClose, onSave, editData }) {
     // Load items and company details from backend
     useEffect(() => {
         const loadData = async () => {
-            if (selectedCompany && isOpen && !isEditMode) {
+            if (selectedCompany && isOpen) {
                 try {
                     // Load items
                     const itemsData = await itemApi.list(selectedCompany);
                     setItems(Array.isArray(itemsData) ? itemsData : []);
 
-                    // Load company details
+                    // Load company details and auto-fill contact info
                     const companyRes = await apiClient.get(`/api/companies/${selectedCompany}`);
                     if (companyRes?.data?.success && companyRes?.data?.data) {
                         const company = companyRes.data.data;
-                        // Auto-fill company contact details
-                        setCreatorCompany(company.companyName || "");
-                        setCreatorState(company.state || "");
-                        setCreatorMobile(company.mobile || "");
-                        setCreatorEmail(company.email || "");
+                        // Auto-fill company contact details from selected company and logged-in user
+                        setCompanyDetails({
+                            creatorName: user?.name || "",
+                            creatorCompany: company.companyName || "",
+                            creatorState: company.state || "",
+                            creatorMobile: company.mobile || company.phone || "",
+                            creatorEmail: company.email || ""
+                        });
                     }
                 } catch (err) {
                     console.error("Failed to load data", err);
@@ -75,7 +84,7 @@ function CreateEnquiryModal({ isOpen, onClose, onSave, editData }) {
             }
         };
         loadData();
-    }, [selectedCompany, isOpen, isEditMode]);
+    }, [selectedCompany, isOpen, user]);
 
     // Filter items based on product name input
     useEffect(() => {
@@ -118,11 +127,6 @@ function CreateEnquiryModal({ isOpen, onClose, onSave, editData }) {
                 setExpectedPrice(editData.expectedPrice || "");
                 setDescription(editData.description || "");
                 setTargetStates(editData.targetStates || []);
-                setCreatorName(editData.creatorName || "");
-                setCreatorCompany(editData.creatorCompany || "");
-                setCreatorState(editData.creatorState || "");
-                setCreatorMobile(editData.creatorMobile || "");
-                setCreatorEmail(editData.creatorEmail || "");
                 setValidUntil(editData.validUntil ? editData.validUntil.split('T')[0] : "");
             } else {
                 setEnquiryType("buy");
@@ -134,11 +138,6 @@ function CreateEnquiryModal({ isOpen, onClose, onSave, editData }) {
                 setExpectedPrice("");
                 setDescription("");
                 setTargetStates([]);
-                setCreatorName("");
-                setCreatorCompany("");
-                setCreatorState("");
-                setCreatorMobile("");
-                setCreatorEmail("");
                 setValidUntil("");
             }
             setError("");
@@ -162,11 +161,11 @@ function CreateEnquiryModal({ isOpen, onClose, onSave, editData }) {
             expectedPrice: expectedPrice ? Number(expectedPrice) : 0,
             description: description.trim(),
             targetStates,
-            creatorName: creatorName.trim(),
-            creatorCompany: creatorCompany.trim(),
-            creatorState: creatorState.trim(),
-            creatorMobile: creatorMobile.trim(),
-            creatorEmail: creatorEmail.trim(),
+            creatorName: companyDetails.creatorName.trim(),
+            creatorCompany: companyDetails.creatorCompany.trim(),
+            creatorState: companyDetails.creatorState.trim(),
+            creatorMobile: companyDetails.creatorMobile.trim(),
+            creatorEmail: companyDetails.creatorEmail.trim(),
             validUntil: validUntil || null,
         };
 
@@ -257,18 +256,18 @@ function CreateEnquiryModal({ isOpen, onClose, onSave, editData }) {
                         <div className="grid grid-cols-3 gap-3">
                             <div className="relative" ref={dropdownRef}>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    Product Name * 
+                                    Product Name *
                                     <span className="text-xs text-gray-500 ml-2">(Type or select from items)</span>
                                 </label>
-                                <input 
-                                    type="text" 
-                                    value={productName} 
+                                <input
+                                    type="text"
+                                    value={productName}
                                     onChange={(e) => {
                                         setProductName(e.target.value);
                                         setShowItemDropdown(true);
                                     }}
                                     onFocus={() => setShowItemDropdown(true)}
-                                    className={baseInput} 
+                                    className={baseInput}
                                     placeholder="Type to search items..."
                                     autoComplete="off"
                                 />
@@ -326,34 +325,34 @@ function CreateEnquiryModal({ isOpen, onClose, onSave, editData }) {
                         </div>
                     </div>
 
-                    {/* Creator Details */}
+                    {/* Creator Details (Auto-filled from selected company) */}
                     <div className="mb-4">
-                        <h4 className="text-sm font-semibold text-gray-800 mb-2 pb-1 border-b border-gray-200">Your Contact Details</h4>
-                        <div className="grid grid-cols-3 gap-3">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Your Name</label>
-                                <input type="text" value={creatorName} onChange={(e) => setCreatorName(e.target.value)} className={baseInput} />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Company Name</label>
-                                <input type="text" value={creatorCompany} onChange={(e) => setCreatorCompany(e.target.value)} className={baseInput} />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">State</label>
-                                <select value={creatorState} onChange={(e) => setCreatorState(e.target.value)} className={baseInput}>
-                                    <option value="">Select State</option>
-                                    {INDIAN_STATES.map(state => (
-                                        <option key={state} value={state}>{state}</option>
-                                    ))}
-                                </select>
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Mobile</label>
-                                <input type="text" value={creatorMobile} onChange={(e) => setCreatorMobile(e.target.value)} className={baseInput} />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                                <input type="email" value={creatorEmail} onChange={(e) => setCreatorEmail(e.target.value)} className={baseInput} />
+                        <h4 className="text-sm font-semibold text-gray-800 mb-2 pb-1 border-b border-gray-200">
+                            Your Contact Details
+                            <span className="font-normal text-gray-500 text-xs ml-2">(Auto-filled from selected company)</span>
+                        </h4>
+                        <div className="bg-gray-50 rounded-lg p-3">
+                            <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
+                                <div>
+                                    <span className="text-gray-500">Name:</span>
+                                    <span className="ml-2 font-medium text-gray-800">{companyDetails.creatorName || "-"}</span>
+                                </div>
+                                <div>
+                                    <span className="text-gray-500">Company:</span>
+                                    <span className="ml-2 font-medium text-gray-800">{companyDetails.creatorCompany || "-"}</span>
+                                </div>
+                                <div>
+                                    <span className="text-gray-500">State:</span>
+                                    <span className="ml-2 font-medium text-gray-800">{companyDetails.creatorState || "-"}</span>
+                                </div>
+                                <div>
+                                    <span className="text-gray-500">Mobile:</span>
+                                    <span className="ml-2 font-medium text-gray-800">{companyDetails.creatorMobile || "-"}</span>
+                                </div>
+                                <div>
+                                    <span className="text-gray-500">Email:</span>
+                                    <span className="ml-2 font-medium text-gray-800">{companyDetails.creatorEmail || "-"}</span>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -401,26 +400,53 @@ function CreateEnquiryModal({ isOpen, onClose, onSave, editData }) {
  * RespondModal - Modal for responding to an enquiry
  */
 function RespondModal({ isOpen, onClose, onSave, enquiry }) {
+    const context = useContext(CompanyContext);
+    const selectedCompany = context?.selectedCompany || "";
+    const { user } = useAuth();
+
     const [price, setPrice] = useState("");
     const [quantity, setQuantity] = useState("");
     const [message, setMessage] = useState("");
-    const [responderName, setResponderName] = useState("");
-    const [responderCompany, setResponderCompany] = useState("");
-    const [responderState, setResponderState] = useState("");
-    const [responderMobile, setResponderMobile] = useState("");
-    const [responderEmail, setResponderEmail] = useState("");
     const [error, setError] = useState("");
+
+    // Auto-fetched company details (read-only)
+    const [companyDetails, setCompanyDetails] = useState({
+        responderName: "",
+        responderCompany: "",
+        responderState: "",
+        responderMobile: "",
+        responderEmail: ""
+    });
+
+    // Load company details from backend
+    useEffect(() => {
+        const loadCompanyDetails = async () => {
+            if (selectedCompany && isOpen) {
+                try {
+                    const companyRes = await apiClient.get(`/api/companies/${selectedCompany}`);
+                    if (companyRes?.data?.success && companyRes?.data?.data) {
+                        const company = companyRes.data.data;
+                        setCompanyDetails({
+                            responderName: user?.name || "",
+                            responderCompany: company.companyName || "",
+                            responderState: company.state || "",
+                            responderMobile: company.mobile || company.phone || "",
+                            responderEmail: company.email || ""
+                        });
+                    }
+                } catch (err) {
+                    console.error("Failed to load company details", err);
+                }
+            }
+        };
+        loadCompanyDetails();
+    }, [selectedCompany, isOpen, user]);
 
     useEffect(() => {
         if (isOpen) {
             setPrice("");
             setQuantity(enquiry?.quantity || "");
             setMessage("");
-            setResponderName("");
-            setResponderCompany("");
-            setResponderState("");
-            setResponderMobile("");
-            setResponderEmail("");
             setError("");
         }
     }, [isOpen, enquiry]);
@@ -439,11 +465,11 @@ function RespondModal({ isOpen, onClose, onSave, enquiry }) {
             price: Number(price),
             quantity: Number(quantity),
             message: message.trim(),
-            responderName: responderName.trim(),
-            responderCompany: responderCompany.trim(),
-            responderState: responderState.trim(),
-            responderMobile: responderMobile.trim(),
-            responderEmail: responderEmail.trim(),
+            responderName: companyDetails.responderName.trim(),
+            responderCompany: companyDetails.responderCompany.trim(),
+            responderState: companyDetails.responderState.trim(),
+            responderMobile: companyDetails.responderMobile.trim(),
+            responderEmail: companyDetails.responderEmail.trim(),
         };
 
         onSave(enquiry.id, payload);
@@ -506,34 +532,34 @@ function RespondModal({ isOpen, onClose, onSave, enquiry }) {
                         </div>
                     </div>
 
-                    {/* Your Details */}
+                    {/* Your Details (Auto-filled from selected company) */}
                     <div className="mb-4">
-                        <h4 className="text-sm font-semibold text-gray-800 mb-2 pb-1 border-b border-gray-200">Your Contact Details</h4>
-                        <div className="grid grid-cols-2 gap-3">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Your Name</label>
-                                <input type="text" value={responderName} onChange={(e) => setResponderName(e.target.value)} className={baseInput} />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Company Name</label>
-                                <input type="text" value={responderCompany} onChange={(e) => setResponderCompany(e.target.value)} className={baseInput} />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">State</label>
-                                <select value={responderState} onChange={(e) => setResponderState(e.target.value)} className={baseInput}>
-                                    <option value="">Select State</option>
-                                    {INDIAN_STATES.map(state => (
-                                        <option key={state} value={state}>{state}</option>
-                                    ))}
-                                </select>
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Mobile</label>
-                                <input type="text" value={responderMobile} onChange={(e) => setResponderMobile(e.target.value)} className={baseInput} />
-                            </div>
-                            <div className="col-span-2">
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                                <input type="email" value={responderEmail} onChange={(e) => setResponderEmail(e.target.value)} className={baseInput} />
+                        <h4 className="text-sm font-semibold text-gray-800 mb-2 pb-1 border-b border-gray-200">
+                            Your Contact Details
+                            <span className="font-normal text-gray-500 text-xs ml-2">(Auto-filled from selected company)</span>
+                        </h4>
+                        <div className="bg-gray-50 rounded-lg p-3">
+                            <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
+                                <div>
+                                    <span className="text-gray-500">Name:</span>
+                                    <span className="ml-2 font-medium text-gray-800">{companyDetails.responderName || "-"}</span>
+                                </div>
+                                <div>
+                                    <span className="text-gray-500">Company:</span>
+                                    <span className="ml-2 font-medium text-gray-800">{companyDetails.responderCompany || "-"}</span>
+                                </div>
+                                <div>
+                                    <span className="text-gray-500">State:</span>
+                                    <span className="ml-2 font-medium text-gray-800">{companyDetails.responderState || "-"}</span>
+                                </div>
+                                <div>
+                                    <span className="text-gray-500">Mobile:</span>
+                                    <span className="ml-2 font-medium text-gray-800">{companyDetails.responderMobile || "-"}</span>
+                                </div>
+                                <div>
+                                    <span className="text-gray-500">Email:</span>
+                                    <span className="ml-2 font-medium text-gray-800">{companyDetails.responderEmail || "-"}</span>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -697,7 +723,7 @@ export default function EnquiryPage() {
     const [filterState, setFilterState] = useState("");
     const [filterStatus, setFilterStatus] = useState("");
     const [search, setSearch] = useState("");
-    
+
     // Unique categories from all enquiries
     const [categories, setCategories] = useState([]);
 
@@ -810,21 +836,19 @@ export default function EnquiryPage() {
                 <div className="flex gap-4">
                     <button
                         onClick={() => setActiveTab("my")}
-                        className={`pb-3 px-1 text-sm font-medium border-b-2 transition-colors ${
-                            activeTab === "my"
-                                ? "border-blue-600 text-blue-600"
-                                : "border-transparent text-gray-500 hover:text-gray-700"
-                        }`}
+                        className={`pb-3 px-1 text-sm font-medium border-b-2 transition-colors ${activeTab === "my"
+                            ? "border-blue-600 text-blue-600"
+                            : "border-transparent text-gray-500 hover:text-gray-700"
+                            }`}
                     >
                         My Enquiries ({myEnquiries.length})
                     </button>
                     <button
                         onClick={() => setActiveTab("public")}
-                        className={`pb-3 px-1 text-sm font-medium border-b-2 transition-colors ${
-                            activeTab === "public"
-                                ? "border-blue-600 text-blue-600"
-                                : "border-transparent text-gray-500 hover:text-gray-700"
-                        }`}
+                        className={`pb-3 px-1 text-sm font-medium border-b-2 transition-colors ${activeTab === "public"
+                            ? "border-blue-600 text-blue-600"
+                            : "border-transparent text-gray-500 hover:text-gray-700"
+                            }`}
                     >
                         Public Enquiries ({publicEnquiries.length})
                     </button>

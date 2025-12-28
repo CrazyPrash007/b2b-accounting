@@ -63,8 +63,6 @@ export function AuthProvider({ children }) {
                 let tokenToUse = hashToken;
 
                 if (hashToken) {
-                    console.log('[AUTH] Token received from URL hash');
-                    // Store the token from URL
                     localStorage.setItem('token', hashToken);
                     // Clear the hash from URL without reload (do this immediately)
                     window.history.replaceState(null, '', window.location.pathname + window.location.search);
@@ -80,8 +78,6 @@ export function AuthProvider({ children }) {
                     setTimeout(redirectToLogin, 500);
                     return;
                 }
-
-                console.log('[AUTH] Validating token...');
 
                 // Validate token and get user info
                 const response = await apiClient.get('/api/auth/me');
@@ -152,7 +148,6 @@ export function AuthProvider({ children }) {
     }, [auth.token]);
 
     const redirectToLogin = () => {
-        console.log('[AUTH] Redirecting to main app login');
         // Clear any existing timers to prevent multiple redirects
         const currentPath = window.location.pathname;
         const redirectParam = currentPath !== '/' ? `&redirect_to=${encodeURIComponent(currentPath)}` : '';

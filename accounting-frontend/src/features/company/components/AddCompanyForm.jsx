@@ -132,8 +132,9 @@ export default function AddCompanyForm({ onCreated, onCancel, createCompanyFn })
             newErrors.businessType = "Business type is required";
         }
         // GSTIN validation (optional, but if provided should be 15 chars)
+        // Skip validation if registration type is unregistered
         const gstin = (formData.gstin || "").trim();
-        if (gstin && gstin.length !== 15) {
+        if (formData.registrationType !== "unregistered" && gstin && gstin.length !== 15) {
             newErrors.gstin = "GSTIN must be 15 characters";
         }
         if (!formData.addressLine1.trim()) {
@@ -473,20 +474,22 @@ export default function AddCompanyForm({ onCreated, onCancel, createCompanyFn })
                                         placeholder="Select registration"
                                     />
                                 </div>
-                                <div>
-                                    <label className="block text-xs font-medium text-slate-600 mb-1.5">GSTIN</label>
-                                    <input
-                                        ref={setRef(4)}
-                                        type="text"
-                                        value={formData.gstin}
-                                        onChange={(e) => handleChange("gstin")({ target: { value: e.target.value.toUpperCase() } })}
-                                        onKeyDown={(e) => handleKeyDownGeneric(e, 4)}
-                                        placeholder="15-digit GSTIN"
-                                        maxLength={15}
-                                        className={`w-full px-3 py-2 rounded-lg border transition-all text-sm font-mono tracking-wider uppercase ${errors.gstin ? "border-red-400 bg-red-50" : "border-slate-200 focus:border-indigo-500"} focus:outline-none focus:ring-2 focus:ring-indigo-100`}
-                                    />
-                                    {errors.gstin && <p className="text-xs text-red-600 mt-1">{errors.gstin}</p>}
-                                </div>
+                                {formData.registrationType !== "unregistered" && (
+                                    <div>
+                                        <label className="block text-xs font-medium text-slate-600 mb-1.5">GSTIN</label>
+                                        <input
+                                            ref={setRef(4)}
+                                            type="text"
+                                            value={formData.gstin}
+                                            onChange={(e) => handleChange("gstin")({ target: { value: e.target.value.toUpperCase() } })}
+                                            onKeyDown={(e) => handleKeyDownGeneric(e, 4)}
+                                            placeholder="15-digit GSTIN"
+                                            maxLength={15}
+                                            className={`w-full px-3 py-2 rounded-lg border transition-all text-sm font-mono tracking-wider uppercase ${errors.gstin ? "border-red-400 bg-red-50" : "border-slate-200 focus:border-indigo-500"} focus:outline-none focus:ring-2 focus:ring-indigo-100`}
+                                        />
+                                        {errors.gstin && <p className="text-xs text-red-600 mt-1">{errors.gstin}</p>}
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>

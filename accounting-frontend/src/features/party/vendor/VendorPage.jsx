@@ -38,7 +38,7 @@ async function addPartyAsInvitee(partyData) {
         });
 
         if (response.ok) {
-            console.log('[VendorPage] Added party as invitee in chat:', partyData.vendorName);
+            console.log('Added party as invitee in chat:');
         } else {
             const errorData = await response.json().catch(() => ({}));
             console.warn('[VendorPage] Failed to add invitee:', errorData.message || response.statusText);

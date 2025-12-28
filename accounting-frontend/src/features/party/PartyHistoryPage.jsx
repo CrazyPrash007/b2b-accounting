@@ -5,6 +5,7 @@ import { CompanyContext } from "src/App";
 import { authFetch, API_BASE_URL } from "src/services/apiClient";
 import { getCurrentCompany } from "src/services/companyContextAccessor";
 import PdfPreviewModal from "src/components/PdfPreviewModal";
+import MiniChatOverlay from "src/components/chat/MiniChatOverlay";
 import saleApi from "src/features/transactions/sales/api/sale.api";
 import purchaseApi from "src/features/transactions/purchase/api/purchase.api";
 import receiptApi from "src/features/transactions/receipt/api/receipt.api";
@@ -40,6 +41,9 @@ export default function PartyHistoryPage() {
     // PDF Preview state
     const [isPdfPreviewOpen, setIsPdfPreviewOpen] = useState(false);
     const [selectedTxnForPdf, setSelectedTxnForPdf] = useState(null);
+
+    // Mini Chat state
+    const [isChatOpen, setIsChatOpen] = useState(false);
 
     const partyLabel = isCustomer ? "Customer" : "Vendor";
 
@@ -342,6 +346,9 @@ export default function PartyHistoryPage() {
 
     const partyName = party.customerName || party.vendorName || party.name || "Unknown";
 
+    // Check if party has a linked chat user
+    const hasChatUser = Boolean(party.chatUserId);
+
     return (
         <div className="h-full flex flex-col bg-white">
             {/* Header */}
@@ -378,9 +385,44 @@ export default function PartyHistoryPage() {
                                 {party.companyName}
                             </span>
                         )}
+                        
+                        {/* Start Chat Button */}
+                        {hasChatUser ? (
+                            <button
+                                onClick={() => setIsChatOpen(true)}
+                                className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition-colors shadow-sm"
+                                title={`Start chat with ${partyName}`}
+                            >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                                </svg>
+                                Start Chat
+                            </button>
+                        ) : (
+                            <button
+                                disabled
+                                className="inline-flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-400 text-sm font-medium rounded-lg cursor-not-allowed"
+                                title="This user is not registered on the chat platform"
+                            >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                                </svg>
+                                User Not Registered
+                            </button>
+                        )}
                     </div>
                 </div>
             </div>
+
+            {/* Mini Chat Overlay */}
+            <MiniChatOverlay
+                isOpen={isChatOpen}
+                onClose={() => setIsChatOpen(false)}
+                partnerId={party.chatUserId}
+                partnerName={partyName}
+                partnerAvatar={null}
+                conversationId={party.chatConversationId}
+            />
 
             {/* Summary Cards */}
             <div className="px-6 py-4 bg-gray-50 border-b border-gray-200">
