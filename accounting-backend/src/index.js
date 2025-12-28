@@ -20,6 +20,7 @@ const companyRoutes = require('./routes/company.routes');
 const receiptRoutes = require('./routes/receipt.routes');
 const paymentRoutes = require('./routes/payment.routes');
 const enquiryRoutes = require('./routes/enquiry.routes');
+const dashboardRoutes = require('./routes/dashboard.routes');
 const errorHandler = require('./middlewares/errorHandler');
 
 const PORT = process.env.PORT || 4000;
@@ -76,6 +77,7 @@ async function start() {
     app.use('/api/receipts', receiptRoutes);
     app.use('/api/payments', paymentRoutes);
     app.use('/api/enquiries', enquiryRoutes);
+    app.use('/api/dashboard', dashboardRoutes);
 
     // Global error handler
     app.use(errorHandler);

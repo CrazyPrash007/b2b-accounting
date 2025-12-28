@@ -6,13 +6,15 @@ A comprehensive cloud-based accounting system with multi-company support, invent
 
 ### Core Accounting
 - **Multi-Company Management** — Handle multiple businesses from one account
+- **Dashboard Analytics** — Real-time business metrics with period filtering (today/week/month/year)
 - **Party Management** — Customers & vendors with integrated chat invites
-- **Inventory Management** — Items, categories, units, brands, GST configurations
-- **Transaction Processing** — Sales, purchases, receipts, payments
+- **Inventory Management** — Items, categories, units, brands, GST configurations with automatic stock tracking
+- **Transaction Processing** — Sales, purchases, receipts, payments with automatic inventory updates
 - **Income & Expense Tracking** — Comprehensive financial tracking
 - **Bank Integration** — Multiple bank account management
 
 ### Advanced Features
+- **Automatic Stock Management** — Real-time inventory updates when items are sold or purchased
 - **Real-time Chat** — Built-in mini chat overlay for customer/vendor communication
 - **Cross-app Integration** — Seamless integration with B2B Fullstack platform
 - **Excel Export** — Export data to Excel for reporting
@@ -101,12 +103,13 @@ b2b-accounting/
 ├── accounting-backend/
 │   ├── src/
 │   │   ├── controllers/     # Business logic for each module
+│   │   │   ├── dashboard.controller.js  # Analytics & KPIs
 │   │   │   ├── bank.controller.js
 │   │   │   ├── customer.controller.js
 │   │   │   ├── vendor.controller.js
 │   │   │   ├── item.controller.js
-│   │   │   ├── sale.controller.js
-│   │   │   ├── purchase.controller.js
+│   │   │   ├── sale.controller.js       # Includes auto stock decrease
+│   │   │   ├── purchase.controller.js   # Includes auto stock increase
 │   │   │   ├── income.controller.js
 │   │   │   ├── expense.controller.js
 │   │   │   └── ...
@@ -132,7 +135,8 @@ b2b-accounting/
 │   │   │   ├── chat/        # Mini chat overlay
 │   │   │   ├── layout/      # Layout components
 │   │   │   └── ui/          # UI primitives
-│   │   ├── features/        # Feature modules
+│   │   ├── featdashboard/   # Analytics and business metrics
+│   │   │   ├── ures/        # Feature modules
 │   │   │   ├── party/       # Customers & vendors
 │   │   │   ├── items/       # Inventory management
 │   │   │   ├── transactions/# Sales, purchases, receipts, payments
@@ -168,7 +172,7 @@ b2b-accounting/
 ### Key Endpoints
 
 | Module | Endpoint | Methods |
-|--------|----------|---------|
+|-Dashboard | `/api/dashboard` | GET (with period filter) |
 | Customers | `/api/customers` | GET, POST, PUT, DELETE |
 | Vendors | `/api/vendors` | GET, POST, PUT, DELETE |
 | Items | `/api/items` | GET, POST, PUT, DELETE |
@@ -179,6 +183,38 @@ b2b-accounting/
 | Income | `/api/income` | GET, POST, PUT, DELETE |
 | Expense | `/api/expense` | GET, POST, PUT, DELETE |
 | Banks | `/api/bank` | GET, POST, PUT, DELETE |
+| GST | `/api/gst` | GET, POST, PUT, DELETE |
+
+### Dashboard Analytics
+
+The dashboard provides comprehensive business metrics:
+
+**Endpoint**: `GET /api/dashboard?accountCompanyName=company123&period=month`
+
+**Period Options**: `today`, `week`, `month`, `year`, `all` (default)
+
+**Response**:
+```json
+{
+  "totalSales": 150000,
+  "totalPurchases": 100000,
+  "totalExpenses": 25000,
+  "totalIncome": 5000,
+  "totalReceipts": 120000,
+  "totalPayments": 90000,
+  "lowStockItems": [...],
+  "salesByCustomer": [...]
+}
+```
+
+### Automatic Stock Management
+
+Stock is automatically updated on transaction operations:
+
+- **Sales**: Creating/updating/deleting a sale automatically decreases item stock
+- **Purchases**: Creating/updating/deleting a purchase automatically increases item stock
+- **Bulk Operations**: Uses MongoDB `bulkWrite` for atomic updates
+- **Real-time**: Stock changes reflect immediately in inventoryE |
 | GST | `/api/gst` | GET, POST, PUT, DELETE |
 
 ## Environment Configuration

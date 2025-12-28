@@ -1,19 +1,52 @@
 import React from "react";
 
-export default function BusinessOperations() {
+export default function BusinessOperations({ data, period, onPeriodChange }) {
+    const formatAmount = (amount) => `₹${(amount || 0).toFixed(2)}`;
+
+    const periodOptions = [
+        { value: 'current-month', label: 'Current Month' },
+        { value: 'last-month', label: 'Last Month' },
+        { value: 'current-year', label: 'Current Year' },
+        { value: 'all-time', label: 'All Time' }
+    ];
+
     return (
         <div className="card p-4 bg-white border border-gray-200 rounded-lg">
             <div className="flex justify-between items-center mb-4">
                 <h3 className="font-medium text-gray-800">Business operations</h3>
-                <button className="text-sm text-gray-500 border px-3 py-1 rounded-md bg-white">
-                    Current month ▾
-                </button>
+                <select
+                    className="text-sm text-gray-500 border px-3 py-1 rounded-md bg-white"
+                    value={period}
+                    onChange={(e) => onPeriodChange(e.target.value)}
+                >
+                    {periodOptions.map(opt => (
+                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                </select>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <OperationCard label="Total Sale" amount="₹0.00" icon="🛒" bg="bg-blue-50" border="border-blue-100" />
-                <OperationCard label="Total Purchase" amount="₹0.00" icon="🛍️" bg="bg-indigo-50" border="border-indigo-100" />
-                <OperationCard label="Total Expenses" amount="₹0.00" icon="💸" bg="bg-red-50" border="border-red-100" />
+                <OperationCard 
+                    label="Total Sale" 
+                    amount={formatAmount(data?.totalSales)} 
+                    icon="🛒" 
+                    bg="bg-blue-50" 
+                    border="border-blue-100" 
+                />
+                <OperationCard 
+                    label="Total Purchase" 
+                    amount={formatAmount(data?.totalPurchases)} 
+                    icon="🛍️" 
+                    bg="bg-indigo-50" 
+                    border="border-indigo-100" 
+                />
+                <OperationCard 
+                    label="Total Expenses" 
+                    amount={formatAmount(data?.totalExpenses)} 
+                    icon="💸" 
+                    bg="bg-red-50" 
+                    border="border-red-100" 
+                />
             </div>
         </div>
     );

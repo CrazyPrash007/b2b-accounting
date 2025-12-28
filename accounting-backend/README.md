@@ -6,6 +6,8 @@ Node.js/Express REST API for the B2B Accounting System with multi-company suppor
 
 - **Multi-Company Architecture** — Company-scoped data isolation
 - **Comprehensive CRUD** — Full create, read, update, delete for all entities
+- **Dashboard Analytics** — Real-time business metrics and KPIs with period filtering
+- **Automatic Stock Management** — Real-time inventory updates on sales and purchases
 - **JWT Authentication** — Proto-token format with user ID extraction
 - **Request Validation** — Input validation with custom validators
 - **Error Handling** — Centralized error handling middleware
@@ -121,6 +123,8 @@ Authorization: proto-token:<userId>
 | **Company** |
 | Companies | `/api/company` | GET, POST, PUT, DELETE | - |
 | Enquiries | `/api/enquiry` | GET, POST, PUT, DELETE | `accountCompanyName` |
+| **Analytics** |
+| Dashboard | `/api/dashboard` | GET | `accountCompanyName`, `period` |
 
 ### Request/Response Examples
 
@@ -160,6 +164,35 @@ Authorization: proto-token:<userId>
 ]
 ```
 
+**Get Dashboard Analytics** (GET `/api/dashboard?accountCompanyName=company123&period=month`):
+```json
+// Response
+{
+  "totalSales": 150000,
+  "totalPurchases": 100000,
+  "totalExpenses": 25000,
+  "totalIncome": 5000,
+  "totalReceipts": 120000,
+  "totalPayments": 90000,
+  "lowStockItems": [
+    {
+      "_id": "64def...",
+      "name": "Product A",
+      "stock": 5,
+      "unit": "Pcs"
+    }
+  ],
+  "salesByCustomer": [
+    {
+      "customer": "John Doe",
+      "totalAmount": 50000
+    }
+  ]
+}
+```
+
+**Note**: Period parameter accepts: `today`, `week`, `month`, `year`, or `all` (default: `all`)
+
 ## Middleware
 
 ### Authentication (`auth.js`)
@@ -180,10 +213,13 @@ Authorization: proto-token:<userId>
 ## Database Models
 
 ### Common Fields
-All models include:
-- `accountCompanyName` - Company identifier for data isolation
-- `createdAt` - Auto-generated timestamp
-- `updatedAt` - Auto-updated timestamp
+Alstock: Number (default: 0, auto-updated),
+  gst: ObjectId (ref: 'Gst'),
+  accountCompanyName: String (required, indexed)
+}
+```
+
+**Note**: Stock is automatically managed - decreases on sales, increases on purchasesupdatedAt` - Auto-updated timestamp
 
 ### Key Models
 
@@ -215,9 +251,7 @@ All models include:
 ```
 
 **Sale/Purchase**:
-```javascript
-{
-  invoiceNumber: String (required),
+``invoiceDate: Date (required),
   party: ObjectId (ref: 'Customer' or 'Vendor'),
   items: [{
     item: ObjectId,
@@ -226,7 +260,14 @@ All models include:
     amount: Number
   }],
   totalAmount: Number,
-  date: Date,
+  accountCompanyName: String (required, indexed)
+}
+```
+
+**Automatic Stock Management**:
+- **Sales**: When created/updated/deleted, item stock is automatically decreased/adjusted
+- **Purchases**: When created/updated/deleted, item stock is automatically increased/adjusted
+- **Bulk Operations**: Uses MongoDB `bulkWrite` for atomic updatesate: Date,
   accountCompanyName: String (required, indexed)
 }
 ```

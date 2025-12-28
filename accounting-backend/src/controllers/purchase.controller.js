@@ -2,6 +2,7 @@
 const Purchase = require("../models/Purchase");
 const Payment = require("../models/Payment");
 const Vendor = require("../models/Vendor");
+const Item = require("../models/Item");
 const { getCompanyModel } = require("../models/Company");
 const { generatePurchaseInvoicePDF } = require("../utils/pdfGenerator");
 const mongoose = require("mongoose");
@@ -11,6 +12,79 @@ function toObjectId(id) {
     if (!id) return null;
     try { return new mongoose.Types.ObjectId(id); }
     catch { return null; }
+}
+
+/* --------------------- Stock Management --------------------- */
+/**
+ * Update item stock when a purchase is created
+ * Increases stock by the quantity purchased
+ */
+async function increaseItemStock(items, ownerId, companyId) {
+    const bulkOps = [];
+    
+    for (const item of items) {
+        if (item.itemId && item.qty > 0) {
+            bulkOps.push({
+                updateOne: {
+                    filter: {
+                        _id: item.itemId,
+                        ownerId,
+                        accountCompanyName: companyId,
+                        isDeleted: false
+                    },
+                    update: {
+                        $inc: { openingStock: item.qty }
+                    }
+                }
+            });
+        }
+    }
+    
+    if (bulkOps.length > 0) {
+        await Item.bulkWrite(bulkOps);
+    }
+}
+
+/**
+ * Restore item stock when a purchase is deleted
+ * Decreases stock by the quantity previously purchased
+ */
+async function decreaseItemStock(items, ownerId, companyId) {
+    const bulkOps = [];
+    
+    for (const item of items) {
+        if (item.itemId && item.qty > 0) {
+            bulkOps.push({
+                updateOne: {
+                    filter: {
+                        _id: item.itemId,
+                        ownerId,
+                        accountCompanyName: companyId,
+                        isDeleted: false
+                    },
+                    update: {
+                        $inc: { openingStock: -item.qty }
+                    }
+                }
+            });
+        }
+    }
+    
+    if (bulkOps.length > 0) {
+        await Item.bulkWrite(bulkOps);
+    }
+}
+
+/**
+ * Handle stock adjustment when purchase items are updated
+ * Restores old quantities and increases new quantities
+ */
+async function adjustItemStock(oldItems, newItems, ownerId, companyId) {
+    // First, restore stock from old items (decrease)
+    await decreaseItemStock(oldItems, ownerId, companyId);
+    
+    // Then, increase stock for new items
+    await increaseItemStock(newItems, ownerId, companyId);
 }
 
 /* ---------------- LIST ---------------- */
@@ -165,6 +239,9 @@ async function create(req, res, next) {
 
         const doc = await Purchase.create(payload);
 
+        // Increase stock for purchased items
+        await increaseItemStock(payload.items, ownerId, companyId);
+
         // Auto-create payment if payment was made
         const directPayment = payload.isPaymentMade && payload.paymentAmount > 0;
         if (directPayment) {
@@ -234,14 +311,26 @@ async function update(req, res, next) {
             }));
         }
 
+        // Fetch old purchase for stock adjustment
+        const old = await Purchase.findOne({
+            _id: id,
+            ownerId,
+            accountCompanyName: companyId
+        });
+
+        if (!old)
+            return res.status(404).json({ success: false, error: { message: "Not found" } });
+
+        // Adjust stock if items were changed
+        if (payload.items) {
+            await adjustItemStock(old.items, payload.items, ownerId, companyId);
+        }
+
         const doc = await Purchase.findOneAndUpdate(
             { _id: id, ownerId, accountCompanyName: companyId },
             payload,
             { new: true }
         );
-
-        if (!doc)
-            return res.status(404).json({ success: false, error: { message: "Not found" } });
 
         res.json({ success: true, data: doc });
 
@@ -261,6 +350,20 @@ async function remove(req, res, next) {
         const companyId = toObjectId(req.query.accountCompanyName);
         if (!companyId)
             return res.status(400).json({ success: false, message: "Valid accountCompanyName is required" });
+
+        // Get the purchase to restore stock
+        const purchase = await Purchase.findOne({
+            _id: req.params.id,
+            ownerId,
+            accountCompanyName: companyId,
+            isDeleted: false
+        });
+
+        if (!purchase)
+            return res.status(404).json({ success: false, error: { message: "Not found" } });
+
+        // Restore stock for deleted purchase items (decrease because we're undoing a purchase)
+        await decreaseItemStock(purchase.items, ownerId, companyId);
 
         const doc = await Purchase.findOneAndUpdate(
             { _id: req.params.id, ownerId, accountCompanyName: companyId },

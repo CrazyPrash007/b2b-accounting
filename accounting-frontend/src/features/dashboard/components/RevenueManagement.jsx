@@ -1,21 +1,56 @@
 import React from "react";
 
-export default function RevenueManagement() {
+export default function RevenueManagement({ data, period, onPeriodChange }) {
+    const formatAmount = (amount) => `₹${(amount || 0).toFixed(2)}`;
+
+    const periodOptions = [
+        { value: 'current-month', label: 'Current Month' },
+        { value: 'last-month', label: 'Last Month' },
+        { value: 'current-year', label: 'Current Year' },
+        { value: 'all-time', label: 'All Time' }
+    ];
+
     return (
         <div className="card p-4 bg-white border border-gray-200 rounded-lg h-full">
             <div className="flex justify-between items-center mb-4">
                 <h3 className="font-medium text-gray-800">Revenue Management</h3>
-                <button className="text-sm text-gray-500 border px-3 py-1 rounded-md bg-white">
-                    Current month ▾
-                </button>
+                <select
+                    className="text-sm text-gray-500 border px-3 py-1 rounded-md bg-white"
+                    value={period}
+                    onChange={(e) => onPeriodChange(e.target.value)}
+                >
+                    {periodOptions.map(opt => (
+                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                </select>
             </div>
 
             {/* Changed to 2x2 Grid to save vertical space */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <ManageItem label="Invoice Receivable" amount="0" icon="📄" bg="bg-orange-50" />
-                <ManageItem label="Expected Receivable" amount="₹0.00" icon="⏳" bg="bg-green-50" />
-                <ManageItem label="Bills Payable" amount="0" icon="📦" bg="bg-yellow-50" />
-                <ManageItem label="Expected Payable" amount="₹0.00" icon="💸" bg="bg-pink-50" />
+                <ManageItem 
+                    label="Invoice Receivable" 
+                    amount={data?.invoiceReceivableCount || 0} 
+                    icon="📄" 
+                    bg="bg-orange-50" 
+                />
+                <ManageItem 
+                    label="Expected Receivable" 
+                    amount={formatAmount(data?.expectedReceivable)} 
+                    icon="⏳" 
+                    bg="bg-green-50" 
+                />
+                <ManageItem 
+                    label="Bills Payable" 
+                    amount={data?.billsPayableCount || 0} 
+                    icon="📦" 
+                    bg="bg-yellow-50" 
+                />
+                <ManageItem 
+                    label="Expected Payable" 
+                    amount={formatAmount(data?.expectedPayable)} 
+                    icon="💸" 
+                    bg="bg-pink-50" 
+                />
             </div>
         </div>
     );
