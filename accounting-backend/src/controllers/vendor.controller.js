@@ -1,6 +1,7 @@
 // src/controllers/vendor.controller.js
 const Vendor = require('../models/Vendor');
 const mongoose = require("mongoose");
+const { lookupChatUserByPhone } = require("../utils/chatUserLookup");
 
 /* ---------------------------- Helpers ---------------------------- */
 
@@ -163,6 +164,20 @@ async function create(req, res, next) {
             });
         }
 
+        // Lookup chat user by phone number if provided
+        if (payload.mobileNumber) {
+            try {
+                const chatUser = await lookupChatUserByPhone(payload.mobileNumber);
+                if (chatUser) {
+                    payload.chatUserId = chatUser.userId;
+                    console.log(`[Vendor Create] Linked to chat user: ${chatUser.userId} (${chatUser.name})`);
+                }
+            } catch (err) {
+                console.warn('[Vendor Create] Chat user lookup failed:', err.message);
+                // Continue without chat user - not a blocking error
+            }
+        }
+
         const doc = await Vendor.create(payload);
 
         res.status(201).json({ success: true, data: doc });
@@ -249,6 +264,22 @@ async function update(req, res, next) {
                     success: false,
                     error: { message: msg }
                 });
+            }
+        }
+
+        // If mobile number changed, lookup chat user again
+        if (payload.mobileNumber !== undefined) {
+            try {
+                const chatUser = await lookupChatUserByPhone(payload.mobileNumber);
+                if (chatUser) {
+                    payload.chatUserId = chatUser.userId;
+                    console.log(`[Vendor Update] Linked to chat user: ${chatUser.userId} (${chatUser.name})`);
+                } else {
+                    // Clear chat user if phone changed and no match found
+                    payload.chatUserId = null;
+                }
+            } catch (err) {
+                console.warn('[Vendor Update] Chat user lookup failed:', err.message);
             }
         }
 

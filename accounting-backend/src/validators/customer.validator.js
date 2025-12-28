@@ -42,6 +42,10 @@ const create = Joi.object({
     // allow number or empty string (frontend may send ""), allow null
     openingBalanceAmount: Joi.alternatives().try(Joi.number(), Joi.string().trim().allow(''), Joi.allow(null)).optional(),
 
+    // Chat integration
+    chatUserId: Joi.string().trim().allow('', null).optional(),
+    chatConversationId: Joi.string().trim().allow('', null).optional(),
+
     // flags
     isActive: Joi.boolean().optional(),
 });
