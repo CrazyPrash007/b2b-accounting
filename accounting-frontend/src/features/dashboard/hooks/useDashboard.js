@@ -1,8 +1,10 @@
 // src/features/dashboard/hooks/useDashboard.js
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useContext } from 'react';
 import dashboardApi from '../api/dashboard.api';
+import { CompanyContext } from 'src/App';
 
 export default function useDashboard() {
+    const { selectedCompany } = useContext(CompanyContext);
     const [stats, setStats] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -10,18 +12,25 @@ export default function useDashboard() {
     const [customDateRange, setCustomDateRange] = useState({ start: null, end: null });
 
     const fetchStats = useCallback(async () => {
+        // Wait for company to be selected before fetching
+        if (!selectedCompany) {
+            console.log('Waiting for company selection...');
+            setLoading(true);
+            return;
+        }
+
         try {
             setLoading(true);
             setError(null);
-            
-            console.log('Fetching dashboard stats with period:', period);
-            
+
+            console.log('Fetching dashboard stats with period:', period, 'company:', selectedCompany);
+
             const data = await dashboardApi.getStats(
                 period,
                 customDateRange.start,
                 customDateRange.end
             );
-            
+
             console.log('Dashboard stats received:', data);
             setStats(data);
         } catch (err) {
@@ -30,7 +39,7 @@ export default function useDashboard() {
         } finally {
             setLoading(false);
         }
-    }, [period, customDateRange]);
+    }, [period, customDateRange, selectedCompany]);
 
     useEffect(() => {
         fetchStats();
