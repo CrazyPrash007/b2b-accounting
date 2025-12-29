@@ -11,7 +11,8 @@ import { ModalProvider } from "./contexts/ModalContext";
 // --------------------------------------------------
 export const CompanyContext = createContext({
     selectedCompany: "",
-    setSelectedCompany: () => { }
+    setSelectedCompany: () => { },
+    companyLoading: true
 });
 
 // Loading component
@@ -45,45 +46,58 @@ function LoadingScreen() {
 function AppContent() {
     const { loading, isAuthenticated, redirectToLogin } = useAuth();
     const [selectedCompany, setSelectedCompany] = useState("");
+    const [companyLoading, setCompanyLoading] = useState(true);
 
     // --------------------------------------------
-    // 1️⃣ Load saved company from localStorage
+    // 1️⃣ Load saved company from localStorage or fetch from API
     // --------------------------------------------
     useEffect(() => {
-        if (!isAuthenticated) return;
-
-        const saved = localStorage.getItem("selectedCompany");
-
-        if (saved) {
-            setSelectedCompany(saved);
-            setCurrentCompany(saved); // Also set the global accessor
+        if (!isAuthenticated) {
+            setCompanyLoading(false);
             return;
         }
 
-        // --------------------------------------------------
-        // 2️⃣ If no saved company → fetch companies from backend
-        // --------------------------------------------------
-        async function loadDefaultCompany() {
+        async function initializeCompany() {
+            setCompanyLoading(true);
+
             try {
+                // First check localStorage
+                const saved = localStorage.getItem("selectedCompany");
+
+                if (saved) {
+                    console.log('[APP] Using saved company:', saved);
+                    setSelectedCompany(saved);
+                    setCurrentCompany(saved);
+                    setCompanyLoading(false);
+                    return;
+                }
+
+                // No saved company → fetch companies from backend
+                console.log('[APP] No saved company, fetching from API...');
                 const res = await apiClient.get("/api/companies");
 
                 if (res.data?.success && res.data.data?.length > 0) {
                     const firstCompany = res.data.data[0]._id;
+                    console.log('[APP] Auto-selecting first company:', firstCompany);
 
                     setSelectedCompany(firstCompany);
                     localStorage.setItem("selectedCompany", firstCompany);
                     setCurrentCompany(firstCompany);
+                } else {
+                    console.log('[APP] No companies found for user');
                 }
             } catch (err) {
-                console.error("Failed to load companies:", err);
+                console.error("[APP] Failed to load companies:", err);
+            } finally {
+                setCompanyLoading(false);
             }
         }
 
-        loadDefaultCompany();
+        initializeCompany();
     }, [isAuthenticated]);
 
     // --------------------------------------------
-    // 3️⃣ Update localStorage & global accessor
+    // 2️⃣ Update localStorage & global accessor when company changes
     // --------------------------------------------
     useEffect(() => {
         if (selectedCompany) {
@@ -102,8 +116,13 @@ function AppContent() {
         return <LoadingScreen />;
     }
 
+    // Show loading while fetching company
+    if (companyLoading) {
+        return <LoadingScreen />;
+    }
+
     return (
-        <CompanyContext.Provider value={{ selectedCompany, setSelectedCompany }}>
+        <CompanyContext.Provider value={{ selectedCompany, setSelectedCompany, companyLoading }}>
             <ModalProvider>
                 <AppRoutes />
             </ModalProvider>
