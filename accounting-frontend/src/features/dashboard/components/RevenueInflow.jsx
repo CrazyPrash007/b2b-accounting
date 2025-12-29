@@ -1,20 +1,55 @@
 import React from "react";
 
-export default function RevenueInflow() {
+export default function RevenueInflow({ data, period, onPeriodChange }) {
+    const formatAmount = (amount) => `₹${(amount || 0).toFixed(2)}`;
+
+    const periodOptions = [
+        { value: 'current-month', label: 'Current Month' },
+        { value: 'last-month', label: 'Last Month' },
+        { value: 'current-year', label: 'Current Year' },
+        { value: 'all-time', label: 'All Time' }
+    ];
+
     return (
         <div className="card p-4 bg-white border border-gray-200 rounded-lg h-full">
             <div className="flex justify-between items-center mb-4">
                 <h3 className="font-medium text-gray-800">Revenue Inflow</h3>
-                <button className="text-sm text-gray-500 border px-3 py-1 rounded-md bg-white">
-                    Current month ▾
-                </button>
+                <select
+                    className="text-sm text-gray-500 border px-3 py-1 rounded-md bg-white"
+                    value={period}
+                    onChange={(e) => onPeriodChange(e.target.value)}
+                >
+                    {periodOptions.map(opt => (
+                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                </select>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <InflowItem label="Total Cash Collected" amount="₹0.00" icon="💵" bg="bg-blue-50" />
-                <InflowItem label="Total Cash Balance (As on)" amount="₹0.00" icon="🏦" bg="bg-indigo-50" />
-                <InflowItem label="Total Collection In Bank" amount="₹0.00" icon="🏛️" bg="bg-orange-50" />
-                <InflowItem label="Total Bank Balance (As on)" amount="₹0.00" icon="💳" bg="bg-pink-50" />
+                <InflowItem 
+                    label="Total Cash Collected" 
+                    amount={formatAmount(data?.cashCollections)} 
+                    icon="💵" 
+                    bg="bg-blue-50" 
+                />
+                <InflowItem 
+                    label="Total Cash Balance (As on)" 
+                    amount={formatAmount(data?.totalCashBalance)} 
+                    icon="🏦" 
+                    bg="bg-indigo-50" 
+                />
+                <InflowItem 
+                    label="Total Collection In Bank" 
+                    amount={formatAmount(data?.bankCollections)} 
+                    icon="🏛️" 
+                    bg="bg-orange-50" 
+                />
+                <InflowItem 
+                    label="Total Bank Balance (As on)" 
+                    amount={formatAmount(data?.totalBankBalance)} 
+                    icon="💳" 
+                    bg="bg-pink-50" 
+                />
             </div>
         </div>
     );

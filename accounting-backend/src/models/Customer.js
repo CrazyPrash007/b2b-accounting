@@ -50,6 +50,10 @@ const CustomerSchema = new mongoose.Schema({
     openingBalanceType: { type: String, enum: ["Credit", "Debit"], default: "Credit" },
     openingBalanceAmount: { type: Number, default: 0 },
 
+    // Chat integration
+    chatUserId: { type: String, default: null }, // User ID from chat system (b2b-fullstack)
+    chatConversationId: { type: String, default: null }, // Cached conversation ID
+
     // meta / audit / flags
     isActive: { type: Boolean, default: true },
     isDeleted: { type: Boolean, default: false },

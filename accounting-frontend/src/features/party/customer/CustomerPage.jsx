@@ -5,7 +5,7 @@ import useCustomer from "./hooks/useCustomer";
 import { exportTableToExcel } from "../../../utils/excelExport";
 
 // Fullstack API URL for chat invitees
-const FULLSTACK_API_URL = import.meta.env.VITE_FULLSTACK_API_URL || import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api";
+const FULLSTACK_API_URL = import.meta.env.VITE_CHAT_API_URL;
 
 /**
  * Helper function to add party as invitee in fullstack chat

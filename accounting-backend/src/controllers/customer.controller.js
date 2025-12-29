@@ -1,6 +1,7 @@
 // src/controllers/customer.controller.js
 const Customer = require("../models/Customer");
 const mongoose = require("mongoose");
+const { lookupChatUserByPhone } = require("../utils/chatUserLookup");
 
 function toObjectId(id) {
     if (!id || !mongoose.isValidObjectId(id)) return null;
@@ -149,6 +150,20 @@ async function create(req, res, next) {
                 .json({ success: false, error: { message: msg } });
         }
 
+        // Lookup chat user by phone number if provided
+        if (payload.mobileNumber) {
+            try {
+                const chatUser = await lookupChatUserByPhone(payload.mobileNumber);
+                if (chatUser) {
+                    payload.chatUserId = chatUser.userId;
+                    console.log(`[Customer Create] Linked to chat user: ${chatUser.userId} (${chatUser.name})`);
+                }
+            } catch (err) {
+                console.warn('[Customer Create] Chat user lookup failed:', err.message);
+                // Continue without chat user - not a blocking error
+            }
+        }
+
         const doc = await Customer.create(payload);
 
         return res.status(201).json({ success: true, data: doc });
@@ -209,6 +224,22 @@ async function update(req, res, next) {
                 return res
                     .status(409)
                     .json({ success: false, error: { message: msg } });
+            }
+        }
+
+        // If mobile number changed, lookup chat user again
+        if (payload.mobileNumber !== undefined) {
+            try {
+                const chatUser = await lookupChatUserByPhone(payload.mobileNumber);
+                if (chatUser) {
+                    payload.chatUserId = chatUser.userId;
+                    console.log(`[Customer Update] Linked to chat user: ${chatUser.userId} (${chatUser.name})`);
+                } else {
+                    // Clear chat user if phone changed and no match found
+                    payload.chatUserId = null;
+                }
+            } catch (err) {
+                console.warn('[Customer Update] Chat user lookup failed:', err.message);
             }
         }
 

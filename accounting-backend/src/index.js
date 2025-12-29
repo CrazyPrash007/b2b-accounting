@@ -20,19 +20,19 @@ const companyRoutes = require('./routes/company.routes');
 const receiptRoutes = require('./routes/receipt.routes');
 const paymentRoutes = require('./routes/payment.routes');
 const enquiryRoutes = require('./routes/enquiry.routes');
+const dashboardRoutes = require('./routes/dashboard.routes');
 const errorHandler = require('./middlewares/errorHandler');
 
 const PORT = process.env.PORT || 4000;
 
-const allowedOrigins = [
-    "https://b2bbilling.com",
-    "https://www.b2bbilling.com",
-    "https://accounting.b2bbilling.com",
-    "https://b2b-accounting.vercel.app",
-    "https://b2b-fullstack.vercel.app",
-    "http://localhost:5174",
-    "http://localhost:4000"
-];
+// Parse allowed origins from environment variable (comma-separated)
+const allowedOrigins = process.env.ALLOWED_ORIGINS 
+    ? process.env.ALLOWED_ORIGINS.split(',').map(origin => origin.trim())
+    : [
+        "http://localhost:5174",
+        "http://localhost:4000",
+        "http://localhost:5173"
+    ];
 
 const corsOptions = {
     origin: (origin, callback) => {
@@ -77,6 +77,7 @@ async function start() {
     app.use('/api/receipts', receiptRoutes);
     app.use('/api/payments', paymentRoutes);
     app.use('/api/enquiries', enquiryRoutes);
+    app.use('/api/dashboard', dashboardRoutes);
 
     // Global error handler
     app.use(errorHandler);
