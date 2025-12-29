@@ -171,19 +171,34 @@ export function AuthProvider({ children }) {
      * Main auth initialization
      */
     useEffect(() => {
-        // Prevent multiple simultaneous init attempts
-        if (initRef.current.attempted || initRef.current.inProgress) {
+        // Check if there's a new token in URL - this should ALWAYS be processed
+        const urlToken = getTokenFromUrl();
+        const storedToken = localStorage.getItem('token');
+
+        // If URL has a token that's different from stored, always re-init (new user login)
+        const isNewTokenFromUrl = urlToken && urlToken !== storedToken;
+
+        // Prevent multiple simultaneous init attempts, BUT allow if new token from URL
+        if (!isNewTokenFromUrl && (initRef.current.attempted || initRef.current.inProgress)) {
             return;
         }
+
         initRef.current.inProgress = true;
         initRef.current.attempted = true;
 
         async function initializeAuth() {
             try {
                 // Step 1: Try to get token from URL (from main app redirect)
-                let tokenToUse = getTokenFromUrl();
+                let tokenToUse = urlToken;
 
                 if (tokenToUse) {
+                    // NEW USER LOGIN - Clear old user's data first!
+                    if (tokenToUse !== storedToken) {
+                        console.log('[AUTH] New token detected - clearing old user data');
+                        localStorage.removeItem('accountingUser');
+                        localStorage.removeItem('selectedCompany');
+                    }
+
                     // Store token and clear from URL
                     const stored = await safeSetToken(tokenToUse);
                     if (!stored) {
@@ -192,7 +207,7 @@ export function AuthProvider({ children }) {
                     clearTokenFromUrl();
                 } else {
                     // Try localStorage
-                    tokenToUse = localStorage.getItem('token');
+                    tokenToUse = storedToken;
                 }
 
                 // Step 2: Check if we have a token at all
@@ -276,14 +291,23 @@ export function AuthProvider({ children }) {
      * Logout user
      */
     const logout = useCallback(() => {
+        // Clear ALL auth-related localStorage items from BOTH apps
+        // Accounting app items
         localStorage.removeItem('token');
         localStorage.removeItem('accountingUser');
         localStorage.removeItem('selectedCompany');
+        localStorage.removeItem('selectedCompanyUserId');
+        // Main app items (cross-app cleanup)
+        localStorage.removeItem('user');
+        localStorage.removeItem('companyCount');
+
+        // Reset the init ref so next login will re-initialize
+        initRef.current.attempted = false;
+        initRef.current.inProgress = false;
+
         setAuth({ token: null, user: null, loading: false, error: null });
         redirectToLogin();
-    }, []);
-
-    /**
+    }, []);    /**
      * Manually retry authentication (for error recovery)
      */
     const retryAuth = useCallback(async () => {
