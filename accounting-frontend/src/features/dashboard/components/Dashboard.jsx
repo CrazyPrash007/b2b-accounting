@@ -13,10 +13,6 @@ import LowStockItems from "./LowStockItems";
 export default function Dashboard() {
     const { stats, loading, error, period, changePeriod, refresh } = useDashboard();
 
-    console.log('Dashboard Component - Stats:', stats);
-    console.log('Dashboard Component - Loading:', loading);
-    console.log('Dashboard Component - Error:', error);
-
     if (loading) {
         return (
             <div className="flex items-center justify-center min-h-screen">
