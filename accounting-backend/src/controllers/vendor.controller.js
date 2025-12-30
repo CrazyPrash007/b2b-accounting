@@ -2,6 +2,7 @@
 const Vendor = require('../models/Vendor');
 const mongoose = require("mongoose");
 const { lookupChatUserByPhone } = require("../utils/chatUserLookup");
+const { handleChatInvitation } = require("../utils/chatInvitation");
 
 /* ---------------------------- Helpers ---------------------------- */
 
@@ -164,17 +165,28 @@ async function create(req, res, next) {
             });
         }
 
-        // Lookup chat user by phone number if provided
+        // Handle chat invitation/message
         if (payload.mobileNumber) {
             try {
-                const chatUser = await lookupChatUserByPhone(payload.mobileNumber);
-                if (chatUser) {
-                    payload.chatUserId = chatUser.userId;
-                    console.log(`[Vendor Create] Linked to chat user: ${chatUser.userId} (${chatUser.name})`);
+                const chatResult = await handleChatInvitation({
+                    phoneNumber: payload.mobileNumber,
+                    name: payload.vendorName,
+                    companyName: payload.companyName || '',
+                    ownerId: String(ownerId),
+                    ownerName: req.user.name || 'A business contact',
+                    type: 'vendor'
+                });
+
+                if (chatResult.chatUserId) {
+                    payload.chatUserId = chatResult.chatUserId;
+                    payload.chatConversationId = chatResult.conversationId;
+                    console.log(`[Vendor Create] Chat action: ${chatResult.action}, User ID: ${chatResult.chatUserId}`);
+                } else {
+                    console.log(`[Vendor Create] Chat action: ${chatResult.action} (invitee created or pending)`);
                 }
             } catch (err) {
-                console.warn('[Vendor Create] Chat user lookup failed:', err.message);
-                // Continue without chat user - not a blocking error
+                console.warn('[Vendor Create] Chat invitation failed:', err.message);
+                // Continue without chat - not a blocking error
             }
         }
 
