@@ -4,6 +4,7 @@ const mongoose = require('mongoose');
 // Response subdocument schema
 const ResponseSchema = new mongoose.Schema({
     responderId: { type: mongoose.Schema.Types.ObjectId, required: true, index: true },
+    responderCompanyId: { type: mongoose.Schema.Types.ObjectId, ref: 'Company', index: true }, // Company ID of responder
     responderName: { type: String, trim: true, default: "" },
     responderCompany: { type: String, trim: true, default: "" },
     responderState: { type: String, trim: true, default: "" },

@@ -146,11 +146,30 @@ async function listPublicEnquiries(req, res, next) {
             Enquiry.countDocuments(q),
         ]);
 
-        // Add hasResponded flag for each enquiry
-        const itemsWithResponseFlag = items.map(item => ({
-            ...item,
-            hasResponded: item.responses?.some(r => r.responderId.toString() === ownerId.toString()) || false
-        }));
+        // Get the user's company ID for checking hasResponded
+        const userCompanyId = req.query.accountCompanyName;
+
+        // Add hasResponded flag for each enquiry - now checks both user AND company
+        const itemsWithResponseFlag = items.map(item => {
+            // Check if user has responded from any company
+            const userResponses = item.responses?.filter(r => r.responderId.toString() === ownerId.toString()) || [];
+            // Check if user has responded from the current company specifically
+            const hasRespondedFromCurrentCompany = userCompanyId 
+                ? userResponses.some(r => r.responderCompanyId?.toString() === userCompanyId)
+                : false;
+            
+            return {
+                ...item,
+                hasResponded: userResponses.length > 0, // Has responded from any company
+                hasRespondedFromCurrentCompany, // Has responded from current company
+                userResponseCount: userResponses.length, // Number of responses from this user (different companies)
+                userResponses: userResponses.map(r => ({
+                    responderCompanyId: r.responderCompanyId,
+                    responderCompany: r.responderCompany,
+                    respondedAt: r.respondedAt
+                })) // Details of which companies the user responded from
+            };
+        });
 
         return res.json({
             success: true,
@@ -216,11 +235,30 @@ async function listVendorEnquiries(req, res, next) {
             Enquiry.countDocuments(q),
         ]);
 
-        // Add hasResponded flag for each enquiry  
-        const itemsWithResponseFlag = items.map(item => ({
-            ...item,
-            hasResponded: item.responses?.some(r => r.responderId.toString() === ownerId.toString()) || false
-        }));
+        // Get the user's company ID for checking hasResponded
+        const userCompanyId = req.query.accountCompanyName;
+
+        // Add hasResponded flag for each enquiry - now checks both user AND company
+        const itemsWithResponseFlag = items.map(item => {
+            // Check if user has responded from any company
+            const userResponses = item.responses?.filter(r => r.responderId.toString() === ownerId.toString()) || [];
+            // Check if user has responded from the current company specifically
+            const hasRespondedFromCurrentCompany = userCompanyId 
+                ? userResponses.some(r => r.responderCompanyId?.toString() === userCompanyId)
+                : false;
+            
+            return {
+                ...item,
+                hasResponded: userResponses.length > 0, // Has responded from any company
+                hasRespondedFromCurrentCompany, // Has responded from current company
+                userResponseCount: userResponses.length, // Number of responses from this user (different companies)
+                userResponses: userResponses.map(r => ({
+                    responderCompanyId: r.responderCompanyId,
+                    responderCompany: r.responderCompany,
+                    respondedAt: r.respondedAt
+                })) // Details of which companies the user responded from
+            };
+        });
 
         return res.json({
             success: true,
@@ -234,10 +272,12 @@ async function listVendorEnquiries(req, res, next) {
 
 /**
  * LIST MY RESPONSES - Enquiries the user has responded to
+ * Can filter by company to see responses from specific company
  */
 async function listMyResponses(req, res, next) {
     try {
         const responderId = req.user.ownerId;
+        const responderCompanyId = toObjectId(req.query.accountCompanyName);
 
         const { page = 1, limit = 50, search, sort, status } = req.query;
 
@@ -245,6 +285,11 @@ async function listMyResponses(req, res, next) {
             responderId,
             isDeleted: false,
         };
+
+        // Filter by specific company if provided
+        if (responderCompanyId) {
+            q.responderCompanyId = responderCompanyId;
+        }
 
         // Filter by status
         if (status && ['pending', 'viewed', 'accepted', 'rejected', 'expired'].includes(status)) {
@@ -620,19 +665,22 @@ async function respond(req, res, next) {
             }
         }
 
-        // Check if user has already responded
-        const alreadyResponded = enquiry.responses.some(
-            r => r.responderId.toString() === responderId.toString()
+        // Check if user has already responded FROM THE SAME COMPANY
+        // Users can respond multiple times from different companies
+        const alreadyRespondedFromSameCompany = enquiry.responses.some(
+            r => r.responderId.toString() === responderId.toString() && 
+                 r.responderCompanyId?.toString() === responderCompanyId?.toString()
         );
 
-        if (alreadyResponded) {
+        if (alreadyRespondedFromSameCompany) {
             return res
                 .status(409)
-                .json({ success: false, error: { message: "You have already responded to this enquiry" } });
+                .json({ success: false, error: { message: "You have already responded to this enquiry from this company. You can respond again from a different company." } });
         }
 
         const response = {
             responderId,
+            responderCompanyId, // Include company ID in response
             responderName: req.body.responderName || "",
             responderCompany: req.body.responderCompany || "",
             responderState: req.body.responderState || "",

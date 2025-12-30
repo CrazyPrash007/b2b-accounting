@@ -79,6 +79,9 @@ const EnquiryResponseSchema = new mongoose.Schema({
 
 // Compound indexes
 EnquiryResponseSchema.index({ responderId: 1, isDeleted: 1, respondedAt: -1 });
-EnquiryResponseSchema.index({ enquiryId: 1, responderId: 1 }, { unique: true });
+EnquiryResponseSchema.index({ responderId: 1, responderCompanyId: 1, isDeleted: 1, respondedAt: -1 });
+// Unique index: same user with same company cannot respond twice to same enquiry
+// But same user with different companies CAN respond to same enquiry
+EnquiryResponseSchema.index({ enquiryId: 1, responderId: 1, responderCompanyId: 1 }, { unique: true });
 
 module.exports = mongoose.model('EnquiryResponse', EnquiryResponseSchema);
