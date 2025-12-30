@@ -13,8 +13,10 @@
  * - This uses a simple token format for inter-service communication
  * - For production, consider implementing signed JWTs
  * - Token validity depends on the ObjectId existing in the chat-starter DB
+ * - Checks if user is blocked before allowing access
  */
 const mongoose = require('mongoose');
+const { getChatStarterConnection } = require('../db/mongo');
 
 /**
  * Validate if a string is a valid MongoDB ObjectId
@@ -62,7 +64,7 @@ function extractUserIdFromToken(token) {
 /**
  * Auth middleware
  */
-module.exports = function (req, res, next) {
+module.exports = async function (req, res, next) {
     let ownerId = null;
     let authSource = null;
 
@@ -111,6 +113,31 @@ module.exports = function (req, res, next) {
                 code: 'INVALID_TOKEN_FORMAT'
             },
         });
+    }
+
+    // Check if user is blocked in the chat-starter database
+    try {
+        const chatStarterConn = getChatStarterConnection();
+        const UserModel = chatStarterConn.models.User || chatStarterConn.model('User', new mongoose.Schema({
+            isBlocked: { type: Boolean, default: false },
+            accountStatus: { type: String, default: 'active' }
+        }, { strict: false }));
+
+        const user = await UserModel.findById(ownerId).select('isBlocked accountStatus').lean();
+
+        if (user && (user.isBlocked === true || user.accountStatus === 'blocked')) {
+            return res.status(403).json({
+                success: false,
+                error: {
+                    message: 'Your account has been blocked. Please contact support for assistance.',
+                    code: 'ACCOUNT_BLOCKED'
+                },
+            });
+        }
+    } catch (err) {
+        // Log error but don't block the request if check fails
+        // This prevents service disruption if chat-starter DB is temporarily unavailable
+        console.error('[AUTH] Error checking blocked status:', err.message);
     }
 
     // Attach user object to request

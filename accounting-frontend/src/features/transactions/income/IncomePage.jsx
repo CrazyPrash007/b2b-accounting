@@ -101,15 +101,15 @@ function IncomeModal({ isOpen, onClose, onSave, onDelete, editData }) {
 
     const handleSave = () => {
         if (!formData.billName.trim()) {
-            setError("Bill Name is required");
+            setError("Bill name is required. Please enter a name for this income.");
             return;
         }
         if (!formData.incomeAmount || parseFloat(formData.incomeAmount) <= 0) {
-            setError("Valid Income Amount is required");
+            setError("Please enter a valid income amount (must be greater than 0).");
             return;
         }
         if (!formData.category) {
-            setError("Category is required");
+            setError("Category is required. Please select a category for income tracking.");
             return;
         }
 
