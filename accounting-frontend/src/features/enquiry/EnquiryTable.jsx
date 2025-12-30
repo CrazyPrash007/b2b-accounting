@@ -143,6 +143,16 @@ export default function EnquiryTable({
                             )}
                             <td className="px-4 py-3 whitespace-nowrap">
                                 {getStatusBadge(item.status)}
+                                {!isMyEnquiries && item.hasResponded && (
+                                    <div className="mt-1">
+                                        <span className="px-2 py-0.5 rounded text-xs font-medium bg-emerald-100 text-emerald-700 flex items-center gap-1 w-fit">
+                                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                            </svg>
+                                            Responded
+                                        </span>
+                                    </div>
+                                )}
                             </td>
                             {isMyEnquiries && (
                                 <td className="px-4 py-3 whitespace-nowrap">
@@ -189,12 +199,18 @@ export default function EnquiryTable({
                                         </>
                                     ) : (
                                         item.status === 'open' && (
-                                            <button
-                                                onClick={() => onRespond?.(item)}
-                                                className="px-3 py-1 text-xs font-medium text-white bg-blue-600 rounded hover:bg-blue-700"
-                                            >
-                                                Respond
-                                            </button>
+                                            item.hasResponded ? (
+                                                <span className="px-3 py-1 text-xs font-medium text-emerald-700 bg-emerald-50 rounded border border-emerald-200">
+                                                    ✓ Responded
+                                                </span>
+                                            ) : (
+                                                <button
+                                                    onClick={() => onRespond?.(item)}
+                                                    className="px-3 py-1 text-xs font-medium text-white bg-blue-600 rounded hover:bg-blue-700"
+                                                >
+                                                    Respond
+                                                </button>
+                                            )
                                         )
                                     )}
                                 </div>

@@ -146,9 +146,15 @@ async function listPublicEnquiries(req, res, next) {
             Enquiry.countDocuments(q),
         ]);
 
+        // Add hasResponded flag for each enquiry
+        const itemsWithResponseFlag = items.map(item => ({
+            ...item,
+            hasResponded: item.responses?.some(r => r.responderId.toString() === ownerId.toString()) || false
+        }));
+
         return res.json({
             success: true,
-            data: items,
+            data: itemsWithResponseFlag,
             meta: { page: Number(page), limit: Number(limit), total },
         });
     } catch (err) {
@@ -210,9 +216,15 @@ async function listVendorEnquiries(req, res, next) {
             Enquiry.countDocuments(q),
         ]);
 
+        // Add hasResponded flag for each enquiry  
+        const itemsWithResponseFlag = items.map(item => ({
+            ...item,
+            hasResponded: item.responses?.some(r => r.responderId.toString() === ownerId.toString()) || false
+        }));
+
         return res.json({
             success: true,
-            data: items,
+            data: itemsWithResponseFlag,
             meta: { page: Number(page), limit: Number(limit), total },
         });
     } catch (err) {

@@ -492,22 +492,10 @@ function CreateEnquiryModal({ isOpen, onClose, onSave, registeredVendors: vendor
                         <h4 className="text-sm font-semibold text-gray-800 mb-2 pb-1 border-b border-gray-200">Product Details</h4>
                         <div className="grid grid-cols-3 gap-3">
                             <div className="relative" ref={dropdownRef}>
-                                <div className="flex items-center justify-between mb-1">
-                                    <label className="block text-sm font-medium text-gray-700">
-                                        Product Name *
-                                        <span className="text-xs text-gray-500 ml-2">(Type or select from items)</span>
-                                    </label>
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowAddItemModal(true)}
-                                        className="text-xs text-blue-600 hover:text-blue-800 font-medium flex items-center gap-1"
-                                    >
-                                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                                        </svg>
-                                        Add Item
-                                    </button>
-                                </div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    Product Name *
+                                    <span className="text-xs text-gray-500 ml-2">(Type or select from items)</span>
+                                </label>
                                 <input
                                     type="text"
                                     value={productName}
@@ -521,14 +509,14 @@ function CreateEnquiryModal({ isOpen, onClose, onSave, registeredVendors: vendor
                                     autoComplete="off"
                                 />
                                 {/* Dropdown for items */}
-                                {showItemDropdown && filteredItems.length > 0 && (
+                                {showItemDropdown && (filteredItems.length > 0 || productName.trim()) && (
                                     <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded shadow-lg max-h-48 overflow-y-auto">
                                         {filteredItems.slice(0, 10).map((item) => (
                                             <button
                                                 key={item.id || item._id}
                                                 type="button"
                                                 onClick={() => handleItemSelect(item)}
-                                                className="w-full text-left px-3 py-2 hover:bg-blue-50 border-b border-gray-100 last:border-b-0"
+                                                className="w-full text-left px-3 py-2 hover:bg-blue-50 border-b border-gray-100"
                                             >
                                                 <div className="text-sm font-medium text-gray-900">
                                                     {item.name || item.itemName}
@@ -540,6 +528,20 @@ function CreateEnquiryModal({ isOpen, onClose, onSave, registeredVendors: vendor
                                                 )}
                                             </button>
                                         ))}
+                                        {/* Add Item button at the end */}
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setShowAddItemModal(true);
+                                                setShowItemDropdown(false);
+                                            }}
+                                            className="w-full text-left px-3 py-2 hover:bg-blue-50 bg-blue-50/50 border-t-2 border-blue-200 text-blue-600 font-medium flex items-center gap-2"
+                                        >
+                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                            </svg>
+                                            <span>Add New Item</span>
+                                        </button>
                                     </div>
                                 )}
                             </div>
@@ -629,13 +631,17 @@ function CreateEnquiryModal({ isOpen, onClose, onSave, registeredVendors: vendor
                 </div>
             </div>
 
-            {/* Add Item Modal */}
-            <ItemModal
-                isOpen={showAddItemModal}
-                onClose={() => setShowAddItemModal(false)}
-                onSave={handleItemCreated}
-                editData={null}
-            />
+            {/* Add Item Modal - Higher z-index to appear above enquiry modal */}
+            {showAddItemModal && (
+                <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/50" onClick={() => setShowAddItemModal(false)}>
+                    <ItemModal
+                        isOpen={showAddItemModal}
+                        onClose={() => setShowAddItemModal(false)}
+                        onSave={handleItemCreated}
+                        editData={null}
+                    />
+                </div>
+            )}
         </div>
     );
 }
@@ -651,7 +657,6 @@ function RespondModal({ isOpen, onClose, onSave, enquiry }) {
     const [price, setPrice] = useState("");
     const [quantity, setQuantity] = useState("");
     const [unit, setUnit] = useState("");
-    const [message, setMessage] = useState("");
     const [deliveryTime, setDeliveryTime] = useState("");
     const [paymentTerms, setPaymentTerms] = useState("");
     const [validityDays, setValidityDays] = useState("");
@@ -696,7 +701,6 @@ function RespondModal({ isOpen, onClose, onSave, enquiry }) {
             setPrice("");
             setQuantity(enquiry?.quantity || "");
             setUnit(enquiry?.unit || "");
-            setMessage("");
             setDeliveryTime("");
             setPaymentTerms("");
             setValidityDays("");
@@ -706,12 +710,18 @@ function RespondModal({ isOpen, onClose, onSave, enquiry }) {
     }, [isOpen, enquiry]);
 
     const handleSave = () => {
-        if (!price) {
-            setError("Price is required");
+        setError("");
+        
+        if (!price || Number(price) <= 0) {
+            setError("Please enter a valid price (greater than 0)");
             return;
         }
-        if (!quantity) {
-            setError("Quantity is required");
+        if (!quantity || Number(quantity) <= 0) {
+            setError("Please enter a valid quantity (greater than 0)");
+            return;
+        }
+        if (!unit || !unit.trim()) {
+            setError("Please select a unit");
             return;
         }
 
@@ -720,7 +730,6 @@ function RespondModal({ isOpen, onClose, onSave, enquiry }) {
             price: Number(price),
             quantity: Number(quantity),
             unit: unit.trim(),
-            message: message.trim(),
             deliveryTime: deliveryTime.trim(),
             paymentTerms: paymentTerms.trim(),
             validityDays: validityDays ? Number(validityDays) : 0,
@@ -1305,7 +1314,10 @@ export default function EnquiryPage() {
             setCreateModalOpen(false);
         } catch (err) {
             console.error("Failed to save enquiry", err);
-            alert(err?.response?.data?.error?.message || "Failed to save enquiry");
+            const errorMessage = err?.response?.data?.error?.message || 
+                                err?.response?.data?.message || 
+                                "Failed to create enquiry. Please check all required fields.";
+            alert(errorMessage);
         }
     };
 
@@ -1343,7 +1355,10 @@ export default function EnquiryPage() {
             setSelectedEnquiry(null);
         } catch (err) {
             console.error("Failed to respond to enquiry", err);
-            alert(err?.response?.data?.error?.message || "Failed to respond");
+            const errorMessage = err?.response?.data?.error?.message || 
+                                err?.response?.data?.message || 
+                                "Failed to submit your response. Please try again.";
+            alert(errorMessage);
         }
     };
 
