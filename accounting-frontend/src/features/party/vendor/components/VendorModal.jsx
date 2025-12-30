@@ -120,7 +120,7 @@ export default function VendorModal({ isOpen, onClose, onSave, onDelete, editDat
         const trimmedName = vendorName.trim();
 
         if (!trimmedName) {
-            setErrorName("Vendor Name is required");
+            setErrorName("Vendor name is required. Please enter a valid vendor name.");
             return;
         }
 

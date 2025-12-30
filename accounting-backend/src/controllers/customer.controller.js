@@ -2,6 +2,7 @@
 const Customer = require("../models/Customer");
 const mongoose = require("mongoose");
 const { lookupChatUserByPhone } = require("../utils/chatUserLookup");
+const { handleChatInvitation } = require("../utils/chatInvitation");
 
 function toObjectId(id) {
     if (!id || !mongoose.isValidObjectId(id)) return null;
@@ -150,17 +151,28 @@ async function create(req, res, next) {
                 .json({ success: false, error: { message: msg } });
         }
 
-        // Lookup chat user by phone number if provided
+        // Handle chat invitation/message
         if (payload.mobileNumber) {
             try {
-                const chatUser = await lookupChatUserByPhone(payload.mobileNumber);
-                if (chatUser) {
-                    payload.chatUserId = chatUser.userId;
-                    console.log(`[Customer Create] Linked to chat user: ${chatUser.userId} (${chatUser.name})`);
+                const chatResult = await handleChatInvitation({
+                    phoneNumber: payload.mobileNumber,
+                    name: payload.customerName,
+                    companyName: payload.companyName || '',
+                    ownerId: String(ownerId),
+                    ownerName: req.user.name || 'A business contact',
+                    type: 'customer'
+                });
+
+                if (chatResult.chatUserId) {
+                    payload.chatUserId = chatResult.chatUserId;
+                    payload.chatConversationId = chatResult.conversationId;
+                    console.log(`[Customer Create] Chat action: ${chatResult.action}, User ID: ${chatResult.chatUserId}`);
+                } else {
+                    console.log(`[Customer Create] Chat action: ${chatResult.action} (invitee created or pending)`);
                 }
             } catch (err) {
-                console.warn('[Customer Create] Chat user lookup failed:', err.message);
-                // Continue without chat user - not a blocking error
+                console.warn('[Customer Create] Chat invitation failed:', err.message);
+                // Continue without chat - not a blocking error
             }
         }
 

@@ -110,8 +110,22 @@ apiClient.interceptors.response.use(
 
         // Handle 403 Forbidden
         if (err.response && err.response.status === 403) {
+            const errorCode = err.response.data?.error?.code;
+            const errorMessage = err.response.data?.error?.message;
+
+            // Check if account is blocked
+            if (errorCode === 'ACCOUNT_BLOCKED') {
+                console.warn('[API] Account blocked (403) - logging out');
+                localStorage.removeItem('token');
+                localStorage.removeItem('user');
+                localStorage.removeItem('selectedCompany');
+                alert(errorMessage || 'Your account has been blocked. Please contact support.');
+                window.location.href = '/';
+                return Promise.reject(new Error(errorMessage || 'Account blocked'));
+            }
+
             console.warn('[API] Access forbidden (403)');
-            return Promise.reject(new Error('Access denied. You do not have permission to perform this action.'));
+            return Promise.reject(new Error(errorMessage || 'Access denied. You do not have permission to perform this action.'));
         }
 
         if (err.response) {

@@ -632,18 +632,25 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
 
     const handleSave = () => {
         if (!formData.customer.trim()) {
-            setError("Customer is required");
+            setError("Customer is required. Please select or enter a customer name.");
+            return;
+        }
+
+        // Validate items
+        const validItems = formData.items.filter(it => it.goodsService?.trim() || it.name?.trim());
+        if (validItems.length === 0) {
+            setError("At least one item is required. Please add items to the invoice.");
             return;
         }
 
         // Validate advance application if selected
         if (applyAdvance) {
             if (!selectedAdvance) {
-                setError("Please select an advance payment to apply");
+                setError("Please select an advance payment to apply from the available list.");
                 return;
             }
             if (!advanceAmount || Number(advanceAmount) <= 0) {
-                setError("Please enter a valid advance amount");
+                setError("Please enter a valid advance amount (must be greater than 0).");
                 return;
             }
             const maxAdvance = Number(selectedAdvance._remainingAmount || 0);
@@ -652,7 +659,7 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
                 return;
             }
             if (Number(advanceAmount) > totals.total) {
-                setError("Advance amount cannot exceed invoice total");
+                setError("Advance amount cannot exceed the invoice total amount.");
                 return;
             }
         }

@@ -120,7 +120,7 @@ export default function CustomerModal({ isOpen, onClose, onSave, onDelete, editD
         const trimmedName = customerName.trim();
 
         if (!trimmedName) {
-            setErrorName("Customer Name is required");
+            setErrorName("Customer name is required. Please enter a valid customer name.");
             return;
         }
 
