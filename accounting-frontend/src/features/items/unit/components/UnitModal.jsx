@@ -47,7 +47,7 @@ export default function UnitModal({ isOpen, onClose, onSave, onDelete, editData 
 
     const handleSave = () => {
         if (!fullName.trim()) {
-            setError("Unit Full Name is required");
+            setError("Unit full name is required (e.g., Kilogram, Piece, Liter)");
             return;
         }
 

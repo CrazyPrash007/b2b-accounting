@@ -5,18 +5,32 @@ const baseString = () => Joi.string().trim().allow('').optional();
 const objectId = Joi.string().regex(/^[0-9a-fA-F]{24}$/);
 
 const create = Joi.object({
-    accountCompanyName: objectId.required(),
-    customerName: Joi.string().trim().required(),
+    accountCompanyName: objectId.required().messages({
+        'any.required': 'Company selection is required',
+        'string.pattern.base': 'Invalid company ID format'
+    }),
+    customerName: Joi.string().trim().required().messages({
+        'any.required': 'Customer name is required',
+        'string.empty': 'Customer name cannot be empty'
+    }),
     name: Joi.string().trim().allow('').optional(),
 
     // Basic Details
-    mobileNumber: Joi.string().trim().allow('').optional(),
-    emailAddress: Joi.string().trim().email().allow('').optional(),
-    websiteLink: Joi.string().trim().uri().allow('').optional(),
+    mobileNumber: Joi.string().trim().allow('').optional().messages({
+        'string.base': 'Mobile number must be a valid string'
+    }),
+    emailAddress: Joi.string().trim().email().allow('').optional().messages({
+        'string.email': 'Please enter a valid email address (e.g., example@domain.com)'
+    }),
+    websiteLink: Joi.string().trim().uri().allow('').optional().messages({
+        'string.uri': 'Please enter a valid website URL (e.g., https://example.com)'
+    }),
 
     // Company Details
     companyName: Joi.string().trim().allow('').optional(),
-    gstType: Joi.string().valid('Regular', 'Composition', 'Unregistered').optional(),
+    gstType: Joi.string().valid('Regular', 'Composition', 'Unregistered').optional().messages({
+        'any.only': 'GST type must be Regular, Composition, or Unregistered'
+    }),
 
     // Billing Details
     billingAddress: baseString(),

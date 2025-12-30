@@ -101,15 +101,15 @@ function ExpenseModal({ isOpen, onClose, onSave, onDelete, editData }) {
 
     const handleSave = () => {
         if (!formData.billName.trim()) {
-            setError("Bill Name is required");
+            setError("Bill name is required. Please enter a name for this expense.");
             return;
         }
         if (!formData.expenseAmount || parseFloat(formData.expenseAmount) <= 0) {
-            setError("Valid Expense Amount is required");
+            setError("Please enter a valid expense amount (must be greater than 0).");
             return;
         }
         if (!formData.category) {
-            setError("Category is required");
+            setError("Category is required. Please select a category for expense tracking.");
             return;
         }
 

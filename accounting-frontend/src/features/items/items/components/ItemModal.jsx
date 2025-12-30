@@ -425,7 +425,7 @@ export default function ItemModal({ isOpen, onClose, onSave, onDelete, editData 
         setErrorName("");
         const trimmedName = itemName.trim();
         if (!trimmedName) {
-            setErrorName("Item Name is required");
+            setErrorName("Item name is required. Please enter a valid item name.");
             return;
         }
 

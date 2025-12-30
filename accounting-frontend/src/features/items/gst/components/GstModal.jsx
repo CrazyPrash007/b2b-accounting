@@ -32,13 +32,18 @@ export default function GstModal({ isOpen, onClose, onSave, onDelete, editData }
 
     const handleSave = () => {
         if (!gstRate.toString().trim()) {
-            setError("GST Rate is required");
+            setError("GST rate is required (e.g., 0, 5, 12, 18, 28)");
             return;
         }
 
         const rate = parseFloat(gstRate);
         if (isNaN(rate) || rate < 0) {
-            setError("Please enter a valid GST rate");
+            setError("Please enter a valid GST rate (must be 0 or a positive number)");
+            return;
+        }
+
+        if (rate > 100) {
+            setError("GST rate cannot exceed 100%");
             return;
         }
 

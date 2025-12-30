@@ -39,7 +39,7 @@ export default function BrandModal({ isOpen, onClose, onSave, onDelete, editData
 
     const handleSave = () => {
         if (!brandName.trim()) {
-            setError("Brand Name is required");
+            setError("Brand name is required. Please enter a valid brand name.");
             return;
         }
 

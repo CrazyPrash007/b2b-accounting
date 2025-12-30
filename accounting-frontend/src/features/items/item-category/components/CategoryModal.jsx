@@ -84,7 +84,7 @@ export default function CategoryModal({ isOpen, onClose, onSave, onDelete, editD
 
     const handleSave = () => {
         if (!categoryName.trim()) {
-            setError("Category is required");
+            setError("Category name is required. Please enter a valid category name.");
             return;
         }
 

@@ -575,7 +575,14 @@ function PurchaseInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, wit
     // Save handler
     const handleSave = () => {
         if (!formData.supplier.trim()) {
-            setError("Supplier is required");
+            setError("Supplier is required. Please select or enter a supplier name.");
+            return;
+        }
+
+        // Validate items
+        const validItems = (formData.items || []).filter(it => it.goodsService?.trim() || it.name?.trim());
+        if (validItems.length === 0) {
+            setError("At least one item is required. Please add items to the purchase.");
             return;
         }
 

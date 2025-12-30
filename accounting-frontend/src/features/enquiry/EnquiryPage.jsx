@@ -163,12 +163,12 @@ function CreateEnquiryModal({ isOpen, onClose, onSave, registeredVendors: vendor
 
     const handleSave = () => {
         if (!productName.trim()) {
-            setError("Product Name is required");
+            setError("Product name is required. Please enter what you want to buy/sell.");
             return;
         }
 
         if (distributionType === 'vendors' && selectedVendors.length === 0) {
-            setError("Please select at least one vendor");
+            setError("Please select at least one vendor to send this enquiry to.");
             return;
         }
 
@@ -712,16 +712,31 @@ function RespondModal({ isOpen, onClose, onSave, enquiry }) {
     const handleSave = () => {
         setError("");
         
-        if (!price || Number(price) <= 0) {
-            setError("Please enter a valid price (greater than 0)");
+        // Validate price
+        if (!price || price === "") {
+            setError("Price is required. Please enter your quoted price per unit.");
             return;
         }
-        if (!quantity || Number(quantity) <= 0) {
-            setError("Please enter a valid quantity (greater than 0)");
+        const priceNum = Number(price);
+        if (isNaN(priceNum) || priceNum < 0) {
+            setError("Please enter a valid price (must be 0 or greater).");
             return;
         }
+        
+        // Validate quantity
+        if (!quantity || quantity === "") {
+            setError("Quantity is required. Please enter how much you can provide.");
+            return;
+        }
+        const qtyNum = Number(quantity);
+        if (isNaN(qtyNum) || qtyNum <= 0) {
+            setError("Please enter a valid quantity (must be greater than 0).");
+            return;
+        }
+        
+        // Validate unit
         if (!unit || !unit.trim()) {
-            setError("Please select a unit");
+            setError("Unit is required. Please select a unit of measurement.");
             return;
         }
 
@@ -794,15 +809,15 @@ function RespondModal({ isOpen, onClose, onSave, enquiry }) {
                     <h4 className="text-sm font-semibold text-gray-800 mb-3">Your Quotation</h4>
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-4">
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Your Price (₹) *</label>
-                            <input type="number" value={price} onChange={(e) => setPrice(e.target.value)} className={baseInput} placeholder="Per unit price" />
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Your Price (₹) <span className="text-red-500">*</span></label>
+                            <input type="number" value={price} onChange={(e) => setPrice(e.target.value)} className={baseInput} placeholder="Per unit price" min="0" />
                         </div>
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Quantity You Can Provide *</label>
-                            <input type="number" value={quantity} onChange={(e) => setQuantity(e.target.value)} className={baseInput} />
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Quantity You Can Provide <span className="text-red-500">*</span></label>
+                            <input type="number" value={quantity} onChange={(e) => setQuantity(e.target.value)} className={baseInput} min="1" />
                         </div>
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Unit *</label>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Unit <span className="text-red-500">*</span></label>
                             <select value={unit} onChange={(e) => setUnit(e.target.value)} className={baseInput}>
                                 <option value="">Select Unit</option>
                                 <option value="pieces">Pieces</option>
