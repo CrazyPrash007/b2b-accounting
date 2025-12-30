@@ -8,6 +8,14 @@ const objectId = Joi.string().regex(/^[0-9a-fA-F]{24}$/);
 const create = Joi.object({
     accountCompanyName: objectId.required(),
     enquiryType: Joi.string().valid('buy', 'sell').required(),
+    distributionType: Joi.string().valid('public', 'vendors').required(),
+    targetVendorIds: Joi.array().items(objectId).when('distributionType', {
+        is: 'vendors',
+        then: Joi.array().min(1).required(),
+        otherwise: Joi.array().optional()
+    }),
+    // Target states for public enquiries (empty means all states)
+    targetStates: Joi.array().items(Joi.string().trim()).optional(),
     productName: Joi.string().trim().required(),
     category: baseString(),
     subCategory: baseString(),
@@ -15,40 +23,21 @@ const create = Joi.object({
     unit: baseString(),
     expectedPrice: Joi.number().min(0).optional(),
     description: baseString(),
-    targetStates: Joi.array().items(Joi.string().trim()).optional(),
-    creatorName: baseString(),
-    creatorCompany: baseString(),
-    creatorState: baseString(),
-    creatorMobile: baseString(),
-    creatorEmail: Joi.string().trim().email().allow('').optional(),
-    validUntil: Joi.date().optional(),
-    isActive: Joi.boolean().optional(),
-});
-
-// Update enquiry schema
-const update = Joi.object({
-    accountCompanyName: objectId.optional(),
-    enquiryType: Joi.string().valid('buy', 'sell').optional(),
-    productName: Joi.string().trim().optional(),
-    category: baseString(),
-    subCategory: baseString(),
-    quantity: Joi.number().min(0).optional(),
-    unit: baseString(),
-    expectedPrice: Joi.number().min(0).optional(),
-    description: baseString(),
-    targetStates: Joi.array().items(Joi.string().trim()).optional(),
+    specifications: baseString(),
+    deliveryLocation: baseString(),
+    requiredByDate: Joi.date().allow(null).optional(),
     creatorName: baseString(),
     creatorCompany: baseString(),
     creatorState: baseString(),
     creatorMobile: baseString(),
     creatorEmail: Joi.string().trim().email().allow('').optional(),
     validUntil: Joi.date().allow(null).optional(),
-    status: Joi.string().valid('open', 'closed').optional(),
     isActive: Joi.boolean().optional(),
 });
 
 // Respond to enquiry schema
 const respond = Joi.object({
+    accountCompanyName: objectId.optional(),
     responderName: baseString(),
     responderCompany: baseString(),
     responderState: baseString(),
@@ -56,7 +45,12 @@ const respond = Joi.object({
     responderEmail: Joi.string().trim().email().allow('').optional(),
     price: Joi.number().min(0).required(),
     quantity: Joi.number().min(0).required(),
+    unit: baseString(),
     message: Joi.string().trim().max(1000).optional(),
+    deliveryTime: baseString(),
+    paymentTerms: baseString(),
+    validityDays: Joi.number().min(0).optional(),
+    additionalNotes: Joi.string().trim().max(500).optional(),
 });
 
-module.exports = { create, update, respond };
+module.exports = { create, respond };

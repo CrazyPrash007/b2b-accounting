@@ -6,12 +6,12 @@ import React from "react";
  */
 export default function EnquiryTable({
     data = [],
-    onEdit,
     onDelete,
     onRespond,
     onViewResponses,
     onClose,
     isMyEnquiries = true,
+    activeTab = "my",
     loading = false
 }) {
     if (loading) {
@@ -23,9 +23,14 @@ export default function EnquiryTable({
     }
 
     if (!data.length) {
+        const emptyMessages = {
+            my: "No enquiries found. Create your first enquiry!",
+            public: "No public enquiries available.",
+            vendor: "No vendor enquiries available. Other users haven't sent enquiries to your vendors yet."
+        };
         return (
             <div className="text-center py-8 text-gray-500">
-                {isMyEnquiries ? "No enquiries found. Create your first enquiry!" : "No public enquiries available."}
+                {emptyMessages[activeTab] || "No enquiries found."}
             </div>
         );
     }
@@ -63,6 +68,17 @@ export default function EnquiryTable({
         );
     };
 
+    const getDistributionBadge = (type) => {
+        if (type === 'public') {
+            return <span className="px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800">PUBLIC</span>;
+        }
+        return <span className="px-2 py-0.5 rounded text-xs font-medium bg-teal-100 text-teal-800">VENDORS</span>;
+    };
+
+    // Show different columns based on tab
+    const showPostedBy = activeTab === "public" || activeTab === "vendor";
+    const showDistribution = activeTab === "my";
+
     return (
         <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
@@ -73,8 +89,11 @@ export default function EnquiryTable({
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Qty / Unit</th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Price</th>
-                        {!isMyEnquiries && (
+                        {showPostedBy && (
                             <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Posted By</th>
+                        )}
+                        {showDistribution && (
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Distribution</th>
                         )}
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                         {isMyEnquiries && (
@@ -106,10 +125,20 @@ export default function EnquiryTable({
                             <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
                                 {item.expectedPrice ? `₹${item.expectedPrice.toLocaleString()}` : "-"}
                             </td>
-                            {!isMyEnquiries && (
+                            {showPostedBy && (
                                 <td className="px-4 py-3">
                                     <div className="text-sm text-gray-900">{item.creatorCompany || item.creatorName || "-"}</div>
                                     <div className="text-xs text-gray-500">{item.creatorState || ""}</div>
+                                </td>
+                            )}
+                            {showDistribution && (
+                                <td className="px-4 py-3 whitespace-nowrap">
+                                    {getDistributionBadge(item.distributionType)}
+                                    {item.distributionType === 'vendors' && item.targetVendors?.length > 0 && (
+                                        <div className="text-xs text-gray-500 mt-1">
+                                            {item.targetVendors.length} vendor(s)
+                                        </div>
+                                    )}
                                 </td>
                             )}
                             <td className="px-4 py-3 whitespace-nowrap">
@@ -122,6 +151,11 @@ export default function EnquiryTable({
                                         className="text-sm text-blue-600 hover:text-blue-800 hover:underline"
                                     >
                                         {item.responses?.length || 0} responses
+                                        {item.responseStats?.total > 0 && (
+                                            <span className="block text-xs text-gray-400">
+                                                ₹{item.responseStats.lowestPrice?.toLocaleString()} - ₹{item.responseStats.highestPrice?.toLocaleString()}
+                                            </span>
+                                        )}
                                     </button>
                                 </td>
                             )}
@@ -133,26 +167,15 @@ export default function EnquiryTable({
                                     {isMyEnquiries ? (
                                         <>
                                             {item.status === 'open' && (
-                                                <>
-                                                    <button
-                                                        onClick={() => onEdit?.(item)}
-                                                        className="text-blue-600 hover:text-blue-800"
-                                                        title="Edit"
-                                                    >
-                                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                                        </svg>
-                                                    </button>
-                                                    <button
-                                                        onClick={() => onClose?.(item)}
-                                                        className="text-yellow-600 hover:text-yellow-800"
-                                                        title="Close Enquiry"
-                                                    >
-                                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                                        </svg>
-                                                    </button>
-                                                </>
+                                                <button
+                                                    onClick={() => onClose?.(item)}
+                                                    className="text-yellow-600 hover:text-yellow-800"
+                                                    title="Close Enquiry"
+                                                >
+                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                    </svg>
+                                                </button>
                                             )}
                                             <button
                                                 onClick={() => onDelete?.(item)}
@@ -165,12 +188,14 @@ export default function EnquiryTable({
                                             </button>
                                         </>
                                     ) : (
-                                        <button
-                                            onClick={() => onRespond?.(item)}
-                                            className="px-3 py-1 text-xs font-medium text-white bg-blue-600 rounded hover:bg-blue-700"
-                                        >
-                                            Respond
-                                        </button>
+                                        item.status === 'open' && (
+                                            <button
+                                                onClick={() => onRespond?.(item)}
+                                                className="px-3 py-1 text-xs font-medium text-white bg-blue-600 rounded hover:bg-blue-700"
+                                            >
+                                                Respond
+                                            </button>
+                                        )
                                     )}
                                 </div>
                             </td>

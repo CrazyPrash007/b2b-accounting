@@ -13,9 +13,34 @@ const enquiryApi = {
     },
 
     // List public enquiries (others' open enquiries)
+    // Pass userState to filter by enquiry targetStates
     async listPublic(params = {}) {
         const res = await apiClient.get(`${BASE}/public`, {
             params
+        });
+        return res?.data?.data || [];
+    },
+
+    // List vendor-targeted enquiries (enquiries sent specifically to user)
+    async listVendorEnquiries(params = {}) {
+        const res = await apiClient.get(`${BASE}/vendor`, {
+            params
+        });
+        return res?.data?.data || [];
+    },
+
+    // List user's responses to enquiries
+    async listMyResponses(params = {}) {
+        const res = await apiClient.get(`${BASE}/my-responses`, {
+            params
+        });
+        return res?.data?.data || [];
+    },
+
+    // Get registered vendors (for vendor selection in enquiry creation)
+    async getRegisteredVendors(accountCompanyName, search = '') {
+        const res = await apiClient.get(`${BASE}/registered-vendors`, {
+            params: { accountCompanyName, search }
         });
         return res?.data?.data || [];
     },
@@ -26,20 +51,19 @@ const enquiryApi = {
         return res?.data?.data;
     },
 
+    // Get responses for an enquiry with filtering/sorting
+    async getEnquiryResponses(id, params = {}) {
+        const res = await apiClient.get(`${BASE}/${id}/responses`, {
+            params
+        });
+        return res?.data?.data;
+    },
+
     // Create new enquiry
     async create(payload, accountCompanyName) {
         const res = await apiClient.post(BASE, {
             ...payload,
             accountCompanyName,
-        });
-        return res?.data?.data;
-    },
-
-    // Update enquiry
-    async update(id, payload, accountCompanyName) {
-        const res = await apiClient.put(`${BASE}/${id}`, {
-            ...payload,
-            accountCompanyName
         });
         return res?.data?.data;
     },
@@ -59,10 +83,27 @@ const enquiryApi = {
     },
 
     // Close an enquiry
-    async close(id, accountCompanyName) {
-        const res = await apiClient.patch(`${BASE}/${id}/close`, null, {
-            params: { accountCompanyName }
-        });
+    async close(id, accountCompanyName, closureReason = '') {
+        const res = await apiClient.patch(`${BASE}/${id}/close`, 
+            { closureReason },
+            { params: { accountCompanyName } }
+        );
+        return res?.data?.data;
+    },
+
+    // Mark response as viewed
+    async markResponseViewed(enquiryId, responseId) {
+        const res = await apiClient.patch(`${BASE}/${enquiryId}/responses/${responseId}/viewed`);
+        return res?.data?.data;
+    },
+
+    // Select/Accept a response (rejects all other responses)
+    async selectResponse(enquiryId, responseId, accountCompanyName, selectionNote = '') {
+        const res = await apiClient.patch(
+            `${BASE}/${enquiryId}/responses/${responseId}/select`,
+            { selectionNote },
+            { params: { accountCompanyName } }
+        );
         return res?.data?.data;
     }
 };

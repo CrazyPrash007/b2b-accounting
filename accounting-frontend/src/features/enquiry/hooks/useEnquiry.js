@@ -9,6 +9,9 @@ export default function useEnquiry() {
 
     const [myEnquiries, setMyEnquiries] = useState([]);
     const [publicEnquiries, setPublicEnquiries] = useState([]);
+    const [vendorEnquiries, setVendorEnquiries] = useState([]);
+    const [myResponses, setMyResponses] = useState([]);
+    const [registeredVendors, setRegisteredVendors] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
@@ -57,23 +60,84 @@ export default function useEnquiry() {
         }
     }, []);
 
-    // Load both on mount
+    // Load vendor-targeted enquiries
+    const loadVendorEnquiries = useCallback(async (params = {}) => {
+        setLoading(true);
+        setError(null);
+
+        try {
+            const data = await enquiryApi.listVendorEnquiries(params);
+            const normalized = Array.isArray(data) ? data.map(normalize) : [];
+            setVendorEnquiries(normalized);
+        } catch (err) {
+            console.error('[useEnquiry] Failed loading vendor enquiries', err);
+            setError(err);
+            setVendorEnquiries([]);
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    // Load user's responses to enquiries
+    const loadMyResponses = useCallback(async (params = {}) => {
+        setLoading(true);
+        setError(null);
+
+        try {
+            const data = await enquiryApi.listMyResponses(params);
+            const normalized = Array.isArray(data) ? data.map(normalize) : [];
+            setMyResponses(normalized);
+        } catch (err) {
+            console.error('[useEnquiry] Failed loading my responses', err);
+            setError(err);
+            setMyResponses([]);
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    // Load registered vendors (for vendor selection)
+    const loadRegisteredVendors = useCallback(async (search = '') => {
+        if (!selectedCompany) {
+            setRegisteredVendors([]);
+            return [];
+        }
+
+        try {
+            const data = await enquiryApi.getRegisteredVendors(selectedCompany, search);
+            const normalized = Array.isArray(data) ? data.map(normalize) : [];
+            setRegisteredVendors(normalized);
+            return normalized;
+        } catch (err) {
+            console.error('[useEnquiry] Failed loading registered vendors', err);
+            setRegisteredVendors([]);
+            return [];
+        }
+    }, [selectedCompany]);
+
+    // Get responses for a specific enquiry with filtering/sorting
+    const getEnquiryResponses = useCallback(async (enquiryId, params = {}) => {
+        try {
+            const data = await enquiryApi.getEnquiryResponses(enquiryId, params);
+            return data;
+        } catch (err) {
+            console.error('[useEnquiry] Failed loading enquiry responses', err);
+            throw err;
+        }
+    }, []);
+
+    // Load all data on mount
     useEffect(() => {
         loadMyEnquiries();
         loadPublicEnquiries();
-    }, [loadMyEnquiries, loadPublicEnquiries]);
+        loadVendorEnquiries();
+        loadMyResponses();
+    }, [loadMyEnquiries, loadPublicEnquiries, loadVendorEnquiries, loadMyResponses]);
 
     // Create enquiry
     const create = useCallback(async (payload) => {
         if (!selectedCompany) throw new Error("No company selected");
         await enquiryApi.create(payload, selectedCompany);
-        return loadMyEnquiries();
-    }, [selectedCompany, loadMyEnquiries]);
-
-    // Update enquiry
-    const update = useCallback(async (id, payload) => {
-        if (!selectedCompany) throw new Error("No company selected");
-        await enquiryApi.update(id, payload, selectedCompany);
         return loadMyEnquiries();
     }, [selectedCompany, loadMyEnquiries]);
 
@@ -87,34 +151,62 @@ export default function useEnquiry() {
     // Respond to enquiry
     const respond = useCallback(async (id, payload) => {
         await enquiryApi.respond(id, payload);
-        return loadPublicEnquiries();
-    }, [loadPublicEnquiries]);
+        // Reload public, vendor enquiries and my responses
+        await Promise.all([
+            loadPublicEnquiries(),
+            loadVendorEnquiries(),
+            loadMyResponses()
+        ]);
+    }, [loadPublicEnquiries, loadVendorEnquiries, loadMyResponses]);
 
     // Close enquiry
-    const close = useCallback(async (id) => {
+    const close = useCallback(async (id, closureReason = '') => {
         if (!selectedCompany) throw new Error("No company selected");
-        await enquiryApi.close(id, selectedCompany);
+        await enquiryApi.close(id, selectedCompany, closureReason);
         return loadMyEnquiries();
     }, [selectedCompany, loadMyEnquiries]);
 
-    // Reload both lists
+    // Mark response as viewed
+    const markResponseViewed = useCallback(async (enquiryId, responseId) => {
+        await enquiryApi.markResponseViewed(enquiryId, responseId);
+        return loadMyEnquiries();
+    }, [loadMyEnquiries]);
+
+    // Select/Accept a response
+    const selectResponse = useCallback(async (enquiryId, responseId, selectionNote = '') => {
+        if (!selectedCompany) throw new Error("No company selected");
+        await enquiryApi.selectResponse(enquiryId, responseId, selectedCompany, selectionNote);
+        return loadMyEnquiries();
+    }, [selectedCompany, loadMyEnquiries]);
+
+    // Reload all lists
     const reload = useCallback(() => {
         loadMyEnquiries();
         loadPublicEnquiries();
-    }, [loadMyEnquiries, loadPublicEnquiries]);
+        loadVendorEnquiries();
+        loadMyResponses();
+    }, [loadMyEnquiries, loadPublicEnquiries, loadVendorEnquiries, loadMyResponses]);
 
     return {
         myEnquiries,
         publicEnquiries,
+        vendorEnquiries,
+        myResponses,
+        registeredVendors,
         loading,
         error,
         reload,
         loadMyEnquiries,
         loadPublicEnquiries,
+        loadVendorEnquiries,
+        loadMyResponses,
+        loadRegisteredVendors,
+        getEnquiryResponses,
         create,
-        update,
         remove,
         respond,
-        close
+        close,
+        markResponseViewed,
+        selectResponse
     };
 }
