@@ -13,6 +13,12 @@ const MAIN_APP_URL =
 const MAX_AUTH_RETRIES = 3;
 const AUTH_RETRY_DELAY = 1000; // ms
 
+// BroadcastChannel name for cross-tab logout communication (must match chat app)
+const AUTH_CHANNEL_NAME = 'b2b_auth_channel';
+
+// Key used to signal logout across different origins via localStorage
+const LOGOUT_SIGNAL_KEY = 'b2b_logout_signal';
+
 /**
  * Extract token from URL - supports both hash and query params
  * Hash is preferred for security (not sent to server in logs)
@@ -124,6 +130,82 @@ export function AuthProvider({ children }) {
         attempted: false,
         inProgress: false
     });
+
+    // Reference to BroadcastChannel for cross-tab communication
+    const authChannelRef = useRef(null);
+
+    // Helper function to perform logout cleanup
+    const performLogoutCleanup = useCallback((shouldRedirect = true) => {
+        console.log('[AUTH] Performing logout cleanup');
+
+        // Clear all auth data
+        localStorage.removeItem('token');
+        localStorage.removeItem('accountingUser');
+        localStorage.removeItem('selectedCompany');
+        localStorage.removeItem('selectedCompanyUserId');
+        localStorage.removeItem('user');
+        localStorage.removeItem('companyCount');
+        // Clear the logout signal after processing
+        localStorage.removeItem(LOGOUT_SIGNAL_KEY);
+
+        // Reset the init ref so next login will re-initialize
+        initRef.current.attempted = false;
+        initRef.current.inProgress = false;
+
+        setAuth({ token: null, user: null, loading: false, error: null });
+
+        if (shouldRedirect) {
+            // Try to close the tab first (works if opened by script)
+            window.close();
+            // If window.close() doesn't work, redirect after a small delay
+            setTimeout(() => {
+                redirectToLogin();
+            }, 100);
+        }
+    }, []);
+
+    // Setup BroadcastChannel for same-origin cross-tab logout communication
+    useEffect(() => {
+        try {
+            authChannelRef.current = new BroadcastChannel(AUTH_CHANNEL_NAME);
+
+            authChannelRef.current.onmessage = (event) => {
+                if (event.data?.type === 'LOGOUT') {
+                    console.log('[AUTH] Received logout broadcast from another tab (same origin, source:', event.data.source, ')');
+                    performLogoutCleanup(true);
+                }
+            };
+
+            console.log('[AUTH] BroadcastChannel initialized for cross-tab communication');
+        } catch (err) {
+            console.warn('[AUTH] BroadcastChannel not supported:', err);
+        }
+
+        return () => {
+            if (authChannelRef.current) {
+                authChannelRef.current.close();
+            }
+        };
+    }, [performLogoutCleanup]);
+
+    // Listen for localStorage changes (works across different origins sharing localStorage)
+    useEffect(() => {
+        const handleStorageChange = (event) => {
+            // Check if logout signal was set
+            if (event.key === LOGOUT_SIGNAL_KEY && event.newValue) {
+                console.log('[AUTH] Detected logout signal from localStorage (cross-origin)');
+                performLogoutCleanup(true);
+            }
+            // Also check if token was removed
+            if (event.key === 'token' && !event.newValue && auth.token) {
+                console.log('[AUTH] Token removed from localStorage by another tab');
+                performLogoutCleanup(true);
+            }
+        };
+
+        window.addEventListener('storage', handleStorageChange);
+        return () => window.removeEventListener('storage', handleStorageChange);
+    }, [auth.token, performLogoutCleanup]);
 
     /**
      * Validate auth token with retry logic
@@ -291,13 +373,39 @@ export function AuthProvider({ children }) {
      * Logout user
      */
     const logout = useCallback(() => {
+        console.log('[AUTH] Logging out and signaling to other tabs');
+
+        // Set logout signal in localStorage (triggers storage event in same-origin tabs)
+        localStorage.setItem(LOGOUT_SIGNAL_KEY, Date.now().toString());
+
+        // Broadcast logout to same-origin tabs via BroadcastChannel
+        try {
+            if (authChannelRef.current) {
+                authChannelRef.current.postMessage({ type: 'LOGOUT', source: 'accounting' });
+            }
+        } catch (err) {
+            console.warn('[AUTH] Failed to broadcast logout:', err);
+        }
+
+        // Send postMessage to opener window (chat app) for cross-origin logout
+        try {
+            if (window.opener && !window.opener.closed) {
+                const mainAppUrl = import.meta.env.VITE_MAIN_APP_URL;
+                if (mainAppUrl) {
+                    console.log('[AUTH] Sending logout message to chat app via postMessage');
+                    window.opener.postMessage({ type: 'LOGOUT_FROM_ACCOUNTING' }, mainAppUrl);
+                }
+            }
+        } catch (err) {
+            console.warn('[AUTH] Failed to send logout message to opener:', err);
+        }
+
+        // Perform local cleanup (without redirect since we'll handle it separately)
         // Clear ALL auth-related localStorage items from BOTH apps
-        // Accounting app items
         localStorage.removeItem('token');
         localStorage.removeItem('accountingUser');
         localStorage.removeItem('selectedCompany');
         localStorage.removeItem('selectedCompanyUserId');
-        // Main app items (cross-app cleanup)
         localStorage.removeItem('user');
         localStorage.removeItem('companyCount');
 
