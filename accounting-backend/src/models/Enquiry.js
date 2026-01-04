@@ -24,31 +24,33 @@ const ResponseSchema = new mongoose.Schema({
     viewedAt: { type: Date },
     respondedAt: { type: Date, default: Date.now },
     // Acceptance/Rejection status
-    selectionStatus: { 
-        type: String, 
-        enum: ['pending', 'accepted', 'rejected'], 
+    selectionStatus: {
+        type: String,
+        enum: ['pending', 'accepted', 'rejected'],
         default: 'pending',
-        index: true 
+        index: true
     },
     selectionStatusUpdatedAt: { type: Date },
-    selectionNote: { type: String, trim: true, default: "" } // Note from enquiry owner
+    selectionNote: { type: String, trim: true, default: "" }, // Note from enquiry owner
+    // Soft delete flag (for admin blocking feature)
+    isDeleted: { type: Boolean, default: false }
 }, { _id: true });
 
 const EnquirySchema = new mongoose.Schema({
     // Owner of this enquiry (user who created it)
     ownerId: { type: mongoose.Schema.Types.ObjectId, required: true, index: true },
-    
+
     // Account company context
     accountCompanyName: { type: mongoose.Schema.Types.ObjectId, ref: 'Company', required: true, index: true },
-    
+
     // Enquiry type: buy or sell
-    enquiryType: { 
-        type: String, 
-        enum: ['buy', 'sell'], 
-        required: true, 
-        index: true 
+    enquiryType: {
+        type: String,
+        enum: ['buy', 'sell'],
+        required: true,
+        index: true
     },
-    
+
     // Distribution type: how the enquiry is sent
     distributionType: {
         type: String,
@@ -57,11 +59,11 @@ const EnquirySchema = new mongoose.Schema({
         default: 'public',
         index: true
     },
-    
+
     // Target states for public enquiries (only vendors from these states can see)
     // Empty array means all states can see
     targetStates: [{ type: String, trim: true }],
-    
+
     // Target vendors (only used when distributionType is 'vendors')
     // Stores vendor IDs from user's vendor list who are registered on the platform
     targetVendors: [{
@@ -74,7 +76,7 @@ const EnquirySchema = new mongoose.Schema({
         notified: { type: Boolean, default: false },
         notifiedAt: { type: Date }
     }],
-    
+
     // Product details
     productName: { type: String, required: true, trim: true },
     category: { type: String, trim: true, default: "" },
@@ -83,50 +85,50 @@ const EnquirySchema = new mongoose.Schema({
     unit: { type: String, trim: true, default: "" },
     expectedPrice: { type: Number, default: 0 },
     description: { type: String, trim: true, default: "" },
-    
+
     // Specifications/requirements (additional product details)
     specifications: { type: String, trim: true, default: "" },
-    
+
     // Delivery requirements
     deliveryLocation: { type: String, trim: true, default: "" },
     requiredByDate: { type: Date },
-    
+
     // Creator information (denormalized for display)
     creatorName: { type: String, trim: true, default: "" },
     creatorCompany: { type: String, trim: true, default: "" },
     creatorState: { type: String, trim: true, default: "" },
     creatorMobile: { type: String, trim: true, default: "" },
     creatorEmail: { type: String, trim: true, default: "" },
-    
+
     // Responses from other users
     responses: [ResponseSchema],
-    
+
     // Selected/Accepted response
     selectedResponseId: { type: mongoose.Schema.Types.ObjectId, default: null },
     selectedResponderId: { type: mongoose.Schema.Types.ObjectId, default: null },
     selectedAt: { type: Date },
-    
+
     // Response statistics (for quick access)
     responseCount: { type: Number, default: 0 },
     lowestPrice: { type: Number, default: null },
     highestPrice: { type: Number, default: null },
     avgPrice: { type: Number, default: null },
-    
+
     // Status: open or closed
-    status: { 
-        type: String, 
-        enum: ['open', 'closed'], 
+    status: {
+        type: String,
+        enum: ['open', 'closed'],
         default: 'open',
-        index: true 
+        index: true
     },
-    
+
     // Reason for closing
     closureReason: { type: String, trim: true, default: "" },
     closedAt: { type: Date },
-    
+
     // Validity period
     validUntil: { type: Date },
-    
+
     // Meta/audit fields
     isActive: { type: Boolean, default: true },
     isDeleted: { type: Boolean, default: false },
@@ -143,7 +145,7 @@ EnquirySchema.index({ 'targetVendors.chatUserId': 1, status: 1, isDeleted: 1 });
 EnquirySchema.index({ 'responses.responderId': 1 });
 
 // Method to update response statistics
-EnquirySchema.methods.updateResponseStats = function() {
+EnquirySchema.methods.updateResponseStats = function () {
     if (this.responses.length === 0) {
         this.responseCount = 0;
         this.lowestPrice = null;
@@ -151,10 +153,10 @@ EnquirySchema.methods.updateResponseStats = function() {
         this.avgPrice = null;
         return;
     }
-    
+
     const prices = this.responses.map(r => r.price).filter(p => p > 0);
     this.responseCount = this.responses.length;
-    
+
     if (prices.length > 0) {
         this.lowestPrice = Math.min(...prices);
         this.highestPrice = Math.max(...prices);

@@ -151,13 +151,15 @@ async function listPublicEnquiries(req, res, next) {
 
         // Add hasResponded flag for each enquiry - now checks both user AND company
         const itemsWithResponseFlag = items.map(item => {
-            // Check if user has responded from any company
-            const userResponses = item.responses?.filter(r => r.responderId.toString() === ownerId.toString()) || [];
+            // Check if user has responded from any company (filter out soft-deleted responses)
+            const userResponses = item.responses?.filter(r =>
+                r.responderId.toString() === ownerId.toString() && !r.isDeleted
+            ) || [];
             // Check if user has responded from the current company specifically
-            const hasRespondedFromCurrentCompany = userCompanyId 
+            const hasRespondedFromCurrentCompany = userCompanyId
                 ? userResponses.some(r => r.responderCompanyId?.toString() === userCompanyId)
                 : false;
-            
+
             return {
                 ...item,
                 hasResponded: userResponses.length > 0, // Has responded from any company
@@ -240,13 +242,15 @@ async function listVendorEnquiries(req, res, next) {
 
         // Add hasResponded flag for each enquiry - now checks both user AND company
         const itemsWithResponseFlag = items.map(item => {
-            // Check if user has responded from any company
-            const userResponses = item.responses?.filter(r => r.responderId.toString() === ownerId.toString()) || [];
+            // Check if user has responded from any company (filter out soft-deleted responses)
+            const userResponses = item.responses?.filter(r =>
+                r.responderId.toString() === ownerId.toString() && !r.isDeleted
+            ) || [];
             // Check if user has responded from the current company specifically
-            const hasRespondedFromCurrentCompany = userCompanyId 
+            const hasRespondedFromCurrentCompany = userCompanyId
                 ? userResponses.some(r => r.responderCompanyId?.toString() === userCompanyId)
                 : false;
-            
+
             return {
                 ...item,
                 hasResponded: userResponses.length > 0, // Has responded from any company
@@ -351,7 +355,7 @@ async function getOne(req, res, next) {
         // Users can only see full details of their own enquiries
         // or public enquiries (responses are hidden for non-owners)
         const isOwner = doc.ownerId.toString() === ownerId.toString();
-        
+
         const responseData = doc.toObject();
         if (!isOwner) {
             // Hide responses for non-owners
@@ -383,26 +387,29 @@ async function getEnquiryResponses(req, res, next) {
         });
 
         if (!enquiry) {
-            return res.status(404).json({ 
-                success: false, 
-                error: { message: "Enquiry not found or not authorized" } 
+            return res.status(404).json({
+                success: false,
+                error: { message: "Enquiry not found or not authorized" }
             });
         }
 
         let responses = enquiry.responses || [];
 
+        // Filter out soft-deleted responses (blocked users)
+        responses = responses.filter(r => !r.isDeleted);
+
         // Sort responses
         if (sort === 'price') {
-            responses = responses.sort((a, b) => 
+            responses = responses.sort((a, b) =>
                 sortDir === 'asc' ? a.price - b.price : b.price - a.price
             );
         } else if (sort === 'quantity') {
-            responses = responses.sort((a, b) => 
+            responses = responses.sort((a, b) =>
                 sortDir === 'asc' ? a.quantity - b.quantity : b.quantity - a.quantity
             );
         } else if (sort === 'date') {
-            responses = responses.sort((a, b) => 
-                sortDir === 'asc' 
+            responses = responses.sort((a, b) =>
+                sortDir === 'asc'
                     ? new Date(a.respondedAt) - new Date(b.respondedAt)
                     : new Date(b.respondedAt) - new Date(a.respondedAt)
             );
@@ -667,9 +674,11 @@ async function respond(req, res, next) {
 
         // Check if user has already responded FROM THE SAME COMPANY
         // Users can respond multiple times from different companies
+        // Filter out soft-deleted responses when checking
         const alreadyRespondedFromSameCompany = enquiry.responses.some(
-            r => r.responderId.toString() === responderId.toString() && 
-                 r.responderCompanyId?.toString() === responderCompanyId?.toString()
+            r => r.responderId.toString() === responderId.toString() &&
+                r.responderCompanyId?.toString() === responderCompanyId?.toString() &&
+                !r.isDeleted
         );
 
         if (alreadyRespondedFromSameCompany) {
@@ -771,11 +780,11 @@ async function closeEnquiry(req, res, next) {
                 accountCompanyName: companyId,
                 isDeleted: false,
             },
-            { 
-                status: 'closed', 
+            {
+                status: 'closed',
                 closureReason,
                 closedAt: new Date(),
-                updatedBy: req.user.id 
+                updatedBy: req.user.id
             },
             { new: true }
         );
@@ -896,6 +905,14 @@ async function selectResponse(req, res, next) {
             });
         }
 
+        // Check if response is soft-deleted (blocked user)
+        if (selectedResponse.isDeleted) {
+            return res.status(404).json({
+                success: false,
+                error: { message: "This response is no longer available" }
+            });
+        }
+
         const now = new Date();
 
         // Update all responses in the enquiry
@@ -931,8 +948,8 @@ async function selectResponse(req, res, next) {
         // Accept the selected one
         await EnquiryResponse.findOneAndUpdate(
             { enquiryId, responderId: selectedResponse.responderId },
-            { 
-                selectionStatus: 'accepted', 
+            {
+                selectionStatus: 'accepted',
                 selectionStatusUpdatedAt: now,
                 selectionNote,
                 'enquiryDetails.enquiryStatus': 'closed'
@@ -941,19 +958,19 @@ async function selectResponse(req, res, next) {
 
         // Reject all other responses
         await EnquiryResponse.updateMany(
-            { 
-                enquiryId, 
+            {
+                enquiryId,
                 responderId: { $ne: selectedResponse.responderId }
             },
-            { 
-                selectionStatus: 'rejected', 
+            {
+                selectionStatus: 'rejected',
                 selectionStatusUpdatedAt: now,
                 'enquiryDetails.enquiryStatus': 'closed'
             }
         );
 
-        return res.json({ 
-            success: true, 
+        return res.json({
+            success: true,
             data: enquiry,
             message: "Response accepted successfully. Other responses have been rejected."
         });
@@ -962,17 +979,17 @@ async function selectResponse(req, res, next) {
     }
 }
 
-module.exports = { 
-    listMyEnquiries, 
-    listPublicEnquiries, 
+module.exports = {
+    listMyEnquiries,
+    listPublicEnquiries,
     listVendorEnquiries,
     listMyResponses,
-    getOne, 
+    getOne,
     getEnquiryResponses,
     getRegisteredVendors,
-    create, 
-    remove, 
-    respond, 
+    create,
+    remove,
+    respond,
     closeEnquiry,
     markResponseViewed,
     selectResponse,
