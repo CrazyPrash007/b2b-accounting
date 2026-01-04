@@ -330,7 +330,6 @@ exports.getDashboardStats = async (req, res, next) => {
             dateRange: dateRange
         };
 
-        console.log('Dashboard Stats:', JSON.stringify(stats, null, 2));
         res.json(stats);
 
     } catch (error) {
