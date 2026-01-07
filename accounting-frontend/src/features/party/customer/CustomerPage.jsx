@@ -590,12 +590,14 @@ export default function CustomerPage() {
     const navigate = useNavigate();
     const location = useLocation();
 
-    const { rows: customers = [], loading, error, reload, create, update, remove } =
+    const { rows: customers = [], meta = {}, loading, error, reload, create, update, remove } =
         useCustomer({ useLocalFallback: true });
 
     const [selectedCell, setSelectedCell] = useState(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingCustomer, setEditingCustomer] = useState(null);
+
+    const totalPending = meta.totalPending || 0;
 
     useEffect(() => {
         if (location.state?.savedCustomer || location.state?.deletedCustomerId) {
@@ -796,6 +798,11 @@ export default function CustomerPage() {
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
                         </svg>
                     </button>
+                    {totalPending !== 0 && (
+                        <div className={`px-3 py-1 rounded-md text-sm font-semibold ${totalPending >= 0 ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                            Total Pending: ₹{Math.abs(totalPending).toFixed(2)} {totalPending >= 0 ? '(Receivable)' : '(Payable)'}
+                        </div>
+                    )}
                 </div>
                 <button
                     onClick={handleOpenCreate}
@@ -878,7 +885,13 @@ export default function CustomerPage() {
                                     <th className="min-w-[140px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
                                         <div className="flex items-center gap-2">
                                             <span className="text-gray-400 cursor-grab">⋮⋮</span>
-                                            <span>Balance</span>
+                                            <span>Pending Amount</span>
+                                        </div>
+                                    </th>
+                                    <th className="min-w-[140px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-gray-400 cursor-grab">⋮⋮</span>
+                                            <span>Opening Balance</span>
                                         </div>
                                     </th>
                                     <th className="min-w-[180px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
@@ -943,38 +956,44 @@ export default function CustomerPage() {
                                             {customer.companyName || "-"}
                                         </td>
                                         <td
-                                            className={getCellClasses(rowIndex, 3) + " text-left text-gray-600"}
+                                            className={getCellClasses(rowIndex, 3) + ` text-left font-semibold ${customer.pendingAmount >= 0 ? 'text-green-700' : 'text-red-700'}`}
                                             onClick={(e) => { e.stopPropagation(); handleCellClick(rowIndex, 3); navigate(`/customer/${customer.id || customer._id}`); }}
                                         >
-                                            {customer.openingBalanceAmount ? `₹${customer.openingBalanceAmount} (${customer.openingBalanceType})` : '-'}
+                                            {customer.pendingAmount != null ? `₹${Math.abs(customer.pendingAmount).toFixed(2)}` : '-'}
                                         </td>
                                         <td
                                             className={getCellClasses(rowIndex, 4) + " text-left text-gray-600"}
                                             onClick={(e) => { e.stopPropagation(); handleCellClick(rowIndex, 4); navigate(`/customer/${customer.id || customer._id}`); }}
                                         >
-                                            {customer.emailAddress || "-"}
+                                            {customer.openingBalanceAmount ? `₹${customer.openingBalanceAmount} (${customer.openingBalanceType})` : '-'}
                                         </td>
                                         <td
                                             className={getCellClasses(rowIndex, 5) + " text-left text-gray-600"}
                                             onClick={(e) => { e.stopPropagation(); handleCellClick(rowIndex, 5); navigate(`/customer/${customer.id || customer._id}`); }}
                                         >
-                                            {customer.gstType || "-"}
+                                            {customer.emailAddress || "-"}
                                         </td>
                                         <td
                                             className={getCellClasses(rowIndex, 6) + " text-left text-gray-600"}
                                             onClick={(e) => { e.stopPropagation(); handleCellClick(rowIndex, 6); navigate(`/customer/${customer.id || customer._id}`); }}
                                         >
-                                            {customer.billingAddress || "-"}
+                                            {customer.gstType || "-"}
                                         </td>
                                         <td
                                             className={getCellClasses(rowIndex, 7) + " text-left text-gray-600"}
                                             onClick={(e) => { e.stopPropagation(); handleCellClick(rowIndex, 7); navigate(`/customer/${customer.id || customer._id}`); }}
                                         >
-                                            {customer.billingDistrict || "-"}
+                                            {customer.billingAddress || "-"}
                                         </td>
                                         <td
                                             className={getCellClasses(rowIndex, 8) + " text-left text-gray-600"}
                                             onClick={(e) => { e.stopPropagation(); handleCellClick(rowIndex, 8); navigate(`/customer/${customer.id || customer._id}`); }}
+                                        >
+                                            {customer.billingDistrict || "-"}
+                                        </td>
+                                        <td
+                                            className={getCellClasses(rowIndex, 9) + " text-left text-gray-600"}
+                                            onClick={(e) => { e.stopPropagation(); handleCellClick(rowIndex, 9); navigate(`/customer/${customer.id || customer._id}`); }}
                                         >
                                             {customer.billingState || "-"}
                                         </td>
@@ -1012,6 +1031,7 @@ export default function CustomerPage() {
                                             <td className={getCellClasses(rowIndex, 6)} onClick={() => handleCellClick(rowIndex, 6)}></td>
                                             <td className={getCellClasses(rowIndex, 7)} onClick={() => handleCellClick(rowIndex, 7)}></td>
                                             <td className={getCellClasses(rowIndex, 8)} onClick={() => handleCellClick(rowIndex, 8)}></td>
+                                            <td className={getCellClasses(rowIndex, 9)} onClick={() => handleCellClick(rowIndex, 9)}></td>
                                             <td className={`h-8 px-4 sticky right-0 z-10 border-l border-gray-400 ${rowIndex % 2 === 0 ? 'bg-blue-50' : 'bg-white'}`} style={{ boxShadow: '-4px 0 8px -2px rgba(0, 0, 0, 0.1)' }}></td>
                                         </tr>
                                     );
