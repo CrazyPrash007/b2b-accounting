@@ -1,5 +1,6 @@
 // src/features/company/components/AddCompanyForm.jsx
 import React, { useState, useRef, useEffect } from "react";
+import { BUSINESS_TYPES, INDUSTRY_TYPES } from "../../../lib/enums";
 
 /**
  * AddCompanyForm - Self-contained form for creating a new company
@@ -24,6 +25,8 @@ export default function AddCompanyForm({ onCreated, onCancel, createCompanyFn })
         country: "India",
         mobile: "",
         email: "",
+        businessTypeOther: "",
+        industryTypeOther: "",
     });
 
     const [errors, setErrors] = useState({});
@@ -35,21 +38,8 @@ export default function AddCompanyForm({ onCreated, onCancel, createCompanyFn })
     const refsOrder = useRef([]);
     const setRef = (idx) => (el) => (refsOrder.current[idx] = el);
 
-    const businessTypes = [
-        { value: "proprietorship", label: "Proprietorship" },
-        { value: "partnership", label: "Partnership" },
-        { value: "private_ltd", label: "Private Limited" },
-        { value: "llp", label: "LLP" },
-    ];
-
-    const industries = [
-        { value: "it", label: "IT & Software" },
-        { value: "manufacturing", label: "Manufacturing" },
-        { value: "retail", label: "Retail" },
-        { value: "services", label: "Services" },
-        { value: "trading", label: "Trading" },
-        { value: "other", label: "Other" },
-    ];
+    const businessTypes = BUSINESS_TYPES.map(type => ({ value: type, label: type }));
+    const industries = INDUSTRY_TYPES.map(type => ({ value: type, label: type }));
 
     const registrationOptions = [
         { value: "regular", label: "Regular" },
@@ -131,6 +121,12 @@ export default function AddCompanyForm({ onCreated, onCancel, createCompanyFn })
         if (!formData.businessType) {
             newErrors.businessType = "Business type is required";
         }
+        if (formData.businessType === "Other" && !formData.businessTypeOther.trim()) {
+            newErrors.businessTypeOther = "Please specify your business type";
+        }
+        if (formData.industryType === "Other" && !formData.industryTypeOther.trim()) {
+            newErrors.industryTypeOther = "Please specify your industry type";
+        }
         // GSTIN validation (optional, but if provided should be 15 chars)
         // Skip validation if registration type is unregistered
         const gstin = (formData.gstin || "").trim();
@@ -197,8 +193,8 @@ export default function AddCompanyForm({ onCreated, onCancel, createCompanyFn })
         try {
             const payload = {
                 companyName: formData.companyName.trim(),
-                businessType: formData.businessType || undefined,
-                industryType: formData.industryType || undefined,
+                businessType: formData.businessType === "Other" ? formData.businessTypeOther.trim() : formData.businessType || undefined,
+                industryType: formData.industryType === "Other" ? formData.industryTypeOther.trim() : formData.industryType || undefined,
                 registrationType: formData.registrationType || "unregistered",
                 gstin: formData.gstin.trim() || undefined,
                 addressLine1: formData.addressLine1.trim() || undefined,
@@ -443,12 +439,31 @@ export default function AddCompanyForm({ onCreated, onCancel, createCompanyFn })
                                         name="businessType"
                                         options={businessTypes}
                                         value={formData.businessType}
-                                        onChange={(v) => handleChange("businessType")({ target: { value: v } })}
+                                        onChange={(v) => {
+                                            handleChange("businessType")({ target: { value: v } });
+                                            if (v !== "Other") {
+                                                handleChange("businessTypeOther")({ target: { value: "" } });
+                                            }
+                                        }}
                                         inputRef={setRef(1)}
                                         onEnterNext={() => focusNext(1)}
                                         placeholder="Select type"
                                     />
                                     {errors.businessType && <p className="text-xs text-red-600 mt-1">{errors.businessType}</p>}
+                                    
+                                    {formData.businessType === "Other" && (
+                                        <div className="mt-2">
+                                            <input
+                                                type="text"
+                                                value={formData.businessTypeOther}
+                                                onChange={handleChange("businessTypeOther")}
+                                                placeholder="Specify business type"
+                                                className={`w-full px-3 py-2 rounded-lg border transition-all text-sm ${errors.businessTypeOther ? "border-red-400 bg-red-50" : "border-slate-200 focus:border-indigo-500"} focus:outline-none focus:ring-2 focus:ring-indigo-100`}
+                                                autoFocus
+                                            />
+                                            {errors.businessTypeOther && <p className="text-xs text-red-600 mt-1">{errors.businessTypeOther}</p>}
+                                        </div>
+                                    )}
                                 </div>
                                 <div className="relative z-20">
                                     <label className="block text-xs font-medium text-slate-600 mb-1.5">Industry Type</label>
@@ -456,11 +471,30 @@ export default function AddCompanyForm({ onCreated, onCancel, createCompanyFn })
                                         name="industryType"
                                         options={industries}
                                         value={formData.industryType}
-                                        onChange={(v) => handleChange("industryType")({ target: { value: v } })}
+                                        onChange={(v) => {
+                                            handleChange("industryType")({ target: { value: v } });
+                                            if (v !== "Other") {
+                                                handleChange("industryTypeOther")({ target: { value: "" } });
+                                            }
+                                        }}
                                         inputRef={setRef(2)}
                                         onEnterNext={() => focusNext(2)}
                                         placeholder="Select industry"
                                     />
+                                    
+                                    {formData.industryType === "Other" && (
+                                        <div className="mt-2">
+                                            <input
+                                                type="text"
+                                                value={formData.industryTypeOther}
+                                                onChange={handleChange("industryTypeOther")}
+                                                placeholder="Specify industry type"
+                                                className={`w-full px-3 py-2 rounded-lg border transition-all text-sm ${errors.industryTypeOther ? "border-red-400 bg-red-50" : "border-slate-200 focus:border-indigo-500"} focus:outline-none focus:ring-2 focus:ring-indigo-100`}
+                                                autoFocus
+                                            />
+                                            {errors.industryTypeOther && <p className="text-xs text-red-600 mt-1">{errors.industryTypeOther}</p>}
+                                        </div>
+                                    )}
                                 </div>
                                 <div className="relative z-10">
                                     <label className="block text-xs font-medium text-slate-600 mb-1.5">Registration Type</label>
