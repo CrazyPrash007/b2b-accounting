@@ -15,6 +15,7 @@ export default function VendorModal({ isOpen, onClose, onSave, onDelete, editDat
     // Company Details
     const [companyName, setCompanyName] = useState("");
     const [gstType, setGstType] = useState("Unregistered");
+    const [gstNumber, setGstNumber] = useState("");
 
     // Billing Details
     const [billingAddress, setBillingAddress] = useState("");
@@ -65,6 +66,7 @@ export default function VendorModal({ isOpen, onClose, onSave, onDelete, editDat
                 setWebsiteLink(editData.websiteLink ?? "");
                 setCompanyName(editData.companyName ?? "");
                 setGstType(editData.gstType ?? "Unregistered");
+                setGstNumber(editData.gstNumber ?? "");
                 setBillingAddress(editData.billingAddress ?? "");
                 setBillingPinCode(editData.billingPinCode ?? "");
                 setBillingVillage(editData.billingVillage ?? "");
@@ -90,6 +92,7 @@ export default function VendorModal({ isOpen, onClose, onSave, onDelete, editDat
                 setWebsiteLink("");
                 setCompanyName("");
                 setGstType("Unregistered");
+                setGstNumber("");
                 setBillingAddress("");
                 setBillingPinCode("");
                 setBillingVillage("");
@@ -124,6 +127,11 @@ export default function VendorModal({ isOpen, onClose, onSave, onDelete, editDat
             return;
         }
 
+        if (gstType !== "Unregistered" && !gstNumber.trim()) {
+            alert("GST number is required for Regular or Composition GST type");
+            return;
+        }
+
         const payload = {
             id: editData?.id ?? String(Date.now()),
             vendorName: trimmedName,
@@ -134,6 +142,7 @@ export default function VendorModal({ isOpen, onClose, onSave, onDelete, editDat
             websiteLink: websiteLink.trim(),
             companyName: companyName.trim(),
             gstType,
+            gstNumber: gstType === "Unregistered" ? "" : gstNumber.trim(),
             billingAddress: billingAddress.trim(),
             billingPinCode: billingPinCode.trim(),
             billingVillage: billingVillage.trim(),
@@ -162,10 +171,10 @@ export default function VendorModal({ isOpen, onClose, onSave, onDelete, editDat
             e.preventDefault();
             const form = e.target.closest('[data-form-container]');
             if (!form) return;
-            
+
             const inputs = Array.from(form.querySelectorAll('input, select, textarea'));
             const currentIndex = inputs.indexOf(e.target);
-            
+
             if (currentIndex !== -1 && currentIndex < inputs.length - 1) {
                 inputs[currentIndex + 1].focus();
             }
@@ -265,7 +274,11 @@ export default function VendorModal({ isOpen, onClose, onSave, onDelete, editDat
                             <label className="block text-sm font-medium text-gray-700 mb-1">GST Type</label>
                             <select
                                 value={gstType}
-                                onChange={(e) => setGstType(e.target.value)}
+                                onChange={(e) => {
+                                    const value = e.target.value;
+                                    setGstType(value);
+                                    if (value === "Unregistered") setGstNumber("");
+                                }}
                                 className={baseInput}
                             >
                                 <option value="Regular">Regular</option>
@@ -273,6 +286,19 @@ export default function VendorModal({ isOpen, onClose, onSave, onDelete, editDat
                                 <option value="Unregistered">Unregistered</option>
                             </select>
                         </div>
+                        {gstType !== "Unregistered" && (
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">GST Number</label>
+                                <input
+                                    type="text"
+                                    value={gstNumber}
+                                    onChange={(e) => setGstNumber(e.target.value.toUpperCase())}
+                                    className={baseInput}
+                                    placeholder="Enter GSTIN"
+                                    maxLength={15}
+                                />
+                            </div>
+                        )}
                     </div>
                 </div>
 

@@ -130,6 +130,27 @@ async function create(req, res, next) {
             createdBy: req.user.id
         };
 
+        // Debug: log incoming GST fields
+        console.log('[Vendor Create] Incoming gstType:', req.body.gstType, 'gstNumber:', req.body.gstNumber);
+
+        const gstType = (payload.gstType || "Unregistered").trim();
+        const gstNumber = gstType === "Unregistered"
+            ? ""
+            : String(payload.gstNumber || "").trim().toUpperCase();
+
+        console.log('[Vendor Create] Processed gstType:', gstType, 'gstNumber:', gstNumber);
+
+        if (gstType !== "Unregistered" && !gstNumber) {
+            console.log('[Vendor Create] Rejecting: GST number missing for', gstType);
+            return res.status(400).json({
+                success: false,
+                error: { message: "GST number is required for Regular or Composition GST type" }
+            });
+        }
+
+        payload.gstType = gstType;
+        payload.gstNumber = gstNumber;
+
         if (!payload.vendorName) {
             return res.status(400).json({
                 success: false,
@@ -224,6 +245,26 @@ async function update(req, res, next) {
         const id = req.params.id;
 
         const payload = { ...req.body, updatedBy: req.user.id };
+
+        const gstTypeProvided = payload.gstType !== undefined;
+        const gstType = gstTypeProvided ? (payload.gstType || "Unregistered").trim() : undefined;
+        const gstNumberProvided = payload.gstNumber !== undefined;
+
+        if (gstTypeProvided) {
+            payload.gstType = gstType;
+            payload.gstNumber = gstType === "Unregistered"
+                ? ""
+                : String(payload.gstNumber || "").trim().toUpperCase();
+
+            if (gstType !== "Unregistered" && !payload.gstNumber) {
+                return res.status(400).json({
+                    success: false,
+                    error: { message: "GST number is required for Regular or Composition GST type" }
+                });
+            }
+        } else if (gstNumberProvided) {
+            payload.gstNumber = String(payload.gstNumber || "").trim().toUpperCase();
+        }
 
         // Normalize numbers
         if (payload.openingBalanceAmount !== undefined) {

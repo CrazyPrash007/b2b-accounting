@@ -31,6 +31,9 @@ const create = Joi.object({
     gstType: Joi.string().valid('Regular', 'Composition', 'Unregistered').optional().messages({
         'any.only': 'GST type must be Regular, Composition, or Unregistered'
     }),
+    gstNumber: Joi.string().trim().allow('').optional().messages({
+        'string.base': 'GST number must be a valid string'
+    }),
 
     // Billing Details
     billingAddress: baseString(),
