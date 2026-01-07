@@ -863,7 +863,6 @@ export default function ReceiptPage() {
             { header: 'Balance', key: 'balance' },
             { header: 'Payment Method', key: 'paymentMethod' },
             { header: 'Invoice', key: 'invoice' },
-            { header: 'Reference Number', key: 'referenceNumber' },
             { header: 'Status', key: 'status' },
             { header: 'Description', key: 'description' },
         ];
@@ -898,7 +897,6 @@ export default function ReceiptPage() {
                 balance: receipt.invoiceId && !receipt.linkedSales?.length ? '-' : remaining,
                 paymentMethod: receipt.paymentMethod || '-',
                 invoice: receipt.invoiceLabel || receipt.invoice || (receipt.linkedSales?.length > 0 ? `${receipt.linkedSales.length} invoice(s)` : '-'),
-                referenceNumber: receipt.referenceNumber || '-',
                 status: statusText,
                 description: receipt.description || '-',
             };
@@ -1096,12 +1094,7 @@ export default function ReceiptPage() {
                                             <span>Invoice</span>
                                         </div>
                                     </th>
-                                    <th className="min-w-[110px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
-                                        <div className="flex items-center gap-2">
-                                            <span className="text-gray-400 cursor-grab">⋮⋮</span>
-                                            <span>Reference</span>
-                                        </div>
-                                    </th>
+                                    {/* Reference column removed */}
                                     <th className="min-w-[110px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
                                         <div className="flex items-center gap-2">
                                             <span className="text-gray-400 cursor-grab">⋮⋮</span>
@@ -1140,9 +1133,6 @@ export default function ReceiptPage() {
                                             {receipt.invoiceLabel || receipt.invoice || (receipt.linkedSales?.length > 0 ? `${receipt.linkedSales.length} invoice(s)` : "-")}
                                         </td>
                                         <td className={getCellClasses(rowIndex, 6) + " text-left text-gray-600"} onClick={() => handleCellClick(rowIndex, 6)}>
-                                            {receipt.referenceNumber || "-"}
-                                        </td>
-                                        <td className={getCellClasses(rowIndex, 7) + " text-left text-gray-600"} onClick={() => handleCellClick(rowIndex, 7)}>
                                             {getStatusBadge(receipt)}
                                         </td>
                                         <td className={`h-8 px-4 text-left sticky right-0 z-10 border-l border-gray-400 ${rowIndex % 2 === 0 ? 'bg-blue-50' : 'bg-white'}`} style={{ boxShadow: '-4px 0 8px -2px rgba(0, 0, 0, 0.1)' }}>
@@ -1170,7 +1160,6 @@ export default function ReceiptPage() {
                                             <td className={getCellClasses(rowIndex, 4)}></td>
                                             <td className={getCellClasses(rowIndex, 5)}></td>
                                             <td className={getCellClasses(rowIndex, 6)}></td>
-                                            <td className={getCellClasses(rowIndex, 7)}></td>
                                             <td className={`h-8 px-4 sticky right-0 z-10 border-l border-gray-400 ${rowIndex % 2 === 0 ? 'bg-blue-50' : 'bg-white'}`}></td>
                                         </tr>
                                     );

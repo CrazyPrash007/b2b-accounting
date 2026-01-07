@@ -26,6 +26,12 @@ const CustomerSchema = new mongoose.Schema({
     companyNameNorm: { type: String, trim: true, default: "" },
 
     gstType: { type: String, trim: true, default: "Unregistered" },
+    gstNumber: {
+        type: String,
+        trim: true,
+        default: "",
+        uppercase: true,
+    },
 
     // Billing Details
     billingAddress: { type: String, trim: true, default: "" },
