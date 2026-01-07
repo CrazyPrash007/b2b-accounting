@@ -135,6 +135,21 @@ async function create(req, res, next) {
         payload.customerNameNorm = normalizeString(payload.customerName);
         payload.companyNameNorm = normalizeString(payload.companyName);
 
+        const gstType = (payload.gstType || "Unregistered").trim();
+        const gstNumber = gstType === "Unregistered"
+            ? ""
+            : String(payload.gstNumber || "").trim().toUpperCase();
+
+        if (gstType !== "Unregistered" && !gstNumber) {
+            return res.status(400).json({
+                success: false,
+                error: { message: "GST number is required for Regular or Composition GST type" },
+            });
+        }
+
+        payload.gstType = gstType;
+        payload.gstNumber = gstNumber;
+
         // Prevent duplicates (scoped by owner + company)
         const exists = await Customer.findOne({
             ownerId,
@@ -210,6 +225,28 @@ async function update(req, res, next) {
             ...req.body,
             updatedBy: req.user.id,
         };
+
+        // GST handling: normalize and do not wipe existing number unless explicitly changing type
+        const gstTypeProvided = payload.gstType !== undefined;
+        const gstType = gstTypeProvided ? (payload.gstType || "Unregistered").trim() : undefined;
+        const gstNumberProvided = payload.gstNumber !== undefined;
+
+        if (gstTypeProvided) {
+            payload.gstType = gstType;
+            payload.gstNumber = gstType === "Unregistered"
+                ? ""
+                : String(payload.gstNumber || "").trim().toUpperCase();
+
+            if (gstType !== "Unregistered" && !payload.gstNumber) {
+                return res.status(400).json({
+                    success: false,
+                    error: { message: "GST number is required for Regular or Composition GST type" },
+                });
+            }
+        } else if (gstNumberProvided) {
+            // gstType unchanged, but number provided
+            payload.gstNumber = String(payload.gstNumber || "").trim().toUpperCase();
+        }
 
         // Normalize if customerName/companyName was modified
         if (payload.customerName !== undefined) {

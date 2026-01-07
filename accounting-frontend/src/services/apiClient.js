@@ -65,6 +65,12 @@ const apiClient = axios.create({
 // ---------------------------------------------------------
 apiClient.interceptors.request.use(
     config => {
+        // Debug: log outgoing request body
+        if (config.data) {
+            console.log('[apiClient] Request body:', config.data);
+            console.log('[apiClient] gstNumber in body:', config.data.gstNumber);
+        }
+
         // Inject auth token
         const token = localStorage.getItem('token');
         if (token && isValidTokenFormat(token)) {
