@@ -29,7 +29,8 @@ export default function RevenueManagement({ data, period, onPeriodChange }) {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <ManageItem 
                     label="Invoice Receivable" 
-                    amount={data?.invoiceReceivableCount || 0} 
+                    count={data?.invoiceReceivableCount || 0}
+                    amount={formatAmount(data?.invoiceReceivableAmount)} 
                     icon="📄" 
                     bg="bg-orange-50" 
                 />
@@ -41,7 +42,8 @@ export default function RevenueManagement({ data, period, onPeriodChange }) {
                 />
                 <ManageItem 
                     label="Bills Payable" 
-                    amount={data?.billsPayableCount || 0} 
+                    count={data?.billsPayableCount || 0}
+                    amount={formatAmount(data?.billsPayableAmount)} 
                     icon="📦" 
                     bg="bg-yellow-50" 
                 />
@@ -56,15 +58,25 @@ export default function RevenueManagement({ data, period, onPeriodChange }) {
     );
 }
 
-function ManageItem({ label, amount, icon, bg }) {
+function ManageItem({ label, amount, count, icon, bg }) {
     return (
         <div className="flex items-center gap-3 p-3 border border-gray-100 rounded-lg bg-white">
-            <div className={`min-w-[40px] h-[40px] rounded-lg ${bg} flex items-center justify-center text-lg`}>
+            <div className={`min-w-10 h-10 rounded-lg ${bg} flex items-center justify-center text-lg`}>
                 {icon}
             </div>
             <div className="overflow-hidden">
-                <div className="text-lg font-bold text-gray-900 leading-none">{amount}</div>
-                <div className="text-xs text-gray-500 mt-1 truncate">{label}</div>
+                {count !== undefined ? (
+                    <>
+                        <div className="text-lg font-bold text-gray-900 leading-none">{count}</div>
+                        <div className="text-xs text-gray-500 mt-1 truncate">{label}</div>
+                        <div className="text-sm font-semibold text-gray-700 mt-1">{amount}</div>
+                    </>
+                ) : (
+                    <>
+                        <div className="text-lg font-bold text-gray-900 leading-none">{amount}</div>
+                        <div className="text-xs text-gray-500 mt-1 truncate">{label}</div>
+                    </>
+                )}
             </div>
         </div>
     );
