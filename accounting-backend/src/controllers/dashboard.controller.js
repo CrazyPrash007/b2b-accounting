@@ -7,6 +7,57 @@ const Income = require('../models/Income');
 const Receipt = require('../models/Receipt');
 const Payment = require('../models/Payment');
 const Item = require('../models/Item');
+const Bank = require('../models/Bank');
+
+/**
+ * Calculate current stock for an item (centralized logic)
+ * Stock = Opening Stock + Total Purchases - Total Sales
+ */
+async function calculateItemStock(itemId, itemName, openingStock, ownerId, companyId) {
+    let stock = Number(openingStock) || 0;
+    const itemIdStr = itemId ? itemId.toString() : null;
+    const normalizedItemName = itemName ? itemName.toLowerCase().trim() : '';
+
+    // Add purchases
+    const purchases = await Purchase.find({
+        ownerId,
+        accountCompanyName: companyId,
+        isDeleted: false
+    }).lean();
+
+    for (const purchase of purchases) {
+        for (const item of purchase.items) {
+            const matchById = item.itemId && itemIdStr && item.itemId.toString() === itemIdStr;
+            const matchByName = normalizedItemName && item.name && 
+                item.name.toLowerCase().trim() === normalizedItemName;
+            
+            if (matchById || matchByName) {
+                stock += Number(item.qty) || 0;
+            }
+        }
+    }
+
+    // Subtract sales
+    const sales = await Sale.find({
+        ownerId,
+        accountCompanyName: companyId,
+        isDeleted: false
+    }).lean();
+
+    for (const sale of sales) {
+        for (const item of sale.items) {
+            const matchById = item.itemId && itemIdStr && item.itemId.toString() === itemIdStr;
+            const matchByName = normalizedItemName && item.name && 
+                item.name.toLowerCase().trim() === normalizedItemName;
+            
+            if (matchById || matchByName) {
+                stock -= Number(item.qty) || 0;
+            }
+        }
+    }
+
+    return stock;
+}
 
 /**
  * GET /api/dashboard/stats
@@ -201,16 +252,33 @@ exports.getDashboardStats = async (req, res, next) => {
                 }
             ]),
 
-            // Low stock items (no date filter)
-            Item.find({
-                ...baseQuery,
-                isActive: true,
-                $expr: { $lte: ['$openingStock', '$minStock'] },
-                minStock: { $gt: 0 }
-            })
-                .select('name openingStock minStock unit')
-                .limit(10)
-                .lean(),
+            // Low stock items - calculate actual current stock
+            (async () => {
+                const items = await Item.find({
+                    ...baseQuery,
+                    isActive: true,
+                    minStock: { $gt: 0 }
+                })
+                    .select('name openingStock minStock unit buyPrice')
+                    .lean();
+                
+                // Calculate current stock for each item
+                const itemsWithStock = await Promise.all(items.map(async (item) => {
+                    const currentStock = await calculateItemStock(
+                        item._id,
+                        item.name,
+                        item.openingStock,
+                        new mongoose.Types.ObjectId(ownerId),
+                        companyObjectId
+                    );
+                    return { ...item, currentStock };
+                }));
+                
+                // Filter to only low stock items (current stock <= min stock)
+                return itemsWithStock
+                    .filter(item => item.currentStock <= item.minStock)
+                    .slice(0, 10);
+            })(),
 
             // Top sales items by amount
             Sale.aggregate([
@@ -266,18 +334,21 @@ exports.getDashboardStats = async (req, res, next) => {
             }
         ]);
 
-        // Calculate total stock value
-        const stockValue = await Item.aggregate([
-            { $match: baseQuery },
-            {
-                $group: {
-                    _id: null,
-                    totalStockValue: {
-                        $sum: { $multiply: ['$openingStock', '$buyPrice'] }
-                    }
-                }
-            }
-        ]);
+        // Calculate total stock value using CURRENT stock (not opening stock)
+        const allItems = await Item.find(baseQuery).select('name openingStock buyPrice').lean();
+        let totalStockValue = 0;
+        
+        for (const item of allItems) {
+            const currentStock = await calculateItemStock(
+                item._id,
+                item.name,
+                item.openingStock,
+                new mongoose.Types.ObjectId(ownerId),
+                companyObjectId
+            );
+            // Stock value = current stock * buy price
+            totalStockValue += (currentStock > 0 ? currentStock : 0) * (Number(item.buyPrice) || 0);
+        }
 
         // Build response
         const stats = {
@@ -297,15 +368,14 @@ exports.getDashboardStats = async (req, res, next) => {
             },
             totalIncome: {
                 totalIncome: incomeStats[0]?.totalIncome || 0,
-                totalStockValue: stockValue[0]?.totalStockValue || 0
+                totalStockValue: totalStockValue
             },
             revenueInflow: {
                 totalCashCollected: receiptStats[0]?.totalCashCollected || 0,
                 cashCollections: receiptStats[0]?.cashCollections || 0,
                 bankCollections: receiptStats[0]?.bankCollections || 0,
-                // Balance calculations would need Bank model integration
-                totalCashBalance: 0, // TODO: integrate with Bank model
-                totalBankBalance: 0  // TODO: integrate with Bank model
+                totalCashBalance: await calculateCashBalance(ownerId, companyObjectId),
+                totalBankBalance: await calculateBankBalance(ownerId, companyObjectId)
             },
             revenueManagement: {
                 invoiceReceivableCount: salesStats[0]?.invoiceReceivableCount || 0,
@@ -317,7 +387,7 @@ exports.getDashboardStats = async (req, res, next) => {
             },
             lowStockItems: lowStockItems.map(item => ({
                 name: item.name,
-                currentStock: item.openingStock,
+                currentStock: item.currentStock,
                 minStock: item.minStock,
                 unit: item.unit
             })),
@@ -383,4 +453,117 @@ function getDateRange(period, customStart, customEnd) {
     }
 
     return { start, end };
+}
+
+/**
+ * Calculate total cash balance
+ * Cash Balance = Cash Receipts - Cash Payments
+ */
+async function calculateCashBalance(ownerId, companyId) {
+    // Get all cash receipts
+    const cashReceipts = await Receipt.aggregate([
+        {
+            $match: {
+                ownerId: new mongoose.Types.ObjectId(ownerId),
+                accountCompanyName: companyId,
+                isDeleted: false,
+                paymentMethod: 'Cash'
+            }
+        },
+        {
+            $group: {
+                _id: null,
+                total: { $sum: '$amount' }
+            }
+        }
+    ]);
+
+    // Get all cash payments
+    const cashPayments = await Payment.aggregate([
+        {
+            $match: {
+                ownerId: new mongoose.Types.ObjectId(ownerId),
+                accountCompanyName: companyId,
+                isDeleted: false,
+                paymentMethod: 'Cash'
+            }
+        },
+        {
+            $group: {
+                _id: null,
+                total: { $sum: '$amount' }
+            }
+        }
+    ]);
+
+    const totalCashIn = cashReceipts[0]?.total || 0;
+    const totalCashOut = cashPayments[0]?.total || 0;
+
+    return totalCashIn - totalCashOut;
+}
+
+/**
+ * Calculate total bank balance across all bank accounts
+ * Bank Balance = Opening Balance + Bank Receipts - Bank Payments
+ */
+async function calculateBankBalance(ownerId, companyId) {
+    // Get all bank accounts and their opening balances
+    const banks = await Bank.find({
+        ownerId: new mongoose.Types.ObjectId(ownerId),
+        accountCompanyName: companyId,
+        isDeleted: false,
+        isActive: true
+    }).select('openingBalance openingBalanceType').lean();
+
+    // Calculate total opening balance (Credit is positive, Debit is negative)
+    let openingBalance = 0;
+    for (const bank of banks) {
+        const balance = Number(bank.openingBalance) || 0;
+        if (bank.openingBalanceType === 'Credit') {
+            openingBalance += balance;
+        } else {
+            openingBalance -= balance;
+        }
+    }
+
+    // Get all bank receipts (non-cash payment methods)
+    const bankReceipts = await Receipt.aggregate([
+        {
+            $match: {
+                ownerId: new mongoose.Types.ObjectId(ownerId),
+                accountCompanyName: companyId,
+                isDeleted: false,
+                paymentMethod: { $ne: 'Cash' }
+            }
+        },
+        {
+            $group: {
+                _id: null,
+                total: { $sum: '$amount' }
+            }
+        }
+    ]);
+
+    // Get all bank payments (non-cash payment methods)
+    const bankPayments = await Payment.aggregate([
+        {
+            $match: {
+                ownerId: new mongoose.Types.ObjectId(ownerId),
+                accountCompanyName: companyId,
+                isDeleted: false,
+                paymentMethod: { $ne: 'Cash' }
+            }
+        },
+        {
+            $group: {
+                _id: null,
+                total: { $sum: '$amount' }
+            }
+        }
+    ]);
+
+    const totalBankIn = bankReceipts[0]?.total || 0;
+    const totalBankOut = bankPayments[0]?.total || 0;
+
+    return openingBalance + totalBankIn - totalBankOut;
 }
