@@ -1,5 +1,7 @@
 // src/controllers/customer.controller.js
 const Customer = require("../models/Customer");
+const Sale = require("../models/Sale");
+const Receipt = require("../models/Receipt");
 const mongoose = require("mongoose");
 const { lookupChatUserByPhone } = require("../utils/chatUserLookup");
 const { handleChatInvitation } = require("../utils/chatInvitation");
@@ -12,6 +14,40 @@ function toObjectId(id) {
 function normalizeString(v) {
     if (!v) return "";
     return String(v).trim().replace(/\s+/g, " ").toLowerCase();
+}
+
+/**
+ * Calculate pending amount for a customer
+ * Pending = Opening Balance + Sum of Due Amounts from Sales
+ * Note: Sale.dueAmount already accounts for payments, so we don't subtract receipts separately
+ */
+async function calculatePendingAmount(customerId, customerName, openingBalanceType, openingBalanceAmount, ownerId, companyId) {
+    // Opening balance: Credit means we owe them (negative), Debit means they owe us (positive)
+    let balance = 0;
+    if (openingBalanceType === "Debit") {
+        balance = Number(openingBalanceAmount) || 0;
+    } else if (openingBalanceType === "Credit") {
+        balance = -(Number(openingBalanceAmount) || 0);
+    }
+
+    // Add due amounts from sales (totalAmount - paidAmount)
+    const sales = await Sale.find({
+        ownerId,
+        accountCompanyName: companyId,
+        $or: [
+            { customerId: customerId },
+            { customer: customerName }
+        ],
+        isDeleted: false
+    }).lean();
+
+    for (const sale of sales) {
+        // Use dueAmount if available, otherwise calculate as totalAmount - paidAmount
+        const dueAmount = sale.dueAmount ?? ((sale.totalAmount || 0) - (sale.paidAmount || 0));
+        balance += dueAmount;
+    }
+
+    return balance;
 }
 
 /**
@@ -62,10 +98,25 @@ async function list(req, res, next) {
             Customer.countDocuments(q),
         ]);
 
+        // Calculate pending amount for each customer
+        let totalPending = 0;
+        const itemsWithPending = await Promise.all(items.map(async (customer) => {
+            const pendingAmount = await calculatePendingAmount(
+                customer._id,
+                customer.customerName,
+                customer.openingBalanceType,
+                customer.openingBalanceAmount,
+                ownerId,
+                companyId
+            );
+            totalPending += pendingAmount;
+            return { ...customer, pendingAmount };
+        }));
+
         return res.json({
             success: true,
-            data: items,
-            meta: { page: Number(page), limit: Number(limit), total },
+            data: itemsWithPending,
+            meta: { page: Number(page), limit: Number(limit), total, totalPending },
         });
     } catch (err) {
         next(err);

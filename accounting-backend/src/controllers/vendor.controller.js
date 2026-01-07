@@ -1,5 +1,7 @@
 // src/controllers/vendor.controller.js
 const Vendor = require('../models/Vendor');
+const Purchase = require('../models/Purchase');
+const Payment = require('../models/Payment');
 const mongoose = require("mongoose");
 const { lookupChatUserByPhone } = require("../utils/chatUserLookup");
 const { handleChatInvitation } = require("../utils/chatInvitation");
@@ -18,6 +20,37 @@ function toObjectId(id) {
 function normalize(v) {
     if (v === undefined || v === null) return "";
     return String(v).trim().replace(/\s+/g, " ").toLowerCase();
+}
+
+/**
+ * Calculate payable amount for a vendor
+ * Payable = Opening Balance + Sum of Due Amounts from Purchases
+ * Note: Purchase.dueAmount already accounts for payments, so we don't subtract payments separately
+ */
+async function calculatePayableAmount(vendorId, vendorName, openingBalanceType, openingBalanceAmount, ownerId, companyId) {
+    // Opening balance: Credit means they owe us (negative), Debit means we owe them (positive)
+    let balance = 0;
+    if (openingBalanceType === "Debit") {
+        balance = Number(openingBalanceAmount) || 0;
+    } else if (openingBalanceType === "Credit") {
+        balance = -(Number(openingBalanceAmount) || 0);
+    }
+
+    // Add due amounts from purchases (totalAmount - paidAmount)
+    const purchases = await Purchase.find({
+        ownerId,
+        accountCompanyName: companyId,
+        supplier: vendorName,
+        isDeleted: false
+    }).lean();
+
+    for (const purchase of purchases) {
+        // Use dueAmount if available, otherwise calculate as totalAmount - paidAmount
+        const dueAmount = purchase.dueAmount ?? ((purchase.totalAmount || 0) - (purchase.paidAmount || 0));
+        balance += dueAmount;
+    }
+
+    return balance;
 }
 
 /* =========================== LIST =========================== */
@@ -65,10 +98,25 @@ async function list(req, res, next) {
             Vendor.countDocuments(q)
         ]);
 
+        // Calculate payable amount for each vendor
+        let totalPayable = 0;
+        const itemsWithPayable = await Promise.all(items.map(async (vendor) => {
+            const payableAmount = await calculatePayableAmount(
+                vendor._id,
+                vendor.vendorName,
+                vendor.openingBalanceType,
+                vendor.openingBalanceAmount,
+                ownerId,
+                accountCompanyName
+            );
+            totalPayable += payableAmount;
+            return { ...vendor, payableAmount };
+        }));
+
         res.json({
             success: true,
-            data: items,
-            meta: { page: Number(page), limit: Number(limit), total }
+            data: itemsWithPayable,
+            meta: { page: Number(page), limit: Number(limit), total, totalPayable }
         });
 
     } catch (err) {
