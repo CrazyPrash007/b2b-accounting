@@ -24,6 +24,12 @@ const VendorSchema = new mongoose.Schema({
     companyNameNorm: { type: String, trim: true, default: "" },
 
     gstType: { type: String, default: 'Unregistered' },
+    gstNumber: {
+        type: String,
+        trim: true,
+        default: "",
+        uppercase: true,
+    },
 
     billingAddress: { type: String, default: '' },
     billingPinCode: { type: String, default: '' },

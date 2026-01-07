@@ -15,6 +15,8 @@ export default function createResourceApi(resourceBasePath) {
 
         // CREATE
         async create(payload, accountCompanyName) {
+            console.log('[resourceApiFactory] create payload:', payload);
+            console.log('[resourceApiFactory] gstNumber in payload:', payload.gstNumber);
             const res = await apiClient.post(BASE, {
                 ...payload,
                 accountCompanyName,
