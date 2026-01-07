@@ -5,7 +5,11 @@ async function listCompanies(req, res, next) {
     try {
         const Company = getCompanyModel();
 
-        const companies = await Company.find({ owner: req.user.ownerId }).lean();
+        // Check if requesting another user's companies (for viewing profiles)
+        const requestedUserId = req.headers['x-user-id'] || req.headers['user-id'];
+        const ownerId = requestedUserId || req.user.ownerId;
+
+        const companies = await Company.find({ owner: ownerId }).lean();
 
         res.json({ success: true, data: companies });
     } catch (err) {
