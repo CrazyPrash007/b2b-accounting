@@ -13,7 +13,7 @@ import { BUSINESS_TYPES, INDUSTRY_TYPES } from "../../../lib/enums";
 export default function AddCompanyForm({ onCreated, onCancel, createCompanyFn }) {
     const [formData, setFormData] = useState({
         companyName: "",
-        businessType: "",
+        businessType: [], // Changed to array for multi-select
         industryType: "",
         registrationType: "regular",
         gstin: "",
@@ -118,10 +118,10 @@ export default function AddCompanyForm({ onCreated, onCancel, createCompanyFn })
         if (!trimmedName) {
             newErrors.companyName = "Company name is required";
         }
-        if (!formData.businessType) {
-            newErrors.businessType = "Business type is required";
+        if (!formData.businessType || formData.businessType.length === 0) {
+            newErrors.businessType = "Please select at least one business type";
         }
-        if (formData.businessType === "Other" && !formData.businessTypeOther.trim()) {
+        if (formData.businessType && formData.businessType.includes("Other") && !formData.businessTypeOther.trim()) {
             newErrors.businessTypeOther = "Please specify your business type";
         }
         if (formData.industryType === "Other" && !formData.industryTypeOther.trim()) {
@@ -191,9 +191,16 @@ export default function AddCompanyForm({ onCreated, onCancel, createCompanyFn })
         setSubmitError("");
 
         try {
+            // Prepare businessType array
+            let businessTypeArray = [...formData.businessType];
+            if (businessTypeArray.includes("Other") && formData.businessTypeOther.trim()) {
+                businessTypeArray = businessTypeArray.filter(t => t !== "Other");
+                businessTypeArray.push(formData.businessTypeOther.trim());
+            }
+
             const payload = {
                 companyName: formData.companyName.trim(),
-                businessType: formData.businessType === "Other" ? formData.businessTypeOther.trim() : formData.businessType || undefined,
+                businessType: businessTypeArray, // Now sending as array
                 industryType: formData.industryType === "Other" ? formData.industryTypeOther.trim() : formData.industryType || undefined,
                 registrationType: formData.registrationType || "unregistered",
                 gstin: formData.gstin.trim() || undefined,
@@ -229,7 +236,7 @@ export default function AddCompanyForm({ onCreated, onCancel, createCompanyFn })
     const handleReset = () => {
         setFormData({
             companyName: "",
-            businessType: "",
+            businessType: [], // Reset to empty array
             industryType: "",
             registrationType: "regular",
             gstin: "",
@@ -431,27 +438,34 @@ export default function AddCompanyForm({ onCreated, onCancel, createCompanyFn })
                                     />
                                     {errors.companyName && <p className="text-xs text-red-600 mt-1 flex items-center gap-1"><svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" /></svg>{errors.companyName}</p>}
                                 </div>
-                                <div className="relative z-30">
+                                <div>
                                     <label className="block text-xs font-medium text-slate-600 mb-1.5">
                                         Business Type <span className="text-red-500">*</span>
                                     </label>
-                                    <CustomSelect
-                                        name="businessType"
-                                        options={businessTypes}
-                                        value={formData.businessType}
-                                        onChange={(v) => {
-                                            handleChange("businessType")({ target: { value: v } });
-                                            if (v !== "Other") {
-                                                handleChange("businessTypeOther")({ target: { value: "" } });
-                                            }
-                                        }}
-                                        inputRef={setRef(1)}
-                                        onEnterNext={() => focusNext(1)}
-                                        placeholder="Select type"
-                                    />
+                                    <div className="space-y-2">
+                                        {businessTypes.map((type) => (
+                                            <label key={type.value} className="flex items-center gap-2 cursor-pointer">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={formData.businessType.includes(type.value)}
+                                                    onChange={(e) => {
+                                                        const newTypes = e.target.checked
+                                                            ? [...formData.businessType, type.value]
+                                                            : formData.businessType.filter(t => t !== type.value);
+                                                        setFormData(f => ({ ...f, businessType: newTypes }));
+                                                        if (!e.target.checked && type.value === "Other") {
+                                                            setFormData(f => ({ ...f, businessTypeOther: "" }));
+                                                        }
+                                                    }}
+                                                    className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+                                                />
+                                                <span className="text-sm text-slate-700">{type.label}</span>
+                                            </label>
+                                        ))}
+                                    </div>
                                     {errors.businessType && <p className="text-xs text-red-600 mt-1">{errors.businessType}</p>}
                                     
-                                    {formData.businessType === "Other" && (
+                                    {formData.businessType.includes("Other") && (
                                         <div className="mt-2">
                                             <input
                                                 type="text"
