@@ -8,6 +8,7 @@ export default function createResourceHook(api) {
         const selectedCompany = context?.selectedCompany || "";
 
         const [rows, setRows] = useState([]);
+        const [meta, setMeta] = useState({});
         const [loading, setLoading] = useState(true); // Start with loading=true
         const [error, setError] = useState(null);
 
@@ -19,6 +20,7 @@ export default function createResourceHook(api) {
         const load = useCallback(async () => {
             if (!selectedCompany) {
                 setRows([]);
+                setMeta({});
                 setLoading(false);
                 return;
             }
@@ -27,14 +29,26 @@ export default function createResourceHook(api) {
             setError(null);
 
             try {
-                const data = await api.list(selectedCompany);
-                const normalized = Array.isArray(data)
-                    ? data.map(normalize)
-                    : [];
-                setRows(normalized);
+                const response = await api.list(selectedCompany);
+                // Check if response has data and meta structure
+                if (response && typeof response === 'object' && 'data' in response) {
+                    const normalized = Array.isArray(response.data)
+                        ? response.data.map(normalize)
+                        : [];
+                    setRows(normalized);
+                    setMeta(response.meta || {});
+                } else {
+                    // Legacy format: direct array
+                    const normalized = Array.isArray(response)
+                        ? response.map(normalize)
+                        : [];
+                    setRows(normalized);
+                    setMeta({});
+                }
             } catch (err) {
                 setError(err);
                 setRows([]);
+                setMeta({});
             } finally {
                 setLoading(false);
             }
@@ -62,6 +76,6 @@ export default function createResourceHook(api) {
             return load();
         }, [selectedCompany, load]);
 
-        return { rows, loading, error, reload: load, create, update, remove };
+        return { rows, meta, loading, error, reload: load, create, update, remove };
     };
 }

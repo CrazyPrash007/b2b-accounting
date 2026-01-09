@@ -589,12 +589,14 @@ export default function VendorPage() {
     const navigate = useNavigate();
     const location = useLocation();
 
-    const { rows: vendors = [], loading, error, reload, create, update, remove } =
+    const { rows: vendors = [], meta = {}, loading, error, reload, create, update, remove } =
         useVendor({ useLocalFallback: true });
 
     const [selectedCell, setSelectedCell] = useState(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingVendor, setEditingVendor] = useState(null);
+
+    const totalPayable = meta.totalPayable || 0;
 
     useEffect(() => {
         if (location.state?.savedVendor || location.state?.deletedVendorId) {
@@ -774,6 +776,11 @@ export default function VendorPage() {
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
                         </svg>
                     </button>
+                    {totalPayable !== 0 && (
+                        <div className="px-3 py-1 rounded-md text-sm font-semibold bg-red-100 text-red-800">
+                            Total Payable: ₹{Math.abs(totalPayable).toFixed(2)}
+                        </div>
+                    )}
                 </div>
                 <button
                     onClick={handleOpenCreate}
@@ -856,7 +863,13 @@ export default function VendorPage() {
                                     <th className="min-w-[140px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
                                         <div className="flex items-center gap-2">
                                             <span className="text-gray-400 cursor-grab">⋮⋮</span>
-                                            <span>Balance</span>
+                                            <span>Payable Amount</span>
+                                        </div>
+                                    </th>
+                                    <th className="min-w-[140px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-gray-400 cursor-grab">⋮⋮</span>
+                                            <span>Opening Balance</span>
                                         </div>
                                     </th>
                                     <th className="min-w-[180px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
@@ -921,38 +934,44 @@ export default function VendorPage() {
                                             {vendor.companyName || "-"}
                                         </td>
                                         <td
-                                            className={getCellClasses(rowIndex, 3) + " text-left text-gray-600"}
+                                            className={getCellClasses(rowIndex, 3) + " text-left font-semibold text-red-700"}
                                             onClick={(e) => { e.stopPropagation(); handleCellClick(rowIndex, 3); navigate(`/vendor/${vendor.id || vendor._id}`); }}
                                         >
-                                            {vendor.openingBalanceAmount ? `₹${vendor.openingBalanceAmount} (${vendor.openingBalanceType})` : '-'}
+                                            {vendor.payableAmount != null ? `₹${Math.abs(vendor.payableAmount).toFixed(2)}` : '-'}
                                         </td>
                                         <td
                                             className={getCellClasses(rowIndex, 4) + " text-left text-gray-600"}
                                             onClick={(e) => { e.stopPropagation(); handleCellClick(rowIndex, 4); navigate(`/vendor/${vendor.id || vendor._id}`); }}
                                         >
-                                            {vendor.emailAddress || "-"}
+                                            {vendor.openingBalanceAmount ? `₹${vendor.openingBalanceAmount} (${vendor.openingBalanceType})` : '-'}
                                         </td>
                                         <td
                                             className={getCellClasses(rowIndex, 5) + " text-left text-gray-600"}
                                             onClick={(e) => { e.stopPropagation(); handleCellClick(rowIndex, 5); navigate(`/vendor/${vendor.id || vendor._id}`); }}
                                         >
-                                            {vendor.gstType || "-"}
+                                            {vendor.emailAddress || "-"}
                                         </td>
                                         <td
                                             className={getCellClasses(rowIndex, 6) + " text-left text-gray-600"}
                                             onClick={(e) => { e.stopPropagation(); handleCellClick(rowIndex, 6); navigate(`/vendor/${vendor.id || vendor._id}`); }}
                                         >
-                                            {vendor.billingAddress || "-"}
+                                            {vendor.gstType || "-"}
                                         </td>
                                         <td
                                             className={getCellClasses(rowIndex, 7) + " text-left text-gray-600"}
                                             onClick={(e) => { e.stopPropagation(); handleCellClick(rowIndex, 7); navigate(`/vendor/${vendor.id || vendor._id}`); }}
                                         >
-                                            {vendor.billingDistrict || "-"}
+                                            {vendor.billingAddress || "-"}
                                         </td>
                                         <td
                                             className={getCellClasses(rowIndex, 8) + " text-left text-gray-600"}
                                             onClick={(e) => { e.stopPropagation(); handleCellClick(rowIndex, 8); navigate(`/vendor/${vendor.id || vendor._id}`); }}
+                                        >
+                                            {vendor.billingDistrict || "-"}
+                                        </td>
+                                        <td
+                                            className={getCellClasses(rowIndex, 9) + " text-left text-gray-600"}
+                                            onClick={(e) => { e.stopPropagation(); handleCellClick(rowIndex, 9); navigate(`/vendor/${vendor.id || vendor._id}`); }}
                                         >
                                             {vendor.billingState || "-"}
                                         </td>
@@ -985,6 +1004,12 @@ export default function VendorPage() {
                                             <td className={getCellClasses(rowIndex, 1)} onClick={() => handleCellClick(rowIndex, 1)}></td>
                                             <td className={getCellClasses(rowIndex, 2)} onClick={() => handleCellClick(rowIndex, 2)}></td>
                                             <td className={getCellClasses(rowIndex, 3)} onClick={() => handleCellClick(rowIndex, 3)}></td>
+                                            <td className={getCellClasses(rowIndex, 4)} onClick={() => handleCellClick(rowIndex, 4)}></td>
+                                            <td className={getCellClasses(rowIndex, 5)} onClick={() => handleCellClick(rowIndex, 5)}></td>
+                                            <td className={getCellClasses(rowIndex, 6)} onClick={() => handleCellClick(rowIndex, 6)}></td>
+                                            <td className={getCellClasses(rowIndex, 7)} onClick={() => handleCellClick(rowIndex, 7)}></td>
+                                            <td className={getCellClasses(rowIndex, 8)} onClick={() => handleCellClick(rowIndex, 8)}></td>
+                                            <td className={getCellClasses(rowIndex, 9)} onClick={() => handleCellClick(rowIndex, 9)}></td>
                                             <td className={getCellClasses(rowIndex, 4)} onClick={() => handleCellClick(rowIndex, 4)}></td>
                                             <td className={getCellClasses(rowIndex, 5)} onClick={() => handleCellClick(rowIndex, 5)}></td>
                                             <td className={getCellClasses(rowIndex, 6)} onClick={() => handleCellClick(rowIndex, 6)}></td>

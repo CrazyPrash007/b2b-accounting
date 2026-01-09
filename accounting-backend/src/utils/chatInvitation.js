@@ -77,9 +77,10 @@ function getChatModels() {
  * @param {string} options.ownerId - ID of the owner (inviter) from accounting system
  * @param {string} options.ownerName - Name of the owner
  * @param {string} options.type - Type: 'customer' or 'vendor'
+ * @param {boolean} options.sendWelcomeMessage - Whether to send welcome message (default: false)
  * @returns {Promise<{chatUserId: string|null, action: string, conversationId: string|null}>}
  */
-async function handleChatInvitation({ phoneNumber, name, companyName, ownerId, ownerName, type = 'customer' }) {
+async function handleChatInvitation({ phoneNumber, name, companyName, ownerId, ownerName, type = 'customer', sendWelcomeMessage = false }) {
     if (!phoneNumber) {
         return { chatUserId: null, action: 'no_phone', conversationId: null };
     }

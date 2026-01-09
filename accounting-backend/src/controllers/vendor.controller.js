@@ -1,5 +1,7 @@
 // src/controllers/vendor.controller.js
 const Vendor = require('../models/Vendor');
+const Purchase = require('../models/Purchase');
+const Payment = require('../models/Payment');
 const mongoose = require("mongoose");
 const { lookupChatUserByPhone } = require("../utils/chatUserLookup");
 const { handleChatInvitation } = require("../utils/chatInvitation");
@@ -18,6 +20,37 @@ function toObjectId(id) {
 function normalize(v) {
     if (v === undefined || v === null) return "";
     return String(v).trim().replace(/\s+/g, " ").toLowerCase();
+}
+
+/**
+ * Calculate payable amount for a vendor
+ * Payable = Opening Balance + Sum of Due Amounts from Purchases
+ * Note: Purchase.dueAmount already accounts for payments, so we don't subtract payments separately
+ */
+async function calculatePayableAmount(vendorId, vendorName, openingBalanceType, openingBalanceAmount, ownerId, companyId) {
+    // Opening balance: Credit means they owe us (negative), Debit means we owe them (positive)
+    let balance = 0;
+    if (openingBalanceType === "Debit") {
+        balance = Number(openingBalanceAmount) || 0;
+    } else if (openingBalanceType === "Credit") {
+        balance = -(Number(openingBalanceAmount) || 0);
+    }
+
+    // Add due amounts from purchases (totalAmount - paidAmount)
+    const purchases = await Purchase.find({
+        ownerId,
+        accountCompanyName: companyId,
+        supplier: vendorName,
+        isDeleted: false
+    }).lean();
+
+    for (const purchase of purchases) {
+        // Use dueAmount if available, otherwise calculate as totalAmount - paidAmount
+        const dueAmount = purchase.dueAmount ?? ((purchase.totalAmount || 0) - (purchase.paidAmount || 0));
+        balance += dueAmount;
+    }
+
+    return balance;
 }
 
 /* =========================== LIST =========================== */
@@ -65,10 +98,25 @@ async function list(req, res, next) {
             Vendor.countDocuments(q)
         ]);
 
+        // Calculate payable amount for each vendor
+        let totalPayable = 0;
+        const itemsWithPayable = await Promise.all(items.map(async (vendor) => {
+            const payableAmount = await calculatePayableAmount(
+                vendor._id,
+                vendor.vendorName,
+                vendor.openingBalanceType,
+                vendor.openingBalanceAmount,
+                ownerId,
+                accountCompanyName
+            );
+            totalPayable += payableAmount;
+            return { ...vendor, payableAmount };
+        }));
+
         res.json({
             success: true,
-            data: items,
-            meta: { page: Number(page), limit: Number(limit), total }
+            data: itemsWithPayable,
+            meta: { page: Number(page), limit: Number(limit), total, totalPayable }
         });
 
     } catch (err) {
@@ -400,4 +448,80 @@ async function remove(req, res, next) {
     }
 }
 
-module.exports = { list, getOne, create, update, remove };
+/**
+ * REFRESH CHAT LINK
+ * Re-check if this vendor's phone number is now registered in the chat system
+ * Useful when a vendor registers on the platform after being added
+ */
+async function refreshChatLink(req, res, next) {
+    try {
+        const ownerId = req.user.ownerId;
+
+        const accountCompanyName = toObjectId(req.query.accountCompanyName);
+        if (!accountCompanyName) {
+            return res.status(400).json({
+                success: false,
+                error: { message: "accountCompanyName is required and must be valid" }
+            });
+        }
+
+        const doc = await Vendor.findOne({
+            _id: req.params.id,
+            ownerId,
+            accountCompanyName,
+            isDeleted: false,
+        });
+
+        if (!doc) {
+            return res.status(404).json({ success: false, error: { message: "Not found" } });
+        }
+
+        if (!doc.mobileNumber) {
+            return res.status(400).json({ 
+                success: false, 
+                error: { message: "Vendor has no phone number to link" } 
+            });
+        }
+
+        // Try to find the user in chat system
+        const chatUser = await lookupChatUserByPhone(doc.mobileNumber);
+        
+        if (chatUser) {
+            // Update the vendor with the new chat user ID
+            doc.chatUserId = chatUser.userId;
+            doc.chatConversationId = null; // Clear stale conversation ID, will be created fresh
+            await doc.save();
+
+            console.log(`[Vendor RefreshChatLink] Linked ${doc.vendorName} to chat user: ${chatUser.userId}`);
+            
+            return res.json({ 
+                success: true, 
+                data: doc,
+                chatLinked: true,
+                chatUser: {
+                    id: chatUser.userId,
+                    name: chatUser.name,
+                    email: chatUser.email
+                }
+            });
+        } else {
+            // Clear any stale chat link
+            if (doc.chatUserId) {
+                doc.chatUserId = null;
+                doc.chatConversationId = null;
+                await doc.save();
+            }
+
+            return res.json({ 
+                success: true, 
+                data: doc,
+                chatLinked: false,
+                message: "User is not registered on the chat platform yet"
+            });
+        }
+    } catch (err) {
+        next(err);
+    }
+}
+
+module.exports = { list, getOne, create, update, remove, refreshChatLink };
