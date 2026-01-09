@@ -408,4 +408,79 @@ async function remove(req, res, next) {
     }
 }
 
-module.exports = { list, getOne, create, update, remove };
+/**
+ * REFRESH CHAT LINK
+ * Re-check if this customer's phone number is now registered in the chat system
+ * Useful when a customer registers on the platform after being added
+ */
+async function refreshChatLink(req, res, next) {
+    try {
+        const ownerId = req.user.ownerId;
+
+        const companyId = toObjectId(req.query.accountCompanyName);
+        if (!companyId) {
+            return res.status(400).json({
+                message: "Valid accountCompanyName (companyId) is required",
+            });
+        }
+
+        const doc = await Customer.findOne({
+            _id: req.params.id,
+            ownerId,
+            accountCompanyName: companyId,
+            isDeleted: false,
+        });
+
+        if (!doc) {
+            return res.status(404).json({ success: false, error: { message: "Not found" } });
+        }
+
+        if (!doc.mobileNumber) {
+            return res.status(400).json({ 
+                success: false, 
+                error: { message: "Customer has no phone number to link" } 
+            });
+        }
+
+        // Try to find the user in chat system
+        const chatUser = await lookupChatUserByPhone(doc.mobileNumber);
+        
+        if (chatUser) {
+            // Update the customer with the new chat user ID
+            doc.chatUserId = chatUser.userId;
+            doc.chatConversationId = null; // Clear stale conversation ID, will be created fresh
+            await doc.save();
+
+            console.log(`[Customer RefreshChatLink] Linked ${doc.customerName} to chat user: ${chatUser.userId}`);
+            
+            return res.json({ 
+                success: true, 
+                data: doc,
+                chatLinked: true,
+                chatUser: {
+                    id: chatUser.userId,
+                    name: chatUser.name,
+                    email: chatUser.email
+                }
+            });
+        } else {
+            // Clear any stale chat link
+            if (doc.chatUserId) {
+                doc.chatUserId = null;
+                doc.chatConversationId = null;
+                await doc.save();
+            }
+
+            return res.json({ 
+                success: true, 
+                data: doc,
+                chatLinked: false,
+                message: "User is not registered on the chat platform yet"
+            });
+        }
+    } catch (err) {
+        next(err);
+    }
+}
+
+module.exports = { list, getOne, create, update, remove, refreshChatLink };

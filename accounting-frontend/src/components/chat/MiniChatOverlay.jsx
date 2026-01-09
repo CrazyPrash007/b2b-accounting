@@ -81,13 +81,14 @@ export default function MiniChatOverlay({
     partnerId,       // Chat user ID of the partner
     partnerName,     // Display name
     partnerAvatar,   // Avatar URL (optional)
-    conversationId,  // Pre-existing conversation ID (optional)
+    conversationId: initialConversationId,  // Pre-existing conversation ID (optional, may be stale)
 }) {
     const [messages, setMessages] = useState([]);
     const [text, setText] = useState("");
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
-    const [chatId, setChatId] = useState(conversationId || null);
+    // Don't use initialConversationId directly - always fetch fresh from /conversations/open
+    const [chatId, setChatId] = useState(null);
     
     const scrollRef = useRef(null);
     const socketRef = useRef(null);
@@ -206,57 +207,24 @@ export default function MiniChatOverlay({
         async function loadChat() {
             setLoading(true);
             setError(null);
+            // Reset chatId on each load to ensure fresh conversation lookup
+            setChatId(null);
             
             try {
-                // First, try to open/ensure the conversation
+                // Always use /conversations/open to get/create the correct conversation
+                // This ensures we use the current canonicalKey format and don't rely on stale IDs
                 const openRes = await fetch(`${CHAT_API_BASE}/conversations/open`, {
                     method: "POST",
                     headers: buildChatHeaders(),
                     body: JSON.stringify({ partnerId }),
                 });
                 
-                if (!openRes.ok) {
-                    // Fallback: try to find existing conversation via contacts
-                    const contactsRes = await fetch(`${CHAT_API_BASE}/contacts?userId=${currentUserId}`, {
-                        headers: buildChatHeaders(),
-                    });
-                    
-                    if (contactsRes.ok) {
-                        const contactsData = await contactsRes.json();
-                        const existingContact = (contactsData.contacts || []).find(
-                            (c) => String(c.id) === String(partnerId)
-                        );
-                        
-                        if (existingContact?.conversationId) {
-                            if (!mounted) return;
-                            setChatId(existingContact.conversationId);
-                            
-                            // Fetch messages for existing conversation
-                            const msgRes = await fetch(`${CHAT_API_BASE}/conversations/${existingContact.conversationId}`, {
-                                headers: buildChatHeaders(),
-                            });
-                            
-                            if (msgRes.ok) {
-                                const msgData = await msgRes.json();
-                                if (!mounted) return;
-                                const normalized = (msgData.messages || [])
-                                    .map((m) => normalizeMessage(m, currentUserId))
-                                    .filter(Boolean)
-                                    .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
-                                setMessages(normalized);
-                                scrollToBottom();
-                            }
-                        } else {
-                            // No existing conversation, prepare for first message
-                            if (!mounted) return;
-                            setMessages([]);
-                        }
-                    }
-                } else {
+                if (openRes.ok) {
                     const data = await openRes.json();
                     if (!mounted) return;
                     
-                    setChatId(data.conversation?.id || data.conversationId);
+                    const newChatId = data.conversation?.id || data.conversationId;
+                    setChatId(newChatId);
                     
                     const normalized = (data.messages || [])
                         .map((m) => normalizeMessage(m, currentUserId))
@@ -264,11 +232,63 @@ export default function MiniChatOverlay({
                         .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
                     setMessages(normalized);
                     scrollToBottom();
+                } else {
+                    // Handle specific errors
+                    const errorData = await openRes.json().catch(() => ({}));
+                    
+                    if (openRes.status === 404) {
+                        // Partner not found - user may not be registered anymore
+                        if (!mounted) return;
+                        setError("This user is not available on the chat platform");
+                    } else if (openRes.status === 401) {
+                        if (!mounted) return;
+                        setError("Please log in to the chat platform first");
+                    } else {
+                        // Fallback: try to find existing conversation via contacts
+                        const contactsRes = await fetch(`${CHAT_API_BASE}/contacts?userId=${currentUserId}`, {
+                            headers: buildChatHeaders(),
+                        });
+                        
+                        if (contactsRes.ok) {
+                            const contactsData = await contactsRes.json();
+                            const existingContact = (contactsData.contacts || []).find(
+                                (c) => String(c.id) === String(partnerId)
+                            );
+                            
+                            if (existingContact?.conversationId) {
+                                if (!mounted) return;
+                                setChatId(existingContact.conversationId);
+                                
+                                // Fetch messages for existing conversation
+                                const msgRes = await fetch(`${CHAT_API_BASE}/conversations/${existingContact.conversationId}`, {
+                                    headers: buildChatHeaders(),
+                                });
+                                
+                                if (msgRes.ok) {
+                                    const msgData = await msgRes.json();
+                                    if (!mounted) return;
+                                    const normalized = (msgData.messages || [])
+                                        .map((m) => normalizeMessage(m, currentUserId))
+                                        .filter(Boolean)
+                                        .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+                                    setMessages(normalized);
+                                    scrollToBottom();
+                                }
+                            } else {
+                                // No existing conversation found
+                                if (!mounted) return;
+                                setError(errorData.message || "Failed to load chat");
+                            }
+                        } else {
+                            if (!mounted) return;
+                            setError(errorData.message || "Failed to load chat");
+                        }
+                    }
                 }
             } catch (err) {
                 console.error("[MiniChat] Load error:", err);
                 if (!mounted) return;
-                setError("Failed to load chat");
+                setError("Failed to connect to chat server");
             } finally {
                 if (mounted) setLoading(false);
             }

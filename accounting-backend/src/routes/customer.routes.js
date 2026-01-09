@@ -14,5 +14,6 @@ router.post('/', validate(createSchema), controller.create);
 router.get('/:id', controller.getOne);
 router.put('/:id', validate(updateSchema), controller.update);
 router.delete('/:id', controller.remove);
+router.post('/:id/refresh-chat-link', controller.refreshChatLink);
 
 module.exports = router;
