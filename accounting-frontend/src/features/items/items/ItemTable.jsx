@@ -6,8 +6,9 @@ import React, { useRef, useEffect, useState } from "react";
  * Excel-like interactions: row hover highlighting, cell selection with border
  * @param {Array} items - List of item objects
  * @param {Function} onEdit - Callback when edit is clicked
+ * @param {Function} onViewMovement - Callback when view movement is clicked
  */
-export default function ItemTable({ items, onEdit }) {
+export default function ItemTable({ items, onEdit, onViewMovement }) {
     const tableContainerRef = useRef(null);
     const [visibleRows, setVisibleRows] = useState(15);
     const [selectedCell, setSelectedCell] = useState(null); // { rowIndex, colIndex }
@@ -132,6 +133,12 @@ export default function ItemTable({ items, onEdit }) {
                                         <span>Unit</span>
                                     </div>
                                 </th>
+                                <th className="min-w-[110px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-gray-400 cursor-grab">⋮⋮</span>
+                                        <span>Current Stock</span>
+                                    </div>
+                                </th>
                                 <th className="min-w-[120px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
                                     <div className="flex items-center gap-2">
                                         <span className="text-gray-400 cursor-grab">⋮⋮</span>
@@ -186,12 +193,6 @@ export default function ItemTable({ items, onEdit }) {
                                         <span>Min Stock</span>
                                     </div>
                                 </th>
-                                <th className="min-w-[110px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-gray-400 cursor-grab">⋮⋮</span>
-                                        <span>Opening Date</span>
-                                    </div>
-                                </th>
                                 <th className="min-w-[100px] h-9 px-4 text-left text-sm font-medium text-gray-700 sticky right-0 z-20 bg-gray-100 border-l border-gray-400" style={{ boxShadow: '-4px 0 8px -2px rgba(0, 0, 0, 0.15)' }}>
                                     Actions
                                 </th>
@@ -202,7 +203,8 @@ export default function ItemTable({ items, onEdit }) {
                             {items.map((item, rowIndex) => (
                                 <tr 
                                     key={item.id} 
-                                    className={`border-b border-gray-400 hover:bg-blue-100 transition-colors ${rowIndex % 2 === 0 ? 'bg-blue-50/40' : 'bg-white'}`}
+                                    className={`border-b border-gray-400 hover:bg-blue-100 transition-colors cursor-pointer ${rowIndex % 2 === 0 ? 'bg-blue-50/40' : 'bg-white'}`}
+                                    onClick={() => onViewMovement(item)}
                                 >
                                     <td 
                                         className={getCellClasses(rowIndex, 0) + " text-left text-blue-600 truncate"}
@@ -231,8 +233,14 @@ export default function ItemTable({ items, onEdit }) {
                                         {item.unit || "-"}
                                     </td>
                                     <td 
-                                        className={getCellClasses(rowIndex, 4) + " text-left text-gray-600 truncate"}
+                                        className={getCellClasses(rowIndex, 4) + ` text-left font-semibold ${item.currentStock < 0 ? 'text-red-700 bg-red-50' : 'text-gray-600'}`}
                                         onClick={() => handleCellClick(rowIndex, 4)}
+                                    >
+                                        {item.currentStock != null ? item.currentStock.toFixed(2) : '-'}
+                                    </td>
+                                    <td 
+                                        className={getCellClasses(rowIndex, 5) + " text-left text-gray-600 truncate"}
+                                        onClick={() => handleCellClick(rowIndex, 5)}
                                     >
                                         {item.category || "-"}
                                     </td>
@@ -284,14 +292,8 @@ export default function ItemTable({ items, onEdit }) {
                                     >
                                         {item.minStock || "-"}
                                     </td>
-                                    <td 
-                                        className={getCellClasses(rowIndex, 13) + " text-left text-gray-600"}
-                                        onClick={() => handleCellClick(rowIndex, 13)}
-                                    >
-                                        {item.openingDate || "-"}
-                                    </td>
                                     <td className={`h-8 px-4 text-left sticky right-0 z-10 border-l border-gray-400 ${rowIndex % 2 === 0 ? 'bg-blue-50' : 'bg-white'}`} style={{ boxShadow: '-4px 0 8px -2px rgba(0, 0, 0, 0.1)' }}>
-                                        <div className="flex items-center justify-end gap-2">
+                                        <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
                                             <button
                                                 type="button"
                                                 className="text-blue-600 hover:underline text-sm"

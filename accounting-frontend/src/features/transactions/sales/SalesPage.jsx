@@ -137,7 +137,7 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
                     invoiceNumber: String(nextCounter).padStart(6, '0'),
                     invoiceSuffix: "",
                     invoiceDate: new Date().toISOString().split('T')[0],
-                    items: [{ id: 1, goodsService: "", name: "", qty: "1", rate: "", gstPercent: "", gstType: "Included", actualAmount: "", finalAmount: "" }],
+                    items: [{ id: 1, goodsService: "", name: "", qty: "", rate: "", gstPercent: "", gstType: "Included", actualAmount: "", finalAmount: "" }],
                     isPaymentReceived: true,
                     paymentMode: "Cash",
                     refNo: "",
@@ -509,14 +509,16 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
             const inputs = Array.from(row.querySelectorAll('input, select'));
             const currentIdx = inputs.indexOf(e.target);
 
+            // After pressing Enter on last field, move to next item's Goods/Service dropdown (not qty)
             if (isLastField || currentIdx >= inputs.length - 1) {
                 if (index === formData.items.length - 1) {
                     if (addRow()) {
                         setTimeout(() => {
                             const nextRow = document.querySelector(`tr[data-item-row="${index + 1}"]`);
                             if (nextRow) {
-                                const firstInput = nextRow.querySelector('input');
-                                if (firstInput) firstInput.focus();
+                                // Focus on Goods/Service dropdown (first select element)
+                                const goodsServiceSelect = nextRow.querySelector('select');
+                                if (goodsServiceSelect) goodsServiceSelect.focus();
                             }
                         }, 50);
                     }
@@ -525,8 +527,9 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
                     const currentRowIdx = rows.indexOf(row);
                     if (currentRowIdx < rows.length - 1) {
                         const nextRow = rows[currentRowIdx + 1];
-                        const firstInput = nextRow.querySelector('input');
-                        if (firstInput) firstInput.focus();
+                        // Focus on Goods/Service dropdown (first select element)
+                        const goodsServiceSelect = nextRow.querySelector('select');
+                        if (goodsServiceSelect) goodsServiceSelect.focus();
                     }
                 }
             } else if (currentIdx !== -1 && currentIdx < inputs.length - 1) {
@@ -631,8 +634,19 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
     const totals = calculateTotals();
 
     const handleSave = () => {
+        // Validate customer exists in the customer list
         if (!formData.customer.trim()) {
-            setError("Customer is required. Please select or enter a customer name.");
+            setError("Customer is required. Please select or create a customer.");
+            return;
+        }
+        
+        // Check if customer exists in our customer list (must be selected, not just typed)
+        const customerExists = customersList.some(c => 
+            c.toLowerCase().trim() === formData.customer.toLowerCase().trim()
+        );
+        
+        if (!customerExists) {
+            setError("Invalid customer. Please select from the customer list or click '+ Add New Customer' to create one.");
             return;
         }
 
@@ -1000,7 +1014,10 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
                                     </div>
                                     <div className="grid grid-cols-2 gap-3">
                                         <div>
-                                            <label className="block text-xs text-gray-600 mb-0.5">Deposit to</label>
+                                            <label className="block text-xs text-gray-600 mb-0.5">
+                                                Deposit to <span className="text-red-500">*</span>
+                                                <span className="text-gray-500 font-normal"> (where money goes)</span>
+                                            </label>
                                             <select
                                                 value={formData.depositTo}
                                                 onChange={(e) => handleChange("depositTo", e.target.value)}

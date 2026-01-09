@@ -566,7 +566,7 @@ function ReceiptModal({ isOpen, onClose, onSave, onDelete, editData }) {
  * - PDF Invoice export functionality
  */
 export default function ReceiptPage() {
-    const { rows: receipts = [], loading: receiptsLoading, error: receiptsError, reload, create, update, remove } = useReceipt({ useLocalFallback: false });
+    const { rows: receipts = [], loading: _receiptsLoading, error: receiptsError, reload, create, update, remove } = useReceipt({ useLocalFallback: false });
 
     const [selectedCell, setSelectedCell] = useState(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -747,7 +747,7 @@ export default function ReceiptPage() {
         setEditingReceipt(null);
     };
 
-    const handleOpenInvoicePreview = (receipt) => {
+    const _handleOpenInvoicePreview = (receipt) => {
         setSelectedReceiptForInvoice(receipt);
         setIsInvoicePreviewOpen(true);
     };
@@ -863,7 +863,6 @@ export default function ReceiptPage() {
             { header: 'Balance', key: 'balance' },
             { header: 'Payment Method', key: 'paymentMethod' },
             { header: 'Invoice', key: 'invoice' },
-            { header: 'Reference Number', key: 'referenceNumber' },
             { header: 'Status', key: 'status' },
             { header: 'Description', key: 'description' },
         ];
@@ -898,7 +897,6 @@ export default function ReceiptPage() {
                 balance: receipt.invoiceId && !receipt.linkedSales?.length ? '-' : remaining,
                 paymentMethod: receipt.paymentMethod || '-',
                 invoice: receipt.invoiceLabel || receipt.invoice || (receipt.linkedSales?.length > 0 ? `${receipt.linkedSales.length} invoice(s)` : '-'),
-                referenceNumber: receipt.referenceNumber || '-',
                 status: statusText,
                 description: receipt.description || '-',
             };
@@ -1066,7 +1064,7 @@ export default function ReceiptPage() {
                                             <span>Date</span>
                                         </div>
                                     </th>
-                                    <th className="min-w-[160px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                    <th className="min-w-40 h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
                                         <div className="flex items-center gap-2">
                                             <span className="text-gray-400 cursor-grab">⋮⋮</span>
                                             <span>Party</span>
@@ -1093,13 +1091,13 @@ export default function ReceiptPage() {
                                     <th className="min-w-[120px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
                                         <div className="flex items-center gap-2">
                                             <span className="text-gray-400 cursor-grab">⋮⋮</span>
-                                            <span>Invoice</span>
+                                            <span>Receipt No</span>
                                         </div>
                                     </th>
-                                    <th className="min-w-[110px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                    <th className="min-w-[140px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
                                         <div className="flex items-center gap-2">
                                             <span className="text-gray-400 cursor-grab">⋮⋮</span>
-                                            <span>Reference</span>
+                                            <span>Invoice Reference</span>
                                         </div>
                                     </th>
                                     <th className="min-w-[110px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
@@ -1136,11 +1134,11 @@ export default function ReceiptPage() {
                                                 {receipt.paymentMethod}
                                             </span>
                                         </td>
-                                        <td className={getCellClasses(rowIndex, 5) + " text-left text-gray-600"} onClick={() => handleCellClick(rowIndex, 5)}>
-                                            {receipt.invoiceLabel || receipt.invoice || (receipt.linkedSales?.length > 0 ? `${receipt.linkedSales.length} invoice(s)` : "-")}
+                                        <td className={getCellClasses(rowIndex, 5) + " text-left text-gray-600 cursor-pointer"} onClick={() => handleEditReceipt(receipt)} title="Click to view receipt details">
+                                            {`RCP-${receipt._id?.slice(-6) || receipt.id?.slice(-6) || '000000'}`}
                                         </td>
-                                        <td className={getCellClasses(rowIndex, 6) + " text-left text-gray-600"} onClick={() => handleCellClick(rowIndex, 6)}>
-                                            {receipt.referenceNumber || "-"}
+                                        <td className={getCellClasses(rowIndex, 6) + " text-left text-blue-600"} onClick={() => handleCellClick(rowIndex, 6)}>
+                                            {receipt.invoiceLabel || receipt.invoice || (receipt.linkedSales?.length > 0 ? `${receipt.linkedSales.length} invoice(s)` : "-")}
                                         </td>
                                         <td className={getCellClasses(rowIndex, 7) + " text-left text-gray-600"} onClick={() => handleCellClick(rowIndex, 7)}>
                                             {getStatusBadge(receipt)}

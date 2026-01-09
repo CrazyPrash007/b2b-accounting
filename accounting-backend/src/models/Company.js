@@ -9,7 +9,7 @@ const CompanySchema = new Schema(
         gst: { type: String, default: null },
         registrationType: { type: String, default: "unregistered" },
         companyName: { type: String, required: true },
-        businessType: { type: String, default: "" },
+        businessType: { type: [String], default: [] }, // Changed to array to support multiple business types
         industryType: { type: String, default: "" },
         establishedFrom: { type: Date },
         address1: { type: String, default: "" },
