@@ -151,6 +151,12 @@ export default function Sidebar() {
                     <Item title="Reports" icon={<FiBarChart2 />} to="/reports" />
                 </div>
 
+                {/* MARKETING */}
+                <div>
+                    <div className="text-xs text-gray-400 mt-6 mb-2 uppercase">MARKETING</div>
+                    <Item title="My Ads" icon={<FiLayers />} to="/ads" />
+                </div>
+
                 {/* INVENTORY */}
                 <div>
                     <div className="text-xs text-gray-400 mt-6 mb-2 uppercase">INVENTORY</div>
