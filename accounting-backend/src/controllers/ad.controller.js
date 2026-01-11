@@ -21,7 +21,7 @@ exports.getTargetingOptions = async (req, res, next) => {
 // Create a new ad (user submission - status will be 'pending')
 exports.create = async (req, res, next) => {
     try {
-        const userId = req.userId;
+        const userId = req.user.ownerId;
         const {
             title,
             description,
@@ -93,13 +93,18 @@ exports.create = async (req, res, next) => {
 // List user's own ads
 exports.listMyAds = async (req, res, next) => {
     try {
-        const userId = req.userId;
-        const { status, page = 1, limit = 20 } = req.query;
+        const userId = req.user.ownerId;
+        const { status, companyId, page = 1, limit = 20 } = req.query;
 
         const filter = {
             ownerId: userId,
             isDeleted: false
         };
+
+        // Filter by company if provided
+        if (companyId) {
+            filter.companyId = companyId;
+        }
 
         if (status) {
             filter.status = status;
@@ -134,7 +139,7 @@ exports.listMyAds = async (req, res, next) => {
 // Get single ad
 exports.getOne = async (req, res, next) => {
     try {
-        const userId = req.userId;
+        const userId = req.user.ownerId;
         const { id } = req.params;
 
         const ad = await Ad.findOne({
@@ -162,7 +167,7 @@ exports.getOne = async (req, res, next) => {
 // Update ad (only if pending)
 exports.update = async (req, res, next) => {
     try {
-        const userId = req.userId;
+        const userId = req.user.ownerId;
         const { id } = req.params;
         const updates = req.body;
 
@@ -221,7 +226,7 @@ exports.update = async (req, res, next) => {
 // Delete ad (soft delete)
 exports.remove = async (req, res, next) => {
     try {
-        const userId = req.userId;
+        const userId = req.user.ownerId;
         const { id } = req.params;
 
         const ad = await Ad.findOne({
@@ -252,7 +257,7 @@ exports.remove = async (req, res, next) => {
 // Stop ad (user can stop their own approved ad)
 exports.stopAd = async (req, res, next) => {
     try {
-        const userId = req.userId;
+        const userId = req.user.ownerId;
         const { id } = req.params;
 
         const ad = await Ad.findOne({
@@ -291,7 +296,7 @@ exports.stopAd = async (req, res, next) => {
 // Reactivate stopped ad (sets back to pending for review)
 exports.reactivateAd = async (req, res, next) => {
     try {
-        const userId = req.userId;
+        const userId = req.user.ownerId;
         const { id } = req.params;
 
         const ad = await Ad.findOne({
@@ -331,10 +336,18 @@ exports.reactivateAd = async (req, res, next) => {
 // Get ad stats for user's ads
 exports.getMyStats = async (req, res, next) => {
     try {
-        const userId = req.userId;
+        const userId = req.user.ownerId;
+        const { companyId } = req.query;
+
+        const matchFilter = { ownerId: userId, isDeleted: false };
+
+        // Filter by company if provided
+        if (companyId) {
+            matchFilter.companyId = companyId;
+        }
 
         const stats = await Ad.aggregate([
-            { $match: { ownerId: userId, isDeleted: false } },
+            { $match: matchFilter },
             {
                 $group: {
                     _id: '$status',

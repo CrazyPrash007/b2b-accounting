@@ -10,51 +10,59 @@ const adApi = {
         return res?.data?.data || {};
     },
 
-    // Get user's ad stats
-    async getMyStats() {
-        const res = await apiClient.get(`${BASE}/my-stats`);
+    // Get user's ad stats for a company
+    async getMyStats(companyId) {
+        const res = await apiClient.get(`${BASE}/my-stats`, {
+            params: { companyId }
+        });
         return res?.data?.data || {};
     },
 
-    // List user's own ads
-    async listMyAds(params = {}) {
-        const res = await apiClient.get(`${BASE}/my`, { params });
+    // List user's own ads for a company
+    async listMyAds(companyId, params = {}) {
+        const res = await apiClient.get(`${BASE}/my`, {
+            params: { companyId, ...params }
+        });
         return res?.data || { data: [], pagination: {} };
     },
 
     // Create new ad
-    async create(data) {
-        const res = await apiClient.post(BASE, data);
+    async create(data, companyId) {
+        const res = await apiClient.post(BASE, { ...data, companyId });
         return res?.data;
     },
 
     // Get single ad
-    async getOne(id) {
-        const res = await apiClient.get(`${BASE}/${id}`);
+    async getOne(id, companyId) {
+        const res = await apiClient.get(`${BASE}/${id}`, {
+            params: { companyId }
+        });
         return res?.data?.data || null;
     },
 
     // Update ad
-    async update(id, data) {
-        const res = await apiClient.put(`${BASE}/${id}`, data);
+    async update(id, data, companyId) {
+        const res = await apiClient.put(`${BASE}/${id}`, { ...data, companyId });
         return res?.data;
     },
 
     // Delete ad
-    async remove(id) {
-        const res = await apiClient.delete(`${BASE}/${id}`);
+    async remove(id, companyId) {
+        const res = await apiClient.delete(`${BASE}/${id}`, {
+            params: { companyId }
+        });
         return res?.data;
     },
 
     // Stop ad
-    async stop(id) {
-        const res = await apiClient.patch(`${BASE}/${id}/stop`);
+    async stop(id, companyId) {
+        const res = await apiClient.patch(`${BASE}/${id}/stop`, { companyId });
         return res?.data;
     },
 
     // Reactivate ad
-    async reactivate(id) {
-        const res = await apiClient.patch(`${BASE}/${id}/reactivate`);
+    async reactivate(id, companyId) {
+        const res = await apiClient.patch(`${BASE}/${id}/reactivate`, { companyId });
         return res?.data;
     }
 };

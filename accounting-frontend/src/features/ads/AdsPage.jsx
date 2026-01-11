@@ -1,6 +1,7 @@
 // src/features/ads/AdsPage.jsx
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useContext } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
+import { CompanyContext } from '../../App';
 import adApi from './api/ad.api';
 import './AdsPage.css';
 
@@ -13,12 +14,11 @@ const STATUS_COLORS = {
 
 export default function AdsPage() {
     const { user } = useAuth();
+    const { selectedCompany } = useContext(CompanyContext);
 
     const [ads, setAds] = useState([]);
     const [stats, setStats] = useState(null);
     const [loading, setLoading] = useState(true);
-    const [companies, setCompanies] = useState([]);
-    const [selectedCompanyId, setSelectedCompanyId] = useState('');
     const [targetingOptions, setTargetingOptions] = useState({
         categories: [],
         positions: [],
@@ -50,7 +50,7 @@ export default function AdsPage() {
         contactPhone: ''
     });
 
-    // Load targeting options and companies
+    // Load targeting options
     useEffect(() => {
         const loadOptions = async () => {
             try {
@@ -63,32 +63,19 @@ export default function AdsPage() {
         loadOptions();
     }, []);
 
-    // Load companies for user (accounting app uses user's companies)
-    useEffect(() => {
-        const loadCompanies = async () => {
-            try {
-                // Assuming there's an API to get user's companies
-                // For now, we'll use the user's primary company if available
-                if (user?.companyId) {
-                    setSelectedCompanyId(user.companyId);
-                    setCompanies([{ _id: user.companyId, companyName: user.companyName }]);
-                }
-            } catch (err) {
-                console.error('Failed to load companies:', err);
-            }
-        };
-        if (user) {
-            loadCompanies();
-        }
-    }, [user]);
-
-    // Load ads and stats
+    // Load ads and stats when company changes
     const loadData = useCallback(async () => {
+        if (!selectedCompany) {
+            setAds([]);
+            setStats(null);
+            setLoading(false);
+            return;
+        }
         try {
             setLoading(true);
             const [adsResponse, statsData] = await Promise.all([
-                adApi.listMyAds({ status: statusFilter }),
-                adApi.getMyStats()
+                adApi.listMyAds(selectedCompany, { status: statusFilter }),
+                adApi.getMyStats(selectedCompany)
             ]);
             setAds(adsResponse.data || []);
             setStats(statsData);
@@ -97,7 +84,7 @@ export default function AdsPage() {
         } finally {
             setLoading(false);
         }
-    }, [statusFilter]);
+    }, [selectedCompany, statusFilter]);
 
     useEffect(() => {
         loadData();
@@ -183,27 +170,25 @@ export default function AdsPage() {
             alert('Image URL is required');
             return;
         }
-        if (!selectedCompanyId) {
-            alert('Please select a company first');
+        if (!selectedCompany) {
+            alert('Please select a company first from the dropdown');
             return;
         }
 
         try {
             setSaving(true);
-            const selectedCompany = companies.find(c => c._id === selectedCompanyId);
             const data = {
                 ...formData,
-                companyId: selectedCompanyId,
-                companyName: selectedCompany?.companyName || '',
+                companyId: selectedCompany,
                 ownerName: user?.name || '',
                 startDate: formData.startDate || null,
                 endDate: formData.endDate || null
             };
 
             if (editingAd) {
-                await adApi.update(editingAd._id, data);
+                await adApi.update(editingAd._id, data, selectedCompany);
             } else {
-                await adApi.create(data);
+                await adApi.create(data, selectedCompany);
             }
 
             setShowModal(false);
@@ -219,7 +204,7 @@ export default function AdsPage() {
     const handleStop = async (ad) => {
         if (!window.confirm(`Stop ad "${ad.title}"? It will no longer be displayed.`)) return;
         try {
-            await adApi.stop(ad._id);
+            await adApi.stop(ad._id, selectedCompany);
             loadData();
         } catch (err) {
             alert(err.response?.data?.message || 'Failed to stop ad');
@@ -230,7 +215,7 @@ export default function AdsPage() {
     const handleReactivate = async (ad) => {
         if (!window.confirm(`Resubmit ad "${ad.title}" for review?`)) return;
         try {
-            await adApi.reactivate(ad._id);
+            await adApi.reactivate(ad._id, selectedCompany);
             loadData();
         } catch (err) {
             alert(err.response?.data?.message || 'Failed to reactivate ad');
@@ -241,7 +226,7 @@ export default function AdsPage() {
     const handleDelete = async (ad) => {
         if (!window.confirm(`Delete ad "${ad.title}"? This cannot be undone.`)) return;
         try {
-            await adApi.remove(ad._id);
+            await adApi.remove(ad._id, selectedCompany);
             loadData();
         } catch (err) {
             alert(err.response?.data?.message || 'Failed to delete ad');
