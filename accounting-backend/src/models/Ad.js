@@ -17,14 +17,17 @@ const AD_POSITIONS = ['AD 1', 'AD 2', 'AD 3', 'Center', 'SideBar 1', 'SideBar 2'
 const AD_STATUSES = ['pending', 'approved', 'rejected', 'stopped'];
 
 // Recommended dimensions for each position
+// Left panel width is 340px, so sidebar ads should be 308px wide (full width minus margins)
+// Chat item height is ~73px, sidebar ads should match for seamless integration
+// Center panel is flexible width, typically 800-1200px on most screens
 const AD_DIMENSIONS = {
     'AD 1': { width: 248, height: 180, description: 'Right panel top ad' },
     'AD 2': { width: 248, height: 180, description: 'Right panel middle ad' },
     'AD 3': { width: 248, height: 180, description: 'Right panel bottom ad' },
-    'Center': { width: 680, height: 120, description: 'Center wide banner' },
-    'SideBar 1': { width: 280, height: 60, description: 'Left panel ad slot 1' },
-    'SideBar 2': { width: 280, height: 60, description: 'Left panel ad slot 2' },
-    'SideBar 3': { width: 280, height: 60, description: 'Left panel ad slot 3' }
+    'Center': { width: 1200, height: 180, description: 'Center wide banner (full width)' },
+    'SideBar 1': { width: 308, height: 73, description: 'Left panel ad slot 1 (same as chat item)' },
+    'SideBar 2': { width: 308, height: 73, description: 'Left panel ad slot 2 (same as chat item)' },
+    'SideBar 3': { width: 308, height: 73, description: 'Left panel ad slot 3 (same as chat item)' }
 };
 
 // Indian states for targeting
