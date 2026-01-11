@@ -21,12 +21,13 @@ const receiptRoutes = require('./routes/receipt.routes');
 const paymentRoutes = require('./routes/payment.routes');
 const enquiryRoutes = require('./routes/enquiry.routes');
 const dashboardRoutes = require('./routes/dashboard.routes');
+const adRoutes = require('./routes/ad.routes');
 const errorHandler = require('./middlewares/errorHandler');
 
 const PORT = process.env.PORT || 4000;
 
 // Parse allowed origins from environment variable (comma-separated)
-const allowedOrigins = process.env.ALLOWED_ORIGINS 
+const allowedOrigins = process.env.ALLOWED_ORIGINS
     ? process.env.ALLOWED_ORIGINS.split(',').map(origin => origin.trim())
     : [
         "http://localhost:5174",
@@ -78,6 +79,7 @@ async function start() {
     app.use('/api/payments', paymentRoutes);
     app.use('/api/enquiries', enquiryRoutes);
     app.use('/api/dashboard', dashboardRoutes);
+    app.use('/api/ads', adRoutes);
 
     // Global error handler
     app.use(errorHandler);

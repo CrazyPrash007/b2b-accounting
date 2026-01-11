@@ -19,6 +19,7 @@ import PurchasePage from "src/features/transactions/purchase/PurchasePage";
 import PaymentPage from "src/features/transactions/payment/PaymentPage";
 import ReceiptPage from "src/features/transactions/receipt/ReceiptPage";
 import EnquiryPage from "src/features/enquiry/EnquiryPage";
+import AdsPage from "src/features/ads/AdsPage";
 
 
 export default function AppRoutes() {
@@ -43,6 +44,7 @@ export default function AppRoutes() {
                 <Route path="payment" element={<PaymentPage />} />
                 <Route path="receipt" element={<ReceiptPage />} />
                 <Route path="enquiry" element={<EnquiryPage />} />
+                <Route path="ads" element={<AdsPage />} />
 
                 <Route path="*" element={<div className="p-6">Page not found</div>} />
             </Route>
