@@ -77,9 +77,10 @@ function getChatModels() {
  * @param {string} options.ownerId - ID of the owner (inviter) from accounting system
  * @param {string} options.ownerName - Name of the owner
  * @param {string} options.type - Type: 'customer' or 'vendor'
+ * @param {boolean} options.sendWelcomeMessage - Whether to send welcome message (default: false)
  * @returns {Promise<{chatUserId: string|null, action: string, conversationId: string|null}>}
  */
-async function handleChatInvitation({ phoneNumber, name, companyName, ownerId, ownerName, type = 'customer' }) {
+async function handleChatInvitation({ phoneNumber, name, companyName, ownerId, ownerName, type = 'customer', sendWelcomeMessage = false }) {
     if (!phoneNumber) {
         return { chatUserId: null, action: 'no_phone', conversationId: null };
     }
@@ -89,30 +90,15 @@ async function handleChatInvitation({ phoneNumber, name, companyName, ownerId, o
         const chatUser = await lookupChatUserByPhone(phoneNumber);
         
         if (chatUser) {
-            // User is registered - send them a message
-            console.log(`[chatInvitation] User with phone ${phoneNumber} is registered (ID: ${chatUser.userId})`);
+            // User is registered - DO NOT create manual contact invite
+            console.log(`[chatInvitation] User with phone ${phoneNumber} is already registered (ID: ${chatUser.userId}), skipping manual contact creation`);
             
-            try {
-                const result = await sendAddedMessage({
-                    ownerChatUserId: ownerId,
-                    recipientChatUserId: chatUser.userId,
-                    ownerName: ownerName || 'Someone',
-                    type
-                });
-                
-                return {
-                    chatUserId: chatUser.userId,
-                    action: 'message_sent',
-                    conversationId: result.conversationId
-                };
-            } catch (msgErr) {
-                console.error('[chatInvitation] Failed to send message:', msgErr.message);
-                return {
-                    chatUserId: chatUser.userId,
-                    action: 'message_failed',
-                    conversationId: null
-                };
-            }
+            // Return the chatUserId so the customer/vendor can be linked
+            return {
+                chatUserId: chatUser.userId,
+                action: 'user_registered',
+                conversationId: null
+            };
         } else {
             // User is not registered - create manual contact (invitee)
             console.log(`[chatInvitation] User with phone ${phoneNumber} is not registered, creating invitee`);

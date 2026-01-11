@@ -975,7 +975,10 @@ function PurchaseInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, wit
                                     </div>
                                     <div className="grid grid-cols-2 gap-3">
                                         <div>
-                                            <label className="block text-xs text-gray-600 mb-0.5">Paid From</label>
+                                            <label className="block text-xs text-gray-600 mb-0.5">
+                                                Paid From <span className="text-red-500">*</span>
+                                                <span className="text-gray-500 font-normal"> (where money comes from)</span>
+                                            </label>
                                             <select
                                                 value={formData.paidFrom}
                                                 onChange={(e) => handleChange("paidFrom", e.target.value)}

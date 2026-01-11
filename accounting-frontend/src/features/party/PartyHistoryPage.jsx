@@ -44,6 +44,8 @@ export default function PartyHistoryPage() {
 
     // Mini Chat state
     const [isChatOpen, setIsChatOpen] = useState(false);
+    const [isLinkingChat, setIsLinkingChat] = useState(false);
+    const [linkChatMessage, setLinkChatMessage] = useState(null);
 
     const partyLabel = isCustomer ? "Customer" : "Vendor";
 
@@ -167,6 +169,49 @@ export default function PartyHistoryPage() {
     const formatCurrency = (amount) => {
         if (!amount && amount !== 0) return "-";
         return `₹${parseFloat(amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+    };
+
+    // Refresh chat link handler - try to link customer/vendor to their chat account
+    const handleRefreshChatLink = async () => {
+        if (!party || !id) return;
+        
+        setIsLinkingChat(true);
+        setLinkChatMessage(null);
+        
+        try {
+            const companyId = getCurrentCompany();
+            const endpoint = isCustomer ? "customers" : "vendors";
+            
+            const res = await authFetch(`${API_BASE}/api/${endpoint}/${id}/refresh-chat-link?accountCompanyName=${companyId}`, {
+                method: 'POST'
+            });
+            
+            if (res && res.ok) {
+                const data = await res.json();
+                
+                if (data.chatLinked) {
+                    // Update party state with new chat user ID
+                    setParty(prev => ({
+                        ...prev,
+                        chatUserId: data.chatUser?.id || data.data?.chatUserId,
+                        chatConversationId: null // Will be created fresh
+                    }));
+                    setLinkChatMessage({ type: 'success', text: `Chat linked successfully! Found: ${data.chatUser?.name || 'User'}` });
+                } else {
+                    setLinkChatMessage({ type: 'info', text: data.message || 'User is not registered on the chat platform yet' });
+                }
+            } else {
+                const err = await res.json().catch(() => ({}));
+                setLinkChatMessage({ type: 'error', text: err.error?.message || 'Failed to refresh chat link' });
+            }
+        } catch (err) {
+            console.error('Failed to refresh chat link:', err);
+            setLinkChatMessage({ type: 'error', text: 'Failed to connect to server' });
+        } finally {
+            setIsLinkingChat(false);
+            // Auto-clear message after 5 seconds
+            setTimeout(() => setLinkChatMessage(null), 5000);
+        }
     };
 
     // PDF Preview handler - opens modal with preview
@@ -386,7 +431,18 @@ export default function PartyHistoryPage() {
                             </span>
                         )}
                         
-                        {/* Start Chat Button */}
+                        {/* Chat Link Status Message */}
+                        {linkChatMessage && (
+                            <span className={`text-sm px-3 py-1 rounded-full ${
+                                linkChatMessage.type === 'success' ? 'bg-green-100 text-green-700' :
+                                linkChatMessage.type === 'error' ? 'bg-red-100 text-red-700' :
+                                'bg-blue-100 text-blue-700'
+                            }`}>
+                                {linkChatMessage.text}
+                            </span>
+                        )}
+                        
+                        {/* Start Chat / Link Chat Buttons */}
                         {hasChatUser ? (
                             <button
                                 onClick={() => setIsChatOpen(true)}
@@ -398,17 +454,40 @@ export default function PartyHistoryPage() {
                                 </svg>
                                 Start Chat
                             </button>
-                        ) : (
+                        ) : party.mobileNumber ? (
                             <button
-                                disabled
-                                className="inline-flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-400 text-sm font-medium rounded-lg cursor-not-allowed"
-                                title="This user is not registered on the chat platform"
+                                onClick={handleRefreshChatLink}
+                                disabled={isLinkingChat}
+                                className="inline-flex items-center gap-2 px-4 py-2 bg-amber-500 text-white text-sm font-medium rounded-lg hover:bg-amber-600 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-wait"
+                                title="Check if this user has registered on the chat platform"
+                            >
+                                {isLinkingChat ? (
+                                    <>
+                                        <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                                        </svg>
+                                        Checking...
+                                    </>
+                                ) : (
+                                    <>
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                                        </svg>
+                                        Link Chat
+                                    </>
+                                )}
+                            </button>
+                        ) : (
+                            <span
+                                className="inline-flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-400 text-sm font-medium rounded-lg"
+                                title="Add a phone number to enable chat"
                             >
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                                 </svg>
-                                User Not Registered
-                            </button>
+                                No Phone Number
+                            </span>
                         )}
                     </div>
                 </div>

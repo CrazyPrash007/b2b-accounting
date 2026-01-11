@@ -10,7 +10,15 @@ export default function createResourceApi(resourceBasePath) {
             const res = await apiClient.get(BASE, {
                 params: { accountCompanyName }
             });
-            return res?.data?.data || [];
+            // Return the full response structure with data and meta
+            if (res?.data && typeof res.data === 'object') {
+                return {
+                    data: res.data.data || [],
+                    meta: res.data.meta || {}
+                };
+            }
+            // Fallback for legacy responses
+            return { data: res?.data || [], meta: {} };
         },
 
         // CREATE

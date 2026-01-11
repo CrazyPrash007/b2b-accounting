@@ -1,5 +1,6 @@
 // src/features/company/components/AddCompanyForm.jsx
 import React, { useState, useRef, useEffect } from "react";
+import { BUSINESS_TYPES, INDUSTRY_TYPES } from "../../../lib/enums";
 
 /**
  * AddCompanyForm - Self-contained form for creating a new company
@@ -12,7 +13,7 @@ import React, { useState, useRef, useEffect } from "react";
 export default function AddCompanyForm({ onCreated, onCancel, createCompanyFn }) {
     const [formData, setFormData] = useState({
         companyName: "",
-        businessType: "",
+        businessType: [], // Changed to array for multi-select
         industryType: "",
         registrationType: "regular",
         gstin: "",
@@ -24,6 +25,8 @@ export default function AddCompanyForm({ onCreated, onCancel, createCompanyFn })
         country: "India",
         mobile: "",
         email: "",
+        businessTypeOther: "",
+        industryTypeOther: "",
     });
 
     const [errors, setErrors] = useState({});
@@ -35,21 +38,8 @@ export default function AddCompanyForm({ onCreated, onCancel, createCompanyFn })
     const refsOrder = useRef([]);
     const setRef = (idx) => (el) => (refsOrder.current[idx] = el);
 
-    const businessTypes = [
-        { value: "proprietorship", label: "Proprietorship" },
-        { value: "partnership", label: "Partnership" },
-        { value: "private_ltd", label: "Private Limited" },
-        { value: "llp", label: "LLP" },
-    ];
-
-    const industries = [
-        { value: "it", label: "IT & Software" },
-        { value: "manufacturing", label: "Manufacturing" },
-        { value: "retail", label: "Retail" },
-        { value: "services", label: "Services" },
-        { value: "trading", label: "Trading" },
-        { value: "other", label: "Other" },
-    ];
+    const businessTypes = BUSINESS_TYPES.map(type => ({ value: type, label: type }));
+    const industries = INDUSTRY_TYPES.map(type => ({ value: type, label: type }));
 
     const registrationOptions = [
         { value: "regular", label: "Regular" },
@@ -128,8 +118,14 @@ export default function AddCompanyForm({ onCreated, onCancel, createCompanyFn })
         if (!trimmedName) {
             newErrors.companyName = "Company name is required";
         }
-        if (!formData.businessType) {
-            newErrors.businessType = "Business type is required";
+        if (!formData.businessType || formData.businessType.length === 0) {
+            newErrors.businessType = "Please select at least one business type";
+        }
+        if (formData.businessType && formData.businessType.includes("Other") && !formData.businessTypeOther.trim()) {
+            newErrors.businessTypeOther = "Please specify your business type";
+        }
+        if (formData.industryType === "Other" && !formData.industryTypeOther.trim()) {
+            newErrors.industryTypeOther = "Please specify your industry type";
         }
         // GSTIN validation (optional, but if provided should be 15 chars)
         // Skip validation if registration type is unregistered
@@ -195,10 +191,17 @@ export default function AddCompanyForm({ onCreated, onCancel, createCompanyFn })
         setSubmitError("");
 
         try {
+            // Prepare businessType array
+            let businessTypeArray = [...formData.businessType];
+            if (businessTypeArray.includes("Other") && formData.businessTypeOther.trim()) {
+                businessTypeArray = businessTypeArray.filter(t => t !== "Other");
+                businessTypeArray.push(formData.businessTypeOther.trim());
+            }
+
             const payload = {
                 companyName: formData.companyName.trim(),
-                businessType: formData.businessType || undefined,
-                industryType: formData.industryType || undefined,
+                businessType: businessTypeArray, // Now sending as array
+                industryType: formData.industryType === "Other" ? formData.industryTypeOther.trim() : formData.industryType || undefined,
                 registrationType: formData.registrationType || "unregistered",
                 gstin: formData.gstin.trim() || undefined,
                 addressLine1: formData.addressLine1.trim() || undefined,
@@ -233,7 +236,7 @@ export default function AddCompanyForm({ onCreated, onCancel, createCompanyFn })
     const handleReset = () => {
         setFormData({
             companyName: "",
-            businessType: "",
+            businessType: [], // Reset to empty array
             industryType: "",
             registrationType: "regular",
             gstin: "",
@@ -256,6 +259,84 @@ export default function AddCompanyForm({ onCreated, onCancel, createCompanyFn })
             onCancel?.();
         }
     };
+
+    function MultiSelectDropdown({ options, selectedValues, onChange, placeholder, error }) {
+        const [isOpen, setIsOpen] = useState(false);
+        const dropdownRef = useRef(null);
+
+        useEffect(() => {
+            const handleClickOutside = (event) => {
+                if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+                    setIsOpen(false);
+                }
+            };
+            document.addEventListener('mousedown', handleClickOutside);
+            return () => document.removeEventListener('mousedown', handleClickOutside);
+        }, []);
+
+        const toggleOption = (value) => {
+            const newValues = selectedValues.includes(value)
+                ? selectedValues.filter(v => v !== value)
+                : [...selectedValues, value];
+            onChange(newValues);
+        };
+
+        const displayText = selectedValues.length > 0
+            ? selectedValues.join(', ')
+            : placeholder;
+
+        return (
+            <div ref={dropdownRef} className="relative">
+                <div
+                    onClick={() => setIsOpen(!isOpen)}
+                    className={`w-full px-3 py-2 rounded-lg border transition-all text-sm cursor-pointer flex items-center justify-between ${
+                        error ? "border-red-400 bg-red-50" : "border-slate-200 focus:border-indigo-500 hover:border-indigo-300"
+                    }`}
+                >
+                    <span className={selectedValues.length > 0 ? "text-slate-900" : "text-slate-400"}>
+                        {displayText}
+                    </span>
+                    <svg
+                        className={`w-4 h-4 text-slate-400 transition-transform ${
+                            isOpen ? 'rotate-180' : ''
+                        }`}
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                    >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                </div>
+
+                {isOpen && (
+                    <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                        {options.map((option) => {
+                            const isSelected = selectedValues.includes(option.value);
+                            return (
+                                <label
+                                    key={option.value}
+                                    className={`flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-slate-50 transition-colors ${
+                                        isSelected ? 'bg-indigo-50' : ''
+                                    }`}
+                                    onClick={() => toggleOption(option.value)}
+                                >
+                                    <input
+                                        type="checkbox"
+                                        checked={isSelected}
+                                        onChange={() => {}}
+                                        className="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500"
+                                    />
+                                    <span className={`text-sm ${
+                                        isSelected ? 'text-indigo-900 font-medium' : 'text-slate-700'
+                                    }`}>{option.label}</span>
+                                </label>
+                            );
+                        })}
+                    </div>
+                )}
+            </div>
+        );
+    }
 
     function CustomSelect({ placeholder, options = [], value, onChange, inputRef, onEnterNext, name }) {
         const [open, setOpen] = useState(false);
@@ -435,20 +516,37 @@ export default function AddCompanyForm({ onCreated, onCancel, createCompanyFn })
                                     />
                                     {errors.companyName && <p className="text-xs text-red-600 mt-1 flex items-center gap-1"><svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" /></svg>{errors.companyName}</p>}
                                 </div>
-                                <div className="relative z-30">
+                                <div>
                                     <label className="block text-xs font-medium text-slate-600 mb-1.5">
                                         Business Type <span className="text-red-500">*</span>
                                     </label>
-                                    <CustomSelect
-                                        name="businessType"
+                                    <MultiSelectDropdown
                                         options={businessTypes}
-                                        value={formData.businessType}
-                                        onChange={(v) => handleChange("businessType")({ target: { value: v } })}
-                                        inputRef={setRef(1)}
-                                        onEnterNext={() => focusNext(1)}
-                                        placeholder="Select type"
+                                        selectedValues={formData.businessType}
+                                        onChange={(newValues) => {
+                                            setFormData(f => ({ ...f, businessType: newValues }));
+                                            if (!newValues.includes("Other")) {
+                                                setFormData(f => ({ ...f, businessTypeOther: "" }));
+                                            }
+                                        }}
+                                        placeholder="Select business types"
+                                        error={errors.businessType}
                                     />
-                                    {errors.businessType && <p className="text-xs text-red-600 mt-1">{errors.businessType}</p>}
+                                    {errors.businessType && <p className="text-xs text-red-600 mt-1.5 flex items-center gap-1"><svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" /></svg>{errors.businessType}</p>}
+                                    
+                                    {formData.businessType.includes("Other") && (
+                                        <div className="mt-2">
+                                            <input
+                                                type="text"
+                                                value={formData.businessTypeOther}
+                                                onChange={handleChange("businessTypeOther")}
+                                                placeholder="Specify your business type"
+                                                className={`w-full px-3 py-2.5 rounded-lg border-2 transition-all text-sm ${errors.businessTypeOther ? "border-red-400 bg-red-50" : "border-indigo-300 bg-indigo-50/30 focus:border-indigo-500 focus:bg-white"} focus:outline-none focus:ring-2 focus:ring-indigo-100`}
+                                                autoFocus
+                                            />
+                                            {errors.businessTypeOther && <p className="text-xs text-red-600 mt-1.5 flex items-center gap-1"><svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" /></svg>{errors.businessTypeOther}</p>}
+                                        </div>
+                                    )}
                                 </div>
                                 <div className="relative z-20">
                                     <label className="block text-xs font-medium text-slate-600 mb-1.5">Industry Type</label>
@@ -456,11 +554,30 @@ export default function AddCompanyForm({ onCreated, onCancel, createCompanyFn })
                                         name="industryType"
                                         options={industries}
                                         value={formData.industryType}
-                                        onChange={(v) => handleChange("industryType")({ target: { value: v } })}
+                                        onChange={(v) => {
+                                            handleChange("industryType")({ target: { value: v } });
+                                            if (v !== "Other") {
+                                                handleChange("industryTypeOther")({ target: { value: "" } });
+                                            }
+                                        }}
                                         inputRef={setRef(2)}
                                         onEnterNext={() => focusNext(2)}
                                         placeholder="Select industry"
                                     />
+                                    
+                                    {formData.industryType === "Other" && (
+                                        <div className="mt-2">
+                                            <input
+                                                type="text"
+                                                value={formData.industryTypeOther}
+                                                onChange={handleChange("industryTypeOther")}
+                                                placeholder="Specify industry type"
+                                                className={`w-full px-3 py-2 rounded-lg border transition-all text-sm ${errors.industryTypeOther ? "border-red-400 bg-red-50" : "border-slate-200 focus:border-indigo-500"} focus:outline-none focus:ring-2 focus:ring-indigo-100`}
+                                                autoFocus
+                                            />
+                                            {errors.industryTypeOther && <p className="text-xs text-red-600 mt-1">{errors.industryTypeOther}</p>}
+                                        </div>
+                                    )}
                                 </div>
                                 <div className="relative z-10">
                                     <label className="block text-xs font-medium text-slate-600 mb-1.5">Registration Type</label>
