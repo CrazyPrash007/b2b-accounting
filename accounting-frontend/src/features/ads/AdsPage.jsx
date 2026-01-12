@@ -182,7 +182,9 @@ export default function AdsPage() {
                 companyId: selectedCompany,
                 ownerName: user?.name || '',
                 startDate: formData.startDate || null,
-                endDate: formData.endDate || null
+                endDate: formData.endDate || null,
+                // Convert states to uppercase before saving
+                targetStates: formData.targetStates.map(state => state.toUpperCase())
             };
 
             if (editingAd) {
