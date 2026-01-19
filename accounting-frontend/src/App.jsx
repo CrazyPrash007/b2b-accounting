@@ -44,7 +44,7 @@ function LoadingScreen() {
 
 // Main app content that requires auth
 function AppContent() {
-    const { loading, isAuthenticated, user, token } = useAuth();
+    const { loading, isAuthenticated, user, token, error, redirectToLogin } = useAuth();
     const [selectedCompany, setSelectedCompany] = useState("");
     const [companyLoading, setCompanyLoading] = useState(true);
 
@@ -125,8 +125,46 @@ function AppContent() {
         return <LoadingScreen />;
     }
 
-    // If not authenticated, the AuthContext will handle redirect
+    // If not authenticated after loading completes, show error and redirect
     if (!isAuthenticated) {
+        // If there's an error, show it briefly before redirecting
+        if (error) {
+            return (
+                <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    height: '100vh',
+                    background: '#f5f5f5'
+                }}>
+                    <div style={{ textAlign: 'center', padding: 20 }}>
+                        <p style={{ color: '#dc2626', marginBottom: 16, fontSize: 16 }}>
+                            Authentication Error: {error}
+                        </p>
+                        <p style={{ color: '#666', marginBottom: 16, fontSize: 14 }}>
+                            Redirecting to login...
+                        </p>
+                        <button
+                            onClick={redirectToLogin}
+                            style={{
+                                padding: '8px 16px',
+                                background: '#3b82f6',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: 4,
+                                cursor: 'pointer'
+                            }}
+                        >
+                            Go to Login
+                        </button>
+                    </div>
+                </div>
+            );
+        }
+        
+        // No error but not authenticated - just redirect immediately
+        console.log('[APP] Not authenticated, redirecting to login');
+        setTimeout(() => redirectToLogin(), 100);
         return <LoadingScreen />;
     }
 
