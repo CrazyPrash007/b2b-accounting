@@ -22,6 +22,224 @@ function normalize(v) {
     return String(v).trim().replace(/\s+/g, " ").toLowerCase();
 }
 
+/* ============================= GLOBAL SEARCH (All Users) ============================= */
+async function globalSearch(req, res, next) {
+    try {
+        const { q, limit = 20 } = req.query;
+
+        if (!q || q.trim().length < 2) {
+            return res.json({ success: true, data: [] });
+        }
+
+        const searchTerm = q.trim();
+
+        // Search across all vendors from all users (for suggestion/autocomplete)
+        const vendors = await Vendor.aggregate([
+            {
+                $match: {
+                    isDeleted: false,
+                    $or: [
+                        { vendorName: { $regex: searchTerm, $options: "i" } },
+                        { name: { $regex: searchTerm, $options: "i" } },
+                        { companyName: { $regex: searchTerm, $options: "i" } },
+                        { mobileNumber: { $regex: searchTerm, $options: "i" } },
+                        { emailAddress: { $regex: searchTerm, $options: "i" } }
+                    ]
+                }
+            },
+            {
+                // Group by vendor name + company to get unique vendors
+                $group: {
+                    _id: { 
+                        name: { $toLower: "$vendorName" },
+                        company: { $toLower: { $ifNull: ["$companyName", ""] } }
+                    },
+                    vendorName: { $first: "$vendorName" },
+                    mobileNumber: { $first: "$mobileNumber" },
+                    emailAddress: { $first: "$emailAddress" },
+                    websiteLink: { $first: "$websiteLink" },
+                    companyName: { $first: "$companyName" },
+                    gstType: { $first: "$gstType" },
+                    gstNumber: { $first: "$gstNumber" },
+                    billingAddress: { $first: "$billingAddress" },
+                    billingPinCode: { $first: "$billingPinCode" },
+                    billingVillage: { $first: "$billingVillage" },
+                    billingTehsil: { $first: "$billingTehsil" },
+                    billingDistrict: { $first: "$billingDistrict" },
+                    billingState: { $first: "$billingState" },
+                    billingCountry: { $first: "$billingCountry" },
+                    shippingAddress: { $first: "$shippingAddress" },
+                    shippingPinCode: { $first: "$shippingPinCode" },
+                    shippingVillage: { $first: "$shippingVillage" },
+                    shippingTehsil: { $first: "$shippingTehsil" },
+                    shippingDistrict: { $first: "$shippingDistrict" },
+                    shippingState: { $first: "$shippingState" },
+                    shippingCountry: { $first: "$shippingCountry" },
+                    sameAsBilling: { $first: "$sameAsBilling" },
+                    count: { $sum: 1 }
+                }
+            },
+            { $sort: { count: -1 } }, // Most common vendors first
+            { $limit: Number(limit) },
+            {
+                $project: {
+                    _id: 0,
+                    vendorName: 1,
+                    mobileNumber: 1,
+                    emailAddress: 1,
+                    websiteLink: 1,
+                    companyName: 1,
+                    gstType: 1,
+                    gstNumber: 1,
+                    billingAddress: 1,
+                    billingPinCode: 1,
+                    billingVillage: 1,
+                    billingTehsil: 1,
+                    billingDistrict: 1,
+                    billingState: 1,
+                    billingCountry: 1,
+                    shippingAddress: 1,
+                    shippingPinCode: 1,
+                    shippingVillage: 1,
+                    shippingTehsil: 1,
+                    shippingDistrict: 1,
+                    shippingState: 1,
+                    shippingCountry: 1,
+                    sameAsBilling: 1,
+                    popularity: "$count"
+                }
+            }
+        ]);
+
+        return res.json({ success: true, data: vendors });
+
+    } catch (err) {
+        next(err);
+    }
+}
+
+/* ============================= BATCH CREATE ============================= */
+async function batchCreate(req, res, next) {
+    try {
+        const ownerId = req.user.ownerId;
+        const { vendors, accountCompanyName: companyIdStr } = req.body;
+
+        const accountCompanyName = toObjectId(companyIdStr);
+        if (!accountCompanyName) {
+            return res.status(400).json({
+                success: false,
+                error: { message: "Valid accountCompanyName is required" }
+            });
+        }
+
+        if (!Array.isArray(vendors) || vendors.length === 0) {
+            return res.status(400).json({
+                success: false,
+                error: { message: "vendors array is required and must not be empty" }
+            });
+        }
+
+        const results = [];
+        const errors = [];
+
+        for (let i = 0; i < vendors.length; i++) {
+            const vendorData = vendors[i];
+
+            try {
+                if (!vendorData.vendorName?.trim()) {
+                    errors.push({ index: i, error: "vendorName is required" });
+                    continue;
+                }
+
+                const payload = {
+                    ...vendorData,
+                    ownerId,
+                    accountCompanyName,
+                    createdBy: req.user.id,
+                };
+
+                payload.vendorName = payload.vendorName.trim();
+                payload.companyName = payload.companyName ? payload.companyName.trim() : "";
+                payload.vendorNameNorm = normalize(payload.vendorName);
+                payload.companyNameNorm = normalize(payload.companyName);
+
+                const gstType = (payload.gstType || "Unregistered").trim();
+                const gstNumber = gstType === "Unregistered"
+                    ? ""
+                    : String(payload.gstNumber || "").trim().toUpperCase();
+
+                if (gstType !== "Unregistered" && !gstNumber) {
+                    errors.push({ index: i, vendorName: payload.vendorName, error: "GST number is required for Regular or Composition GST type" });
+                    continue;
+                }
+
+                payload.gstType = gstType;
+                payload.gstNumber = gstNumber;
+                payload.openingBalanceAmount = Number(payload.openingBalanceAmount || 0);
+
+                // Check for duplicates
+                const exists = await Vendor.findOne({
+                    ownerId,
+                    accountCompanyName,
+                    vendorNameNorm: payload.vendorNameNorm,
+                    companyNameNorm: payload.companyNameNorm,
+                    isDeleted: false,
+                }).lean();
+
+                if (exists) {
+                    errors.push({ index: i, vendorName: payload.vendorName, error: "Vendor already exists" });
+                    continue;
+                }
+
+                // Handle chat invitation
+                if (payload.mobileNumber) {
+                    try {
+                        const chatResult = await handleChatInvitation({
+                            phoneNumber: payload.mobileNumber,
+                            name: payload.vendorName,
+                            companyName: payload.companyName || '',
+                            ownerId: String(ownerId),
+                            ownerName: req.user.name || 'A business contact',
+                            type: 'vendor'
+                        });
+
+                        if (chatResult.chatUserId) {
+                            payload.chatUserId = chatResult.chatUserId;
+                            payload.chatConversationId = chatResult.conversationId;
+                        }
+                    } catch (err) {
+                        console.warn('[Vendor BatchCreate] Chat invitation failed:', err.message);
+                    }
+                }
+
+                const doc = await Vendor.create(payload);
+                results.push({ index: i, success: true, data: doc });
+
+            } catch (err) {
+                if (err.code === 11000) {
+                    errors.push({ index: i, vendorName: vendorData.vendorName, error: "Vendor already exists" });
+                } else {
+                    errors.push({ index: i, vendorName: vendorData.vendorName, error: err.message });
+                }
+            }
+        }
+
+        return res.status(results.length > 0 ? 201 : 400).json({
+            success: results.length > 0,
+            data: results,
+            errors: errors,
+            summary: {
+                total: vendors.length,
+                created: results.length,
+                failed: errors.length
+            }
+        });
+
+    } catch (err) {
+        next(err);
+    }
+}
+
 /**
  * Calculate payable amount for a vendor
  * Payable = Opening Balance + Sum of Due Amounts from Purchases
@@ -524,4 +742,4 @@ async function refreshChatLink(req, res, next) {
     }
 }
 
-module.exports = { list, getOne, create, update, remove, refreshChatLink };
+module.exports = { list, getOne, create, update, remove, refreshChatLink, globalSearch, batchCreate };

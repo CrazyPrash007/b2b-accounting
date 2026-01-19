@@ -1,4 +1,4 @@
-// src/features/customers/customer/api/vendor.api.js
+// src/features/party/vendor/api/vendor.api.js
 import resourceApiFactory from "src/services/resourceApiFactory";
 
 const vendorApi = resourceApiFactory("/api/vendors");

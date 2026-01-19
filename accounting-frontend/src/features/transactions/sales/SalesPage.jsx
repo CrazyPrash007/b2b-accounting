@@ -15,16 +15,22 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
     const { openModal, closeModal } = useModal();
     const API_BASE = API_BASE_URL;
 
-    // Get next invoice counter from localStorage or start at 1
-    const getNextInvoiceCounter = () => {
-        const saved = localStorage.getItem('salesInvoiceCounter');
+    // Get next invoice counter from localStorage based on GST type
+    const getNextInvoiceCounter = (isGst = true) => {
+        const key = isGst ? 'salesGstCounter' : 'salesNonGstCounter';
+        const saved = localStorage.getItem(key);
         return saved ? parseInt(saved, 10) : 1;
+    };
+
+    // Get invoice prefix based on GST type
+    const getInvoicePrefix = (isGst = true) => {
+        return isGst ? "SINV" : "SNINV";
     };
 
     const [formData, setFormData] = useState({
         customer: "",
-        invoicePrefix: "INV",
-        invoiceNumber: String(getNextInvoiceCounter()).padStart(6, '0'),
+        invoicePrefix: getInvoicePrefix(withGst),
+        invoiceNumber: String(getNextInvoiceCounter(withGst)).padStart(6, '0'),
         invoiceSuffix: "",
         invoiceDate: new Date().toISOString().split('T')[0],
         // <-- make sure new items have both goodsService and name
@@ -97,8 +103,8 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
             if (editData) {
                 setFormData({
                     customer: editData.customer || "",
-                    invoicePrefix: editData.invoicePrefix || "INV",
-                    invoiceNumber: editData.invoiceNumber || String(getNextInvoiceCounter()).padStart(6, '0'),
+                    invoicePrefix: editData.invoicePrefix || getInvoicePrefix(withGst),
+                    invoiceNumber: editData.invoiceNumber || String(getNextInvoiceCounter(withGst)).padStart(6, '0'),
                     invoiceSuffix: editData.invoiceSuffix || "",
                     invoiceDate: editData.invoiceDate || new Date().toISOString().split('T')[0],
                     // map backend items so frontend always has goodsService populated
@@ -130,10 +136,10 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
                 });
             } else {
                 // existing else branch remains the same but ensure new row includes `name` as well:
-                const nextCounter = getNextInvoiceCounter();
+                const nextCounter = getNextInvoiceCounter(withGst);
                 setFormData({
                     customer: "",
-                    invoicePrefix: "INV",
+                    invoicePrefix: getInvoicePrefix(withGst),
                     invoiceNumber: String(nextCounter).padStart(6, '0'),
                     invoiceSuffix: "",
                     invoiceDate: new Date().toISOString().split('T')[0],
@@ -699,8 +705,9 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
         }
 
         if (!isEditMode) {
-            const currentCounter = getNextInvoiceCounter();
-            localStorage.setItem('salesInvoiceCounter', String(currentCounter + 1));
+            const currentCounter = getNextInvoiceCounter(withGst);
+            const key = withGst ? 'salesGstCounter' : 'salesNonGstCounter';
+            localStorage.setItem(key, String(currentCounter + 1));
         }
 
         onSave(salesData, isEditMode);

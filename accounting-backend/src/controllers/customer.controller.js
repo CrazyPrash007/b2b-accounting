@@ -16,6 +16,222 @@ function normalizeString(v) {
     return String(v).trim().replace(/\s+/g, " ").toLowerCase();
 }
 
+/* ============================= GLOBAL SEARCH (All Users) ============================= */
+async function globalSearch(req, res, next) {
+    try {
+        const { q, limit = 20 } = req.query;
+
+        if (!q || q.trim().length < 2) {
+            return res.json({ success: true, data: [] });
+        }
+
+        const searchTerm = q.trim();
+
+        // Search across all customers from all users (for suggestion/autocomplete)
+        const customers = await Customer.aggregate([
+            {
+                $match: {
+                    isDeleted: false,
+                    $or: [
+                        { customerName: { $regex: searchTerm, $options: "i" } },
+                        { name: { $regex: searchTerm, $options: "i" } },
+                        { companyName: { $regex: searchTerm, $options: "i" } },
+                        { mobileNumber: { $regex: searchTerm, $options: "i" } },
+                        { emailAddress: { $regex: searchTerm, $options: "i" } }
+                    ]
+                }
+            },
+            {
+                // Group by customer name + company to get unique customers
+                $group: {
+                    _id: { 
+                        name: { $toLower: "$customerName" },
+                        company: { $toLower: { $ifNull: ["$companyName", ""] } }
+                    },
+                    customerName: { $first: "$customerName" },
+                    mobileNumber: { $first: "$mobileNumber" },
+                    emailAddress: { $first: "$emailAddress" },
+                    websiteLink: { $first: "$websiteLink" },
+                    companyName: { $first: "$companyName" },
+                    gstType: { $first: "$gstType" },
+                    gstNumber: { $first: "$gstNumber" },
+                    billingAddress: { $first: "$billingAddress" },
+                    billingPinCode: { $first: "$billingPinCode" },
+                    billingVillage: { $first: "$billingVillage" },
+                    billingTehsil: { $first: "$billingTehsil" },
+                    billingDistrict: { $first: "$billingDistrict" },
+                    billingState: { $first: "$billingState" },
+                    billingCountry: { $first: "$billingCountry" },
+                    shippingAddress: { $first: "$shippingAddress" },
+                    shippingPinCode: { $first: "$shippingPinCode" },
+                    shippingVillage: { $first: "$shippingVillage" },
+                    shippingTehsil: { $first: "$shippingTehsil" },
+                    shippingDistrict: { $first: "$shippingDistrict" },
+                    shippingState: { $first: "$shippingState" },
+                    shippingCountry: { $first: "$shippingCountry" },
+                    sameAsBilling: { $first: "$sameAsBilling" },
+                    count: { $sum: 1 }
+                }
+            },
+            { $sort: { count: -1 } }, // Most common customers first
+            { $limit: Number(limit) },
+            {
+                $project: {
+                    _id: 0,
+                    customerName: 1,
+                    mobileNumber: 1,
+                    emailAddress: 1,
+                    websiteLink: 1,
+                    companyName: 1,
+                    gstType: 1,
+                    gstNumber: 1,
+                    billingAddress: 1,
+                    billingPinCode: 1,
+                    billingVillage: 1,
+                    billingTehsil: 1,
+                    billingDistrict: 1,
+                    billingState: 1,
+                    billingCountry: 1,
+                    shippingAddress: 1,
+                    shippingPinCode: 1,
+                    shippingVillage: 1,
+                    shippingTehsil: 1,
+                    shippingDistrict: 1,
+                    shippingState: 1,
+                    shippingCountry: 1,
+                    sameAsBilling: 1,
+                    popularity: "$count"
+                }
+            }
+        ]);
+
+        return res.json({ success: true, data: customers });
+
+    } catch (err) {
+        next(err);
+    }
+}
+
+/* ============================= BATCH CREATE ============================= */
+async function batchCreate(req, res, next) {
+    try {
+        const ownerId = req.user.ownerId;
+        const { customers, accountCompanyName: companyIdStr } = req.body;
+
+        const companyId = toObjectId(companyIdStr);
+        if (!companyId) {
+            return res.status(400).json({
+                success: false,
+                error: { message: "Valid accountCompanyName (companyId) is required" }
+            });
+        }
+
+        if (!Array.isArray(customers) || customers.length === 0) {
+            return res.status(400).json({
+                success: false,
+                error: { message: "customers array is required and must not be empty" }
+            });
+        }
+
+        const results = [];
+        const errors = [];
+
+        for (let i = 0; i < customers.length; i++) {
+            const customerData = customers[i];
+
+            try {
+                if (!customerData.customerName?.trim()) {
+                    errors.push({ index: i, error: "customerName is required" });
+                    continue;
+                }
+
+                const payload = {
+                    ...customerData,
+                    ownerId,
+                    accountCompanyName: companyId,
+                    createdBy: req.user.id,
+                };
+
+                payload.customerName = payload.customerName.trim();
+                payload.customerNameNorm = normalizeString(payload.customerName);
+                payload.companyNameNorm = normalizeString(payload.companyName);
+
+                const gstType = (payload.gstType || "Unregistered").trim();
+                const gstNumber = gstType === "Unregistered"
+                    ? ""
+                    : String(payload.gstNumber || "").trim().toUpperCase();
+
+                if (gstType !== "Unregistered" && !gstNumber) {
+                    errors.push({ index: i, customerName: payload.customerName, error: "GST number is required for Regular or Composition GST type" });
+                    continue;
+                }
+
+                payload.gstType = gstType;
+                payload.gstNumber = gstNumber;
+
+                // Check for duplicates
+                const exists = await Customer.findOne({
+                    ownerId,
+                    accountCompanyName: companyId,
+                    customerNameNorm: payload.customerNameNorm,
+                    companyNameNorm: payload.companyNameNorm,
+                    isDeleted: false,
+                }).lean();
+
+                if (exists) {
+                    errors.push({ index: i, customerName: payload.customerName, error: "Customer already exists" });
+                    continue;
+                }
+
+                // Handle chat invitation
+                if (payload.mobileNumber) {
+                    try {
+                        const chatResult = await handleChatInvitation({
+                            phoneNumber: payload.mobileNumber,
+                            name: payload.customerName,
+                            companyName: payload.companyName || '',
+                            ownerId: String(ownerId),
+                            ownerName: req.user.name || 'A business contact',
+                            type: 'customer'
+                        });
+
+                        if (chatResult.chatUserId) {
+                            payload.chatUserId = chatResult.chatUserId;
+                            payload.chatConversationId = chatResult.conversationId;
+                        }
+                    } catch (err) {
+                        console.warn('[Customer BatchCreate] Chat invitation failed:', err.message);
+                    }
+                }
+
+                const doc = await Customer.create(payload);
+                results.push({ index: i, success: true, data: doc });
+
+            } catch (err) {
+                if (err.code === 11000) {
+                    errors.push({ index: i, customerName: customerData.customerName, error: "Customer already exists" });
+                } else {
+                    errors.push({ index: i, customerName: customerData.customerName, error: err.message });
+                }
+            }
+        }
+
+        return res.status(results.length > 0 ? 201 : 400).json({
+            success: results.length > 0,
+            data: results,
+            errors: errors,
+            summary: {
+                total: customers.length,
+                created: results.length,
+                failed: errors.length
+            }
+        });
+
+    } catch (err) {
+        next(err);
+    }
+}
+
 /**
  * Calculate pending amount for a customer
  * Pending = Opening Balance + Sum of Due Amounts from Sales
@@ -483,4 +699,4 @@ async function refreshChatLink(req, res, next) {
     }
 }
 
-module.exports = { list, getOne, create, update, remove, refreshChatLink };
+module.exports = { list, getOne, create, update, remove, refreshChatLink, globalSearch, batchCreate };

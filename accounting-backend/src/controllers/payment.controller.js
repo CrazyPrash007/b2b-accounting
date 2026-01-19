@@ -16,6 +16,37 @@ function toObjectId(v) {
     }
 }
 
+/* ---------------------------- Generate Payment Number ---------------------------- */
+async function generatePaymentNumber(ownerId, companyId) {
+    try {
+        // Find the latest payment for this company
+        const latestPayment = await Payment.findOne({
+            ownerId,
+            accountCompanyName: companyId,
+            paymentNumber: { $exists: true, $ne: '' }
+        })
+        .sort({ createdAt: -1 })
+        .select('paymentNumber')
+        .lean();
+
+        let nextNumber = 1;
+        
+        if (latestPayment && latestPayment.paymentNumber) {
+            // Extract number from paymentNumber (assuming format like "000001")
+            const match = latestPayment.paymentNumber.match(/(\d+)$/);
+            if (match) {
+                nextNumber = parseInt(match[1], 10) + 1;
+            }
+        }
+
+        // Return 6-digit zero-padded number
+        return String(nextNumber).padStart(6, '0');
+    } catch (err) {
+        console.error('Error generating payment number:', err);
+        return String(Date.now()).slice(-6); // Fallback to timestamp-based
+    }
+}
+
 /* ============================ LIST ============================ */
 async function list(req, res, next) {
     try {
@@ -154,6 +185,11 @@ async function create(req, res, next) {
 
         payload.partyId = payload.partyId ? toObjectId(payload.partyId) : null;
         payload.invoiceId = payload.invoiceId ? toObjectId(payload.invoiceId) : null;
+
+        // Generate payment number if not provided
+        if (!payload.paymentNumber) {
+            payload.paymentNumber = await generatePaymentNumber(ownerId, companyId);
+        }
 
         // If linked to an invoice, update the purchase's due amount
         if (payload.invoiceId && payload.amount > 0) {

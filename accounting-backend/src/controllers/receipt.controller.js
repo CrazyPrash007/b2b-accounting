@@ -16,6 +16,37 @@ function toObjectId(v) {
     }
 }
 
+/* ---------------------------- Generate Receipt Number ---------------------------- */
+async function generateReceiptNumber(ownerId, companyId) {
+    try {
+        // Find the latest receipt for this company
+        const latestReceipt = await Receipt.findOne({
+            ownerId,
+            accountCompanyName: companyId,
+            receiptNumber: { $exists: true, $ne: '' }
+        })
+        .sort({ createdAt: -1 })
+        .select('receiptNumber')
+        .lean();
+
+        let nextNumber = 1;
+        
+        if (latestReceipt && latestReceipt.receiptNumber) {
+            // Extract number from receiptNumber (assuming format like "000001")
+            const match = latestReceipt.receiptNumber.match(/(\d+)$/);
+            if (match) {
+                nextNumber = parseInt(match[1], 10) + 1;
+            }
+        }
+
+        // Return 6-digit zero-padded number
+        return String(nextNumber).padStart(6, '0');
+    } catch (err) {
+        console.error('Error generating receipt number:', err);
+        return String(Date.now()).slice(-6); // Fallback to timestamp-based
+    }
+}
+
 /* ============================ LIST ============================ */
 async function list(req, res, next) {
     try {
@@ -183,6 +214,11 @@ async function create(req, res, next) {
         // Initialize advance tracking fields
         payload.usedAmount = 0;
         payload.remainingAmount = payload.amount; // Initially, full amount is available
+
+        // Generate receipt number if not provided
+        if (!payload.receiptNumber) {
+            payload.receiptNumber = await generateReceiptNumber(ownerId, companyId);
+        }
 
         // If linked to an invoice, update the sale's due amount
         if (payload.invoiceId && payload.amount > 0) {
