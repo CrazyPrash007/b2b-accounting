@@ -19,10 +19,16 @@ function PurchaseInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, wit
     const navigate = useNavigate();
     const { openModal, closeModal } = useModal();
 
-    // Get next invoice counter from localStorage or start at 1
-    const getNextInvoiceCounter = () => {
-        const saved = localStorage.getItem('purchaseInvoiceCounter');
+    // Get next invoice counter from localStorage based on GST type
+    const getNextInvoiceCounter = (isGst = true) => {
+        const key = isGst ? 'purchaseGstCounter' : 'purchaseNonGstCounter';
+        const saved = localStorage.getItem(key);
         return saved ? parseInt(saved, 10) : 1;
+    };
+
+    // Get invoice prefix based on GST type
+    const getInvoicePrefix = (isGst = true) => {
+        return isGst ? "PINV" : "PNINV";
     };
 
     // Additional charges state
@@ -39,8 +45,8 @@ function PurchaseInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, wit
 
     const [formData, setFormData] = useState({
         supplier: "",
-        invoicePrefix: "PUR",
-        invoiceNumber: String(getNextInvoiceCounter()).padStart(6, '0'), // 6-digit auto-increment
+        invoicePrefix: getInvoicePrefix(withGst),
+        invoiceNumber: String(getNextInvoiceCounter(withGst)).padStart(6, '0'), // 6-digit auto-increment
         invoiceSuffix: "",
         invoiceDate: new Date().toISOString().split('T')[0],
         supplierInvoiceNumber: "",
@@ -244,8 +250,8 @@ function PurchaseInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, wit
             if (editData) {
                 setFormData({
                     supplier: editData.supplier || "",
-                    invoicePrefix: editData.invoicePrefix || "PUR",
-                    invoiceNumber: editData.invoiceNumber || String(getNextInvoiceCounter()).padStart(6, '0'),
+                    invoicePrefix: editData.invoicePrefix || getInvoicePrefix(withGst),
+                    invoiceNumber: editData.invoiceNumber || String(getNextInvoiceCounter(withGst)).padStart(6, '0'),
                     invoiceSuffix: editData.invoiceSuffix || "",
                     invoiceDate: editData.invoiceDate ? new Date(editData.invoiceDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
                     supplierInvoiceNumber: editData.supplierInvoiceNumber || "",
@@ -274,10 +280,10 @@ function PurchaseInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, wit
                 setAdditionalCharges(editData.additionalCharges || []);
                 setPayments(editData.payments || []);
             } else {
-                const nextCounter = getNextInvoiceCounter();
+                const nextCounter = getNextInvoiceCounter(withGst);
                 setFormData({
                     supplier: "",
-                    invoicePrefix: "PUR",
+                    invoicePrefix: getInvoicePrefix(withGst),
                     invoiceNumber: String(nextCounter).padStart(6, '0'),
                     invoiceSuffix: "",
                     invoiceDate: new Date().toISOString().split('T')[0],
@@ -621,8 +627,9 @@ function PurchaseInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, wit
 
         // increment counter for new invoices (unchanged)
         if (!isEditMode) {
-            const currentCounter = getNextInvoiceCounter();
-            localStorage.setItem('purchaseInvoiceCounter', String(currentCounter + 1));
+            const currentCounter = getNextInvoiceCounter(withGst);
+            const key = withGst ? 'purchaseGstCounter' : 'purchaseNonGstCounter';
+            localStorage.setItem(key, String(currentCounter + 1));
         }
 
         // right before onSave(...)

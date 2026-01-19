@@ -9,6 +9,12 @@ const { create: createSchema, update: updateSchema } = require('../validators/ve
 // All routes require owner context for now
 router.use(auth);
 
+// Global search (must be before /:id routes)
+router.get('/global-search', controller.globalSearch);
+
+// Batch create
+router.post('/batch', controller.batchCreate);
+
 router.get('/', controller.list);
 router.post('/', validate(createSchema), controller.create);
 router.get('/:id', controller.getOne);
