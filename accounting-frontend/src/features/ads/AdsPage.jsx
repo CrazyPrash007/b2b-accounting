@@ -3,7 +3,11 @@ import { useState, useEffect, useCallback, useContext } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { CompanyContext } from '../../App';
 import adApi from './api/ad.api';
+import { State, City } from '@countrystatecity/countries';
 import './AdsPage.css';
+
+// India states for cascading selection
+const INDIA_STATES = State.getStatesOfCountry('IN');
 
 const STATUS_COLORS = {
     pending: { bg: '#fef3c7', color: '#92400e' },
@@ -14,7 +18,7 @@ const STATUS_COLORS = {
 
 export default function AdsPage() {
     const { user } = useAuth();
-    const { selectedCompany } = useContext(CompanyContext);
+    const { selectedCompany, companies } = useContext(CompanyContext);
 
     const [ads, setAds] = useState([]);
     const [stats, setStats] = useState(null);
@@ -22,9 +26,12 @@ export default function AdsPage() {
     const [targetingOptions, setTargetingOptions] = useState({
         categories: [],
         positions: [],
-        dimensions: {},
-        states: []
+        dimensions: {}
     });
+
+    // State → City cascading selection
+    const [selectedStates, setSelectedStates] = useState([]);
+    const [availableCities, setAvailableCities] = useState([]);
 
     // Filter state
     const [statusFilter, setStatusFilter] = useState('');
@@ -45,7 +52,7 @@ export default function AdsPage() {
         startDate: '',
         endDate: '',
         targetCategories: [],
-        targetStates: [],
+        targetCities: [],
         contactEmail: '',
         contactPhone: ''
     });
@@ -103,16 +110,19 @@ export default function AdsPage() {
             startDate: '',
             endDate: '',
             targetCategories: [],
-            targetStates: [],
+            targetCities: [],
             contactEmail: user?.email || '',
             contactPhone: user?.phone || ''
         });
+        setSelectedStates([]);
+        setAvailableCities([]);
         setShowModal(true);
     };
 
     // Open edit modal
     const openEditModal = (ad) => {
         setEditingAd(ad);
+        const targetCities = ad.targetCities || [];
         setFormData({
             title: ad.title || '',
             description: ad.description || '',
@@ -123,10 +133,34 @@ export default function AdsPage() {
             startDate: ad.startDate ? ad.startDate.split('T')[0] : '',
             endDate: ad.endDate ? ad.endDate.split('T')[0] : '',
             targetCategories: ad.targetCategories || [],
-            targetStates: ad.targetStates || [],
+            targetCities: targetCities,
             contactEmail: ad.contactEmail || '',
             contactPhone: ad.contactPhone || ''
         });
+        // Find which states contain the selected cities
+        const statesWithCities = [];
+        INDIA_STATES.forEach(state => {
+            const stateCities = City.getCitiesOfState('IN', state.isoCode).map(c => c.name);
+            if (targetCities.some(city => stateCities.includes(city))) {
+                statesWithCities.push(state.isoCode);
+            }
+        });
+        setSelectedStates(statesWithCities);
+        // Load cities for those states
+        if (statesWithCities.length > 0) {
+            const allCities = [];
+            statesWithCities.forEach(stateCode => {
+                const cities = City.getCitiesOfState('IN', stateCode);
+                cities.forEach(city => {
+                    allCities.push({
+                        name: city.name,
+                        stateCode: stateCode,
+                        stateName: INDIA_STATES.find(s => s.isoCode === stateCode)?.name || stateCode
+                    });
+                });
+            });
+            setAvailableCities(allCities);
+        }
         setShowModal(true);
     };
 
@@ -147,15 +181,119 @@ export default function AdsPage() {
         });
     };
 
-    // Handle state toggle
-    const handleStateToggle = (state) => {
-        setFormData(prev => {
-            const current = prev.targetStates;
-            if (current.includes(state)) {
-                return { ...prev, targetStates: current.filter(s => s !== state) };
-            }
-            return { ...prev, targetStates: [...current, state] };
+    // Load cities for given state codes
+    const loadCitiesForStates = (stateCodes) => {
+        const allCities = [];
+        stateCodes.forEach(stateCode => {
+            const cities = City.getCitiesOfState('IN', stateCode);
+            cities.forEach(city => {
+                allCities.push({
+                    name: city.name,
+                    stateCode: stateCode,
+                    stateName: INDIA_STATES.find(s => s.isoCode === stateCode)?.name || stateCode
+                });
+            });
         });
+        return allCities;
+    };
+
+    // Handle state toggle (for selecting which states to show cities for)
+    const handleStateToggle = (stateCode) => {
+        let newSelectedStates;
+        if (selectedStates.includes(stateCode)) {
+            // Remove state and its cities
+            newSelectedStates = selectedStates.filter(s => s !== stateCode);
+            const citiesOfThisState = City.getCitiesOfState('IN', stateCode).map(c => c.name);
+            setFormData(prev => ({
+                ...prev,
+                targetCities: prev.targetCities.filter(city => !citiesOfThisState.includes(city))
+            }));
+        } else {
+            // Add state
+            newSelectedStates = [...selectedStates, stateCode];
+        }
+        setSelectedStates(newSelectedStates);
+        setAvailableCities(loadCitiesForStates(newSelectedStates));
+    };
+
+    // Handle city toggle
+    const handleCityToggle = (cityName) => {
+        setFormData(prev => {
+            const current = prev.targetCities;
+            if (current.includes(cityName)) {
+                return { ...prev, targetCities: current.filter(c => c !== cityName) };
+            }
+            return { ...prev, targetCities: [...current, cityName] };
+        });
+    };
+
+    // Select all cities for a state
+    const selectAllCitiesForState = (stateCode) => {
+        const citiesOfState = City.getCitiesOfState('IN', stateCode).map(c => c.name);
+        setFormData(prev => ({
+            ...prev,
+            targetCities: [...new Set([...prev.targetCities, ...citiesOfState])]
+        }));
+    };
+
+    // Clear all cities for a state
+    const clearAllCitiesForState = (stateCode) => {
+        const citiesOfState = City.getCitiesOfState('IN', stateCode).map(c => c.name);
+        setFormData(prev => ({
+            ...prev,
+            targetCities: prev.targetCities.filter(city => !citiesOfState.includes(city))
+        }));
+    };
+
+    // Select all available cities
+    const selectAllCities = () => {
+        const allCityNames = availableCities.map(c => c.name);
+        setFormData(prev => ({ ...prev, targetCities: [...new Set([...prev.targetCities, ...allCityNames])] }));
+    };
+
+    // Clear all cities
+    const clearAllCities = () => {
+        setFormData(prev => ({ ...prev, targetCities: [] }));
+    };
+
+    // Get current company's city for "Local Area" button
+    const getCurrentCompanyCity = () => {
+        if (!selectedCompany || !companies) return null;
+        const company = companies.find(c => c._id === selectedCompany);
+        return company?.city || null;
+    };
+
+    // Select local area (current company's city)
+    const selectLocalArea = () => {
+        const city = getCurrentCompanyCity();
+        if (!city) {
+            alert('Current company does not have a city set');
+            return;
+        }
+        // Find which state contains this city
+        for (const state of INDIA_STATES) {
+            const stateCities = City.getCitiesOfState('IN', state.isoCode);
+            const foundCity = stateCities.find(c => c.name.toLowerCase() === city.toLowerCase());
+            if (foundCity) {
+                // Add state if not already selected
+                if (!selectedStates.includes(state.isoCode)) {
+                    const newSelectedStates = [...selectedStates, state.isoCode];
+                    setSelectedStates(newSelectedStates);
+                    setAvailableCities(loadCitiesForStates(newSelectedStates));
+                }
+                // Add city to targetCities
+                setFormData(prev => ({
+                    ...prev,
+                    targetCities: [...new Set([...prev.targetCities, foundCity.name])]
+                }));
+                return;
+            }
+        }
+        // City not found in database, add it as-is
+        setFormData(prev => ({
+            ...prev,
+            targetCities: [...new Set([...prev.targetCities, city])]
+        }));
     };
 
     // Submit form
@@ -183,7 +321,7 @@ export default function AdsPage() {
                 ownerName: user?.name || '',
                 startDate: formData.startDate || null,
                 endDate: formData.endDate || null,
-                targetStates: formData.targetStates
+                targetCities: formData.targetCities
             };
 
             if (editingAd) {
@@ -514,24 +652,100 @@ export default function AdsPage() {
                                         </div>
                                     </div>
 
+                                    {/* Local Area Button */}
                                     <div className="form-group">
-                                        <label>Indian States ({formData.targetStates.length}/{targetingOptions.states.length})</label>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
+                                            <label style={{ margin: 0 }}>Target Cities ({formData.targetCities.length} selected)</label>
+                                            <button
+                                                type="button"
+                                                className="btn-local-area"
+                                                onClick={selectLocalArea}
+                                                style={{
+                                                    padding: '4px 12px',
+                                                    fontSize: '12px',
+                                                    background: '#10b981',
+                                                    color: 'white',
+                                                    border: 'none',
+                                                    borderRadius: '4px',
+                                                    cursor: 'pointer'
+                                                }}
+                                            >
+                                                📍 Local Area
+                                            </button>
+                                            {getCurrentCompanyCity() && (
+                                                <span style={{ fontSize: '12px', color: '#6b7280' }}>
+                                                    (Your company: {getCurrentCompanyCity()})
+                                                </span>
+                                            )}
+                                        </div>
+                                        <p style={{ fontSize: '12px', color: '#6b7280', marginBottom: '12px' }}>
+                                            Select states first, then choose cities within those states
+                                        </p>
+                                    </div>
+
+                                    {/* States Selection */}
+                                    <div className="form-group">
+                                        <label>Select States ({selectedStates.length} states)</label>
                                         <div className="multi-select-grid states-grid">
-                                            {targetingOptions.states.map(state => (
+                                            {INDIA_STATES.map(state => (
                                                 <label
-                                                    key={state}
-                                                    className={`multi-select-item ${formData.targetStates.includes(state) ? 'selected' : ''}`}
+                                                    key={state.isoCode}
+                                                    className={`multi-select-item ${selectedStates.includes(state.isoCode) ? 'selected' : ''}`}
                                                 >
                                                     <input
                                                         type="checkbox"
-                                                        checked={formData.targetStates.includes(state)}
-                                                        onChange={() => handleStateToggle(state)}
+                                                        checked={selectedStates.includes(state.isoCode)}
+                                                        onChange={() => handleStateToggle(state.isoCode)}
                                                     />
-                                                    {state}
+                                                    {state.name}
                                                 </label>
                                             ))}
                                         </div>
                                     </div>
+
+                                    {/* Cities Selection - grouped by state */}
+                                    {availableCities.length > 0 && (
+                                        <div className="form-group">
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                                                <label style={{ margin: 0 }}>Select Cities</label>
+                                                <div style={{ display: 'flex', gap: '8px' }}>
+                                                    <button type="button" className="btn-link" onClick={selectAllCities}>Select All</button>
+                                                    <button type="button" className="btn-link" onClick={clearAllCities}>Clear All</button>
+                                                </div>
+                                            </div>
+                                            {selectedStates.map(stateCode => {
+                                                const stateName = INDIA_STATES.find(s => s.isoCode === stateCode)?.name || stateCode;
+                                                const citiesOfState = availableCities.filter(c => c.stateCode === stateCode);
+                                                if (citiesOfState.length === 0) return null;
+                                                return (
+                                                    <div key={stateCode} style={{ marginBottom: '12px' }}>
+                                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                                                            <strong style={{ fontSize: '13px', color: '#374151' }}>{stateName} ({citiesOfState.length} cities)</strong>
+                                                            <div style={{ display: 'flex', gap: '8px' }}>
+                                                                <button type="button" className="btn-link" onClick={() => selectAllCitiesForState(stateCode)}>All</button>
+                                                                <button type="button" className="btn-link" onClick={() => clearAllCitiesForState(stateCode)}>Clear</button>
+                                                            </div>
+                                                        </div>
+                                                        <div className="multi-select-grid cities-grid" style={{ maxHeight: '150px', overflowY: 'auto' }}>
+                                                            {citiesOfState.map(city => (
+                                                                <label
+                                                                    key={`${stateCode}-${city.name}`}
+                                                                    className={`multi-select-item ${formData.targetCities.includes(city.name) ? 'selected' : ''}`}
+                                                                >
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        checked={formData.targetCities.includes(city.name)}
+                                                                        onChange={() => handleCityToggle(city.name)}
+                                                                    />
+                                                                    {city.name}
+                                                                </label>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
                                 </div>
 
                                 <div className="info-box">

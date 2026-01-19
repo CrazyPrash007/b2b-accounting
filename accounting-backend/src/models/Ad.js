@@ -141,9 +141,14 @@ const AdSchema = new mongoose.Schema({
         type: String,
         enum: BUSINESS_CATEGORIES
     }],
+    // States (for display/grouping purposes)
     targetStates: [{
+        type: String
+    }],
+    // Cities (actual targeting field - matches user's company city)
+    targetCities: [{
         type: String,
-        enum: INDIAN_STATES
+        trim: true
     }],
 
     // Active status (admin can disable)
