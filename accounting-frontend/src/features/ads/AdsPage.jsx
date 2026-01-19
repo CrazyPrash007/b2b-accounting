@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback, useContext } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { CompanyContext } from '../../App';
 import adApi from './api/ad.api';
-import { State, City } from '@countrystatecity/countries';
+import { State, City } from 'country-state-city';
 import './AdsPage.css';
 
 // India states for cascading selection
