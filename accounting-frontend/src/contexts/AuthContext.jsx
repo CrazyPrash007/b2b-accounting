@@ -328,13 +328,18 @@ export function AuthProvider({ children }) {
                             error: null
                         });
                     } else {
-                        // No cache, show error but don't redirect immediately
+                        // No cache and network error - redirect after showing error
+                        console.warn('[AUTH] Network error with no cached user - redirecting');
                         setAuth({
                             token: tokenToUse,
                             user: null,
                             loading: false,
-                            error: 'Network error - please refresh'
+                            error: 'Network error - unable to verify authentication'
                         });
+                        
+                        // Redirect after a delay to allow error display
+                        await sleep(2000);
+                        redirectToLogin();
                     }
                 } else {
                     // Auth failure (401/403) - clear and redirect
@@ -354,6 +359,10 @@ export function AuthProvider({ children }) {
                     loading: false,
                     error: 'Initialization error'
                 });
+                
+                // Redirect after showing error
+                await sleep(2000);
+                redirectToLogin();
             } finally {
                 initRef.current.inProgress = false;
             }
