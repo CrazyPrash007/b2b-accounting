@@ -77,8 +77,8 @@ export default function AddCompanyForm({ onCreated, onCancel, createCompanyFn })
 
                 if (data && data[0] && data[0].Status === "Success" && data[0].PostOffice && data[0].PostOffice.length > 0) {
                     const postOffice = data[0].PostOffice[0];
-                    const state = postOffice.State ? postOffice.State.toUpperCase() : "";
-                    const district = postOffice.District ? postOffice.District.toUpperCase() : "";
+                    const state = postOffice.State ? postOffice.State : "";
+                    const district = postOffice.District ? postOffice.District : "";
 
                     setFormData((s) => ({
                         ...s,
