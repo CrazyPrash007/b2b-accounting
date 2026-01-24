@@ -1,6 +1,7 @@
 import React from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import AppLayout from "src/layouts/AppLayout";
+import NotFoundPage from "src/components/NotFoundPage";
 
 import DashboardPage from "src/features/dashboard/DashboardPage";
 import ItemCategoryPage from "src/features/items/item-category/ItemCategoryPage";
@@ -45,11 +46,10 @@ export default function AppRoutes() {
                 <Route path="receipt" element={<ReceiptPage />} />
                 <Route path="enquiry" element={<EnquiryPage />} />
                 <Route path="ads" element={<AdsPage />} />
-
-                <Route path="*" element={<div className="p-6">Page not found</div>} />
             </Route>
 
-            <Route path="/" element={<Navigate to="/" replace />} />
+            {/* 404 Not Found - outside AppLayout to show full-page error */}
+            <Route path="*" element={<NotFoundPage />} />
         </Routes>
     );
 }
