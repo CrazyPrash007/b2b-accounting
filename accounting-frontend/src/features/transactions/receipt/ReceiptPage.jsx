@@ -33,10 +33,11 @@ function ReceiptModal({ isOpen, onClose, onSave, onDelete, editData }) {
     const [parties, setParties] = useState([]); // array of { id?, name } (we'll use name as display)
     const [invoices, setInvoices] = useState([]); // array of { id, invoiceLabel, due, dateIso, totalAmount, paymentAmount }
     const [invoicesLoading, setInvoicesLoading] = useState(false);
+    const [bankAccounts, setBankAccounts] = useState([]); // array of bank accounts
 
     const isEditMode = !!editData;
 
-    const paymentMethods = [
+    const defaultPaymentMethods = [
         "Cash",
         "Bank Transfer",
         "Credit Card",
@@ -44,6 +45,12 @@ function ReceiptModal({ isOpen, onClose, onSave, onDelete, editData }) {
         "UPI",
         "Cheque",
         "Other"
+    ];
+
+    // Merge default payment methods with bank accounts
+    const paymentMethods = [
+        ...defaultPaymentMethods,
+        ...bankAccounts.map(b => b.accountDisplayName || b.bankName || "")
     ];
 
     async function parseJsonSafe(res) {
@@ -96,10 +103,25 @@ function ReceiptModal({ isOpen, onClose, onSave, onDelete, editData }) {
         }
     };
 
+    // fetch bank accounts for payment methods
+    const fetchBanks = async () => {
+        try {
+            const companyId = getCurrentCompany();
+            const res = await authFetch(`${API_BASE}/api/bank?accountCompanyName=${companyId}`);
+            const body = await parseJsonSafe(res);
+            const data = body && body.data ? body.data : (Array.isArray(body) ? body : []);
+            setBankAccounts(Array.isArray(data) ? data : []);
+        } catch (err) {
+            console.error("Failed to fetch banks for ReceiptModal", err);
+            setBankAccounts([]);
+        }
+    };
+
     // call when modal opens
     useEffect(() => {
         if (isOpen) {
             fetchParties();
+            fetchBanks();
 
             if (editData) {
                 // If editing existing receipt, prefill
@@ -632,7 +654,7 @@ export default function ReceiptPage() {
             company: companyData,
             customer: customerData,
             meta: {
-                invoiceNumber: receipt.invoice || `RCP-${receipt.id || receipt._id}`,
+                invoiceNumber: receipt.receiptNumber ? `RCP-${receipt.receiptNumber}` : (receipt.invoice || `RCP-${receipt.id || receipt._id}`),
                 invoiceDate: receipt.date,
                 dueDate: receipt.date,
                 placeOfSupply: customerData.state,
@@ -1135,7 +1157,7 @@ export default function ReceiptPage() {
                                             </span>
                                         </td>
                                         <td className={getCellClasses(rowIndex, 5) + " text-left text-gray-600 cursor-pointer"} onClick={() => handleEditReceipt(receipt)} title="Click to view receipt details">
-                                            {`RCP-${receipt._id?.slice(-6) || receipt.id?.slice(-6) || '000000'}`}
+                                            {receipt.receiptNumber ? `RCP-${receipt.receiptNumber}` : `RCP-${receipt._id?.slice(-6) || receipt.id?.slice(-6) || '000000'}`}
                                         </td>
                                         <td className={getCellClasses(rowIndex, 6) + " text-left text-blue-600"} onClick={() => handleCellClick(rowIndex, 6)}>
                                             {receipt.invoiceLabel || receipt.invoice || (receipt.linkedSales?.length > 0 ? `${receipt.linkedSales.length} invoice(s)` : "-")}

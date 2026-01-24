@@ -33,10 +33,11 @@ function PaymentModal({ isOpen, onClose, onSave, onDelete, editData }) {
     const [parties, setParties] = useState([]); // array of { id?, name } (we'll use name as display)
     const [invoices, setInvoices] = useState([]); // array of { id, invoiceLabel, due, dateIso, totalAmount, paymentAmount }
     const [invoicesLoading, setInvoicesLoading] = useState(false);
+    const [bankAccounts, setBankAccounts] = useState([]); // array of bank accounts
 
     const isEditMode = !!editData;
 
-    const paymentMethods = [
+    const defaultPaymentMethods = [
         "Cash",
         "Bank Transfer",
         "Credit Card",
@@ -44,6 +45,12 @@ function PaymentModal({ isOpen, onClose, onSave, onDelete, editData }) {
         "UPI",
         "Cheque",
         "Other"
+    ];
+
+    // Merge default payment methods with bank accounts
+    const paymentMethods = [
+        ...defaultPaymentMethods,
+        ...bankAccounts.map(b => b.accountDisplayName || b.bankName || "")
     ];
 
     async function parseJsonSafe(res) {
@@ -96,10 +103,25 @@ function PaymentModal({ isOpen, onClose, onSave, onDelete, editData }) {
         }
     };
 
+    // fetch bank accounts for payment methods
+    const fetchBanks = async () => {
+        try {
+            const companyId = getCurrentCompany();
+            const res = await authFetch(`${API_BASE}/api/bank?accountCompanyName=${companyId}`);
+            const body = await parseJsonSafe(res);
+            const data = body && body.data ? body.data : (Array.isArray(body) ? body : []);
+            setBankAccounts(Array.isArray(data) ? data : []);
+        } catch (err) {
+            console.error("Failed to fetch banks for PaymentModal", err);
+            setBankAccounts([]);
+        }
+    };
+
     // call when modal opens
     useEffect(() => {
         if (isOpen) {
             fetchParties();
+            fetchBanks();
 
             if (editData) {
                 // If editing existing payment, prefill
@@ -996,6 +1018,12 @@ export default function PaymentPage() {
                                     <th className="min-w-[120px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
                                         <div className="flex items-center gap-2">
                                             <span className="text-gray-400 cursor-grab">⋮⋮</span>
+                                            <span>Payment No</span>
+                                        </div>
+                                    </th>
+                                    <th className="min-w-[120px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-gray-400 cursor-grab">⋮⋮</span>
                                             <span>Invoice</span>
                                         </div>
                                     </th>
@@ -1036,13 +1064,16 @@ export default function PaymentPage() {
                                                 {payment.paymentMethod}
                                             </span>
                                         </td>
-                                        <td className={getCellClasses(rowIndex, 4) + " text-left text-gray-600"} onClick={() => handleCellClick(rowIndex, 4)}>
-                                            {payment.invoice || "-"}
+                                        <td className={getCellClasses(rowIndex, 4) + " text-left text-gray-600 cursor-pointer"} onClick={() => handleEditPayment(payment)} title="Click to view payment details">
+                                            {payment.paymentNumber ? `PMT-${payment.paymentNumber}` : `PMT-${payment._id?.slice(-6) || payment.id?.slice(-6) || '000000'}`}
                                         </td>
                                         <td className={getCellClasses(rowIndex, 5) + " text-left text-gray-600"} onClick={() => handleCellClick(rowIndex, 5)}>
-                                            {payment.referenceNumber || "-"}
+                                            {payment.invoice || "-"}
                                         </td>
                                         <td className={getCellClasses(rowIndex, 6) + " text-left text-gray-600"} onClick={() => handleCellClick(rowIndex, 6)}>
+                                            {payment.referenceNumber || "-"}
+                                        </td>
+                                        <td className={getCellClasses(rowIndex, 7) + " text-left text-gray-600"} onClick={() => handleCellClick(rowIndex, 7)}>
                                             {getStatusBadge(payment)}
                                         </td>
                                         <td className={`h-8 px-4 text-left sticky right-0 z-10 border-l border-gray-400 ${rowIndex % 2 === 0 ? 'bg-blue-50' : 'bg-white'}`} style={{ boxShadow: '-4px 0 8px -2px rgba(0, 0, 0, 0.1)' }}>
@@ -1070,6 +1101,7 @@ export default function PaymentPage() {
                                             <td className={getCellClasses(rowIndex, 4)}></td>
                                             <td className={getCellClasses(rowIndex, 5)}></td>
                                             <td className={getCellClasses(rowIndex, 6)}></td>
+                                            <td className={getCellClasses(rowIndex, 7)}></td>
                                             <td className={`h-8 px-4 sticky right-0 z-10 border-l border-gray-400 ${rowIndex % 2 === 0 ? 'bg-blue-50' : 'bg-white'}`}></td>
                                         </tr>
                                     );

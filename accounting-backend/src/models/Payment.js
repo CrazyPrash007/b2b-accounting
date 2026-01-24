@@ -14,6 +14,7 @@ const PaymentSchema = new mongoose.Schema({
     invoiceLabel: { type: String, trim: true, default: '' }, // e.g., PINV00000123
 
     // Payment fields
+    paymentNumber: { type: String, trim: true, default: '' }, // Auto-generated 6-digit number
     date: { type: Date, default: Date.now },
     amount: { type: Number, default: 0 },
     paymentMethod: { type: String, trim: true, default: 'Cash' },

@@ -1,11 +1,32 @@
-// CustomerModal.jsx - Extracted modal component for reusability
+// CustomerModal.jsx - Modal with global search and multi-select for customers
 import React, { useState, useEffect, useRef } from "react";
+import { authFetch, API_BASE_URL } from "../../../../services/apiClient";
 
 /**
- * CustomerModal - Modal for creating/editing customers
- * Can be used standalone or as a nested modal via ModalContext
+ * Helper to safely parse backend JSON that might be { success, data, meta } or raw array
  */
+async function parseJsonSafe(res) {
+    const body = await res.json().catch(() => null);
+    if (!body) return null;
+    if (typeof body === "object" && Object.prototype.hasOwnProperty.call(body, "data")) return body.data;
+    return body;
+}
+
 export default function CustomerModal({ isOpen, onClose, onSave, onDelete, editData }) {
+    const API_BASE = API_BASE_URL;
+
+    // Global search state
+    const [globalSearchQuery, setGlobalSearchQuery] = useState("");
+    const [globalSearchResults, setGlobalSearchResults] = useState([]);
+    const [isSearching, setIsSearching] = useState(false);
+    const [showSearchDropdown, setShowSearchDropdown] = useState(false);
+    const globalSearchRef = useRef(null);
+    const searchDropdownRef = useRef(null);
+
+    // Multi-select state - list of customers to be added
+    const [selectedCustomers, setSelectedCustomers] = useState([]);
+    const [editingIndex, setEditingIndex] = useState(null); // Index of customer being edited in the batch
+
     // Basic Details
     const [customerName, setCustomerName] = useState("");
     const [mobileNumber, setMobileNumber] = useState("");
@@ -44,86 +65,152 @@ export default function CustomerModal({ isOpen, onClose, onSave, onDelete, editD
     const [errorName, setErrorName] = useState("");
 
     const isEditMode = !!editData;
-    const lastEditDataRef = useRef(null);
 
-    // Track when modal opens/closes or editData changes to reset form
+    // Global search for customers across all users
     useEffect(() => {
-        if (!isOpen) {
-            lastEditDataRef.current = null;
+        if (!globalSearchQuery || globalSearchQuery.trim().length < 2) {
+            setGlobalSearchResults([]);
+            setShowSearchDropdown(false);
             return;
         }
 
-        // Only update if editData actually changed
-        if (lastEditDataRef.current === editData) return;
-        lastEditDataRef.current = editData;
-
-        // Use queueMicrotask to defer state updates
-        queueMicrotask(() => {
-            if (editData) {
-                setCustomerName(editData.customerName ?? "");
-                setMobileNumber(editData.mobileNumber ?? "");
-                setEmailAddress(editData.emailAddress ?? "");
-                setWebsiteLink(editData.websiteLink ?? "");
-                setCompanyName(editData.companyName ?? "");
-                setGstType(editData.gstType ?? "Unregistered");
-                setGstNumber(editData.gstNumber ?? "");
-                setBillingAddress(editData.billingAddress ?? "");
-                setBillingPinCode(editData.billingPinCode ?? "");
-                setBillingVillage(editData.billingVillage ?? "");
-                setBillingTehsil(editData.billingTehsil ?? "");
-                setBillingDistrict(editData.billingDistrict ?? "");
-                setBillingState(editData.billingState ?? "");
-                setBillingCountry(editData.billingCountry ?? "India");
-                setSameAsBilling(editData.sameAsBilling ?? true);
-                setShippingAddress(editData.shippingAddress ?? "");
-                setShippingPinCode(editData.shippingPinCode ?? "");
-                setShippingVillage(editData.shippingVillage ?? "");
-                setShippingTehsil(editData.shippingTehsil ?? "");
-                setShippingDistrict(editData.shippingDistrict ?? "");
-                setShippingState(editData.shippingState ?? "");
-                setShippingCountry(editData.shippingCountry ?? "India");
-                setOpeningBalanceType(editData.openingBalanceType ?? "Credit");
-                setOpeningBalanceAmount(editData.openingBalanceAmount ?? "");
-            } else {
-                // Reset to defaults
-                setCustomerName("");
-                setMobileNumber("");
-                setEmailAddress("");
-                setWebsiteLink("");
-                setCompanyName("");
-                setGstType("Unregistered");
-                setGstNumber("");
-                setBillingAddress("");
-                setBillingPinCode("");
-                setBillingVillage("");
-                setBillingTehsil("");
-                setBillingDistrict("");
-                setBillingState("");
-                setBillingCountry("India");
-                setSameAsBilling(true);
-                setShippingAddress("");
-                setShippingPinCode("");
-                setShippingVillage("");
-                setShippingTehsil("");
-                setShippingDistrict("");
-                setShippingState("");
-                setShippingCountry("India");
-                setOpeningBalanceType("Credit");
-                setOpeningBalanceAmount("");
+        const debounceTimer = setTimeout(async () => {
+            setIsSearching(true);
+            try {
+                const res = await authFetch(`${API_BASE}/api/customers/global-search?q=${encodeURIComponent(globalSearchQuery.trim())}&limit=15`);
+                if (res && res.ok) {
+                    const data = await parseJsonSafe(res);
+                    setGlobalSearchResults(Array.isArray(data) ? data : []);
+                    setShowSearchDropdown(true);
+                }
+            } catch (err) {
+                console.error("Global search failed:", err);
+                setGlobalSearchResults([]);
+            } finally {
+                setIsSearching(false);
             }
-            setErrorName("");
-        });
-    }, [editData, isOpen]);
+        }, 300);
 
-    const baseInput =
-        "w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500";
+        return () => clearTimeout(debounceTimer);
+    }, [globalSearchQuery, API_BASE]);
 
-    const handleSave = () => {
+    // Close dropdown when clicking outside
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (
+                searchDropdownRef.current &&
+                !searchDropdownRef.current.contains(event.target) &&
+                globalSearchRef.current &&
+                !globalSearchRef.current.contains(event.target)
+            ) {
+                setShowSearchDropdown(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    // Fill form with customer data
+    const fillFormWithCustomer = (customer) => {
+        setCustomerName(customer.customerName || "");
+        setMobileNumber(customer.mobileNumber || "");
+        setEmailAddress(customer.emailAddress || "");
+        setWebsiteLink(customer.websiteLink || "");
+        setCompanyName(customer.companyName || "");
+        setGstType(customer.gstType || "Unregistered");
+        setGstNumber(customer.gstNumber || "");
+        setBillingAddress(customer.billingAddress || "");
+        setBillingPinCode(customer.billingPinCode || "");
+        setBillingVillage(customer.billingVillage || "");
+        setBillingTehsil(customer.billingTehsil || "");
+        setBillingDistrict(customer.billingDistrict || "");
+        setBillingState(customer.billingState || "");
+        setBillingCountry(customer.billingCountry || "India");
+        setSameAsBilling(customer.sameAsBilling ?? true);
+        setShippingAddress(customer.shippingAddress || "");
+        setShippingPinCode(customer.shippingPinCode || "");
+        setShippingVillage(customer.shippingVillage || "");
+        setShippingTehsil(customer.shippingTehsil || "");
+        setShippingDistrict(customer.shippingDistrict || "");
+        setShippingState(customer.shippingState || "");
+        setShippingCountry(customer.shippingCountry || "India");
+        setOpeningBalanceType(customer.openingBalanceType || "Credit");
+        setOpeningBalanceAmount(customer.openingBalanceAmount || "");
+    };
+
+    // Get current form data as object
+    const getFormData = () => ({
+        customerName: customerName.trim(),
+        mobileNumber: mobileNumber.trim(),
+        emailAddress: emailAddress.trim(),
+        websiteLink: websiteLink.trim(),
+        companyName: companyName.trim(),
+        gstType,
+        gstNumber: gstType === "Unregistered" ? "" : gstNumber.trim(),
+        billingAddress: billingAddress.trim(),
+        billingPinCode: billingPinCode.trim(),
+        billingVillage: billingVillage.trim(),
+        billingTehsil: billingTehsil.trim(),
+        billingDistrict: billingDistrict.trim(),
+        billingState: billingState.trim(),
+        billingCountry: billingCountry.trim(),
+        sameAsBilling,
+        shippingAddress: sameAsBilling ? billingAddress.trim() : shippingAddress.trim(),
+        shippingPinCode: sameAsBilling ? billingPinCode.trim() : shippingPinCode.trim(),
+        shippingVillage: sameAsBilling ? billingVillage.trim() : shippingVillage.trim(),
+        shippingTehsil: sameAsBilling ? billingTehsil.trim() : shippingTehsil.trim(),
+        shippingDistrict: sameAsBilling ? billingDistrict.trim() : shippingDistrict.trim(),
+        shippingState: sameAsBilling ? billingState.trim() : shippingState.trim(),
+        shippingCountry: sameAsBilling ? billingCountry.trim() : shippingCountry.trim(),
+        openingBalanceType,
+        openingBalanceAmount: openingBalanceAmount || "",
+    });
+
+    // Reset form to empty
+    const resetForm = () => {
+        setCustomerName("");
+        setMobileNumber("");
+        setEmailAddress("");
+        setWebsiteLink("");
+        setCompanyName("");
+        setGstType("Unregistered");
+        setGstNumber("");
+        setBillingAddress("");
+        setBillingPinCode("");
+        setBillingVillage("");
+        setBillingTehsil("");
+        setBillingDistrict("");
+        setBillingState("");
+        setBillingCountry("India");
+        setSameAsBilling(true);
+        setShippingAddress("");
+        setShippingPinCode("");
+        setShippingVillage("");
+        setShippingTehsil("");
+        setShippingDistrict("");
+        setShippingState("");
+        setShippingCountry("India");
+        setOpeningBalanceType("Credit");
+        setOpeningBalanceAmount("");
+        setErrorName("");
+        setEditingIndex(null);
+    };
+
+    // Handle selecting a customer from global search
+    const handleSelectGlobalCustomer = (selectedCustomer) => {
+        fillFormWithCustomer(selectedCustomer);
+        setGlobalSearchQuery("");
+        setGlobalSearchResults([]);
+        setShowSearchDropdown(false);
+    };
+
+    // Add current form data to selected customers list
+    const handleAddToList = () => {
         setErrorName("");
         const trimmedName = customerName.trim();
 
         if (!trimmedName) {
-            setErrorName("Customer name is required. Please enter a valid customer name.");
+            setErrorName("Customer Name is required");
             return;
         }
 
@@ -132,37 +219,125 @@ export default function CustomerModal({ isOpen, onClose, onSave, onDelete, editD
             return;
         }
 
-        const payload = {
-            id: editData?.id ?? String(Date.now()),
-            customerName: trimmedName,
-            name: trimmedName,
-            displayName: trimmedName,
-            mobileNumber: mobileNumber.trim(),
-            emailAddress: emailAddress.trim(),
-            websiteLink: websiteLink.trim(),
-            companyName: companyName.trim(),
-            gstType,
-            gstNumber: gstType === "Unregistered" ? "" : gstNumber.trim(),
-            billingAddress: billingAddress.trim(),
-            billingPinCode: billingPinCode.trim(),
-            billingVillage: billingVillage.trim(),
-            billingTehsil: billingTehsil.trim(),
-            billingDistrict: billingDistrict.trim(),
-            billingState: billingState.trim(),
-            billingCountry: billingCountry.trim(),
-            sameAsBilling,
-            shippingAddress: sameAsBilling ? billingAddress.trim() : shippingAddress.trim(),
-            shippingPinCode: sameAsBilling ? billingPinCode.trim() : shippingPinCode.trim(),
-            shippingVillage: sameAsBilling ? billingVillage.trim() : shippingVillage.trim(),
-            shippingTehsil: sameAsBilling ? billingTehsil.trim() : shippingTehsil.trim(),
-            shippingDistrict: sameAsBilling ? billingDistrict.trim() : shippingDistrict.trim(),
-            shippingState: sameAsBilling ? billingState.trim() : shippingState.trim(),
-            shippingCountry: sameAsBilling ? billingCountry.trim() : shippingCountry.trim(),
-            openingBalanceType,
-            openingBalanceAmount: openingBalanceAmount || "",
-        };
+        const formData = getFormData();
 
-        onSave(payload, isEditMode);
+        // Check if already in list (by name + company)
+        const existsInList = selectedCustomers.some(
+            (c, idx) => idx !== editingIndex && 
+                c.customerName.toLowerCase() === formData.customerName.toLowerCase() &&
+                (c.companyName || "").toLowerCase() === (formData.companyName || "").toLowerCase()
+        );
+
+        if (existsInList) {
+            alert("This customer is already in the list");
+            return;
+        }
+
+        if (editingIndex !== null) {
+            // Update existing in list
+            const updated = [...selectedCustomers];
+            updated[editingIndex] = formData;
+            setSelectedCustomers(updated);
+            setEditingIndex(null);
+        } else {
+            // Add new to list
+            setSelectedCustomers([...selectedCustomers, formData]);
+        }
+
+        resetForm();
+    };
+
+    // Edit a customer from the selected list
+    const handleEditFromList = (index) => {
+        const customer = selectedCustomers[index];
+        fillFormWithCustomer(customer);
+        setEditingIndex(index);
+    };
+
+    // Remove a customer from the selected list
+    const handleRemoveFromList = (index) => {
+        const updated = selectedCustomers.filter((_, i) => i !== index);
+        setSelectedCustomers(updated);
+        if (editingIndex === index) {
+            resetForm();
+        } else if (editingIndex !== null && index < editingIndex) {
+            setEditingIndex(editingIndex - 1);
+        }
+    };
+
+    // Track when modal opens/closes or editData changes to reset form
+    useEffect(() => {
+        if (isOpen) {
+            setGlobalSearchQuery("");
+            setGlobalSearchResults([]);
+            setShowSearchDropdown(false);
+            setSelectedCustomers([]);
+            setEditingIndex(null);
+
+            if (editData) {
+                fillFormWithCustomer(editData);
+            } else {
+                resetForm();
+            }
+        }
+    }, [isOpen, editData]);
+
+    const baseInput =
+        "w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500";
+
+    const handleSave = () => {
+        if (isEditMode) {
+            // Single edit mode
+            setErrorName("");
+            const trimmedName = customerName.trim();
+
+            if (!trimmedName) {
+                setErrorName("Customer Name is required");
+                return;
+            }
+
+            if (gstType !== "Unregistered" && !gstNumber.trim()) {
+                alert("GST number is required for Regular or Composition GST type");
+                return;
+            }
+
+            const payload = {
+                id: editData?.id ?? editData?._id,
+                ...getFormData(),
+                name: customerName.trim(),
+            };
+
+            onSave(payload, true);
+        } else {
+            // Batch mode - check if there are customers in the list or form has data
+            const formData = getFormData();
+            let customersToSave = [...selectedCustomers];
+
+            // If form has data, add it to the list first
+            if (formData.customerName.trim()) {
+                if (gstType !== "Unregistered" && !gstNumber.trim()) {
+                    alert("GST number is required for Regular or Composition GST type");
+                    return;
+                }
+
+                const existsInList = selectedCustomers.some(
+                    c => c.customerName.toLowerCase() === formData.customerName.toLowerCase() &&
+                        (c.companyName || "").toLowerCase() === (formData.companyName || "").toLowerCase()
+                );
+
+                if (!existsInList) {
+                    customersToSave.push(formData);
+                }
+            }
+
+            if (customersToSave.length === 0) {
+                setErrorName("Please add at least one customer");
+                return;
+            }
+
+            // Pass the array of customers to save
+            onSave(customersToSave, false);
+        }
     };
 
     // Handle Enter key to move to next input
@@ -184,21 +359,134 @@ export default function CustomerModal({ isOpen, onClose, onSave, onDelete, editD
     if (!isOpen) return null;
 
     return (
-        <div className="bg-white rounded-lg shadow-xl w-full max-w-5xl mx-4 flex flex-col max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
-            {/* Modal Header */}
-            <div className="flex items-center justify-between px-5 py-3 rounded-t-lg" style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
-                <h3 className="text-base font-semibold text-white">
-                    {isEditMode ? "Edit Customer" : "New Customer"}
-                </h3>
-                <button
-                    onClick={onClose}
-                    className="text-white/80 hover:text-white transition-colors"
-                >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                </button>
-            </div>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={(e) => e.target === e.currentTarget && onClose()}>
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-5xl mx-4 flex flex-col max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
+                {/* Modal Header */}
+                <div className="flex items-center justify-between px-6 py-4 rounded-t-xl" style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
+                    <h3 className="text-lg font-semibold text-white">
+                        {isEditMode ? "Edit Customer" : "Add Customers"}
+                    </h3>
+                    <button
+                        onClick={onClose}
+                        className="text-white/80 hover:text-white transition-colors p-1 hover:bg-white/10 rounded"
+                    >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+
+                {/* Global Search Bar - Only show when not in edit mode */}
+                {!isEditMode && (
+                    <div className="px-6 py-3 bg-gradient-to-r from-gray-50 to-blue-50 border-b border-gray-200">
+                        <div className="relative">
+                            <label className="block text-xs font-medium text-gray-500 mb-1.5">
+                                🔍 Search existing customers to auto-fill form (you can add multiple)
+                            </label>
+                            <div className="relative">
+                                <input
+                                    ref={globalSearchRef}
+                                    type="text"
+                                    value={globalSearchQuery}
+                                    onChange={(e) => setGlobalSearchQuery(e.target.value)}
+                                    placeholder="Type customer name, mobile, or company to search..."
+                                    className="w-full border border-gray-300 rounded-lg px-4 py-2.5 pl-10 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white shadow-sm"
+                                />
+                                <svg className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                </svg>
+                                {isSearching && (
+                                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                                        <div className="animate-spin rounded-full h-4 w-4 border-2 border-blue-500 border-t-transparent"></div>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Search Results Dropdown */}
+                            {showSearchDropdown && globalSearchResults.length > 0 && (
+                                <div
+                                    ref={searchDropdownRef}
+                                    className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-64 overflow-y-auto"
+                                >
+                                    {globalSearchResults.map((customer, idx) => (
+                                        <button
+                                            key={idx}
+                                            onClick={() => handleSelectGlobalCustomer(customer)}
+                                            className="w-full px-4 py-3 text-left hover:bg-blue-50 border-b border-gray-100 last:border-b-0 transition-colors"
+                                        >
+                                            <div className="flex items-center justify-between">
+                                                <div>
+                                                    <div className="font-medium text-gray-900">{customer.customerName}</div>
+                                                    <div className="text-xs text-gray-500 mt-0.5">
+                                                        {[customer.companyName, customer.mobileNumber, customer.billingState]
+                                                            .filter(Boolean)
+                                                            .join(' • ')}
+                                                    </div>
+                                                </div>
+                                                <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
+                                                    {customer.popularity || 1} {customer.popularity === 1 ? 'user' : 'users'}
+                                                </span>
+                                            </div>
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+
+                            {/* No results message */}
+                            {showSearchDropdown && globalSearchResults.length === 0 && globalSearchQuery.trim().length >= 2 && !isSearching && (
+                                <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg p-4 text-center text-gray-500 text-sm">
+                                    No customers found matching "{globalSearchQuery}"
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )}
+
+                {/* Selected Customers List - Only show when not in edit mode and has selections */}
+                {!isEditMode && selectedCustomers.length > 0 && (
+                    <div className="px-6 py-3 bg-green-50 border-b border-green-200">
+                        <div className="flex items-center gap-2 mb-2">
+                            <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                            </svg>
+                            <span className="text-sm font-medium text-green-800">
+                                {selectedCustomers.length} customer{selectedCustomers.length > 1 ? 's' : ''} ready to save
+                            </span>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                            {selectedCustomers.map((customer, idx) => (
+                                <div
+                                    key={idx}
+                                    className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-sm ${
+                                        editingIndex === idx 
+                                            ? 'bg-blue-100 text-blue-800 ring-2 ring-blue-400' 
+                                            : 'bg-white text-gray-700 border border-green-300'
+                                    }`}
+                                >
+                                    <button
+                                        onClick={() => handleEditFromList(idx)}
+                                        className="hover:text-blue-600 font-medium"
+                                        title="Click to edit"
+                                    >
+                                        {customer.customerName}
+                                        {customer.companyName && (
+                                            <span className="text-xs text-gray-500 ml-1">({customer.companyName})</span>
+                                        )}
+                                    </button>
+                                    <button
+                                        onClick={() => handleRemoveFromList(idx)}
+                                        className="ml-1 text-gray-400 hover:text-red-500 transition-colors"
+                                        title="Remove from list"
+                                    >
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                        </svg>
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
 
             {/* Modal Body - Scrollable */}
             <div className="px-5 py-4 overflow-y-auto flex-1" data-form-container onKeyDown={handleKeyDown}>
@@ -505,35 +793,54 @@ export default function CustomerModal({ isOpen, onClose, onSave, onDelete, editD
             </div>
 
             {/* Modal Footer */}
-            <div className="flex items-center justify-between px-5 py-3 border-t border-gray-200 bg-gray-50 rounded-b-lg">
+            <div className="flex items-center justify-between px-6 py-4 border-t border-gray-200 bg-gray-50 rounded-b-xl">
                 {isEditMode ? (
                     <button
                         type="button"
-                        onClick={() => onDelete && onDelete(editData.id)}
-                        className="px-3 py-1.5 text-sm text-red-600 hover:text-red-800 border border-red-300 rounded hover:bg-red-50 transition-colors"
+                        onClick={() => onDelete && onDelete(editData.id || editData._id)}
+                        className="px-4 py-2.5 text-sm font-medium text-red-600 hover:text-white border border-red-300 rounded-lg hover:bg-red-500 transition-colors"
                     >
-                        Delete
+                        Delete Customer
                     </button>
                 ) : (
-                    <div></div>
+                    <button
+                        type="button"
+                        onClick={handleAddToList}
+                        className="px-4 py-2.5 text-sm font-medium text-green-700 hover:text-white border border-green-400 rounded-lg hover:bg-green-500 transition-colors flex items-center gap-2"
+                    >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                        </svg>
+                        {editingIndex !== null ? "Update in List" : "Add to List"}
+                    </button>
                 )}
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-3">
                     <button
                         type="button"
                         onClick={onClose}
-                        className="px-3 py-1.5 text-sm text-gray-600 hover:text-gray-800 border border-gray-300 rounded hover:bg-gray-100 transition-colors"
+                        className="px-5 py-2.5 text-sm font-medium text-gray-700 hover:text-gray-900 border border-gray-300 rounded-lg hover:bg-gray-100 transition-colors"
                     >
                         Cancel
                     </button>
                     <button
                         type="button"
                         onClick={handleSave}
-                        className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                        className="px-5 py-2.5 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm flex items-center gap-2"
                     >
-                        {isEditMode ? "Update" : "Save"}
+                        {isEditMode ? (
+                            "Update Customer"
+                        ) : (
+                            <>
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                </svg>
+                                Save {selectedCustomers.length > 0 ? `(${selectedCustomers.length + (customerName.trim() ? 1 : 0)})` : ''}
+                            </>
+                        )}
                     </button>
                 </div>
             </div>
+        </div>
         </div>
     );
 }
