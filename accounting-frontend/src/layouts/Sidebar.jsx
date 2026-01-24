@@ -100,6 +100,8 @@ export default function Sidebar() {
                 <div className="mb-4">
                     <div className="text-xs text-gray-400 mb-2 uppercase">Main</div>
                     <Item title="Dashboard" icon={<FiHome />} to="/" />
+                    <Item title="My Ads" icon={<FiLayers />} to="/ads" />
+                    <Item title="Enquiry" icon={<FiMessageSquare />} to="/enquiry" />
                 </div>
 
                 {/* MASTER group with submenus */}
@@ -132,7 +134,6 @@ export default function Sidebar() {
                     <Item title="Purchase" icon={<FiShoppingBag />} to="/purchase" />
                     <Item title="Income" icon={<FiFileText />} to="/income" />
                     <Item title="Expenses" icon={<FiFileText />} to="/expenses" />
-                    <Item title="Enquiry" icon={<FiMessageSquare />} to="/enquiry" />
                 </div>
 
                 {/* CORE ACCOUNTING */}
@@ -151,11 +152,6 @@ export default function Sidebar() {
                     <Item title="Reports" icon={<FiBarChart2 />} to="/reports" />
                 </div>
 
-                {/* MARKETING */}
-                <div>
-                    <div className="text-xs text-gray-400 mt-6 mb-2 uppercase">MARKETING</div>
-                    <Item title="My Ads" icon={<FiLayers />} to="/ads" />
-                </div>
 
                 {/* INVENTORY */}
                 <div>
