@@ -64,8 +64,28 @@ export default function VendorPage() {
     const [selectedCell, setSelectedCell] = useState(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingVendor, setEditingVendor] = useState(null);
+    const [searchTerm, setSearchTerm] = useState("");
+    const [filterType, setFilterType] = useState("all"); // all, withDue, withoutDue
 
     const totalPayable = meta.totalPayable || 0;
+
+    // Filter vendors based on search and filter type
+    const filteredVendors = vendors.filter(vendor => {
+        // Search filter
+        const matchesSearch = !searchTerm || 
+            (vendor.vendorName?.toLowerCase().includes(searchTerm.toLowerCase())) ||
+            (vendor.companyName?.toLowerCase().includes(searchTerm.toLowerCase())) ||
+            (vendor.mobileNumber?.includes(searchTerm));
+
+        // Type filter
+        const payable = vendor.payableAmount || 0;
+        const matchesType = 
+            filterType === "all" || 
+            (filterType === "withDue" && payable !== 0) ||
+            (filterType === "withoutDue" && payable === 0);
+
+        return matchesSearch && matchesType;
+    });
 
     useEffect(() => {
         if (location.state?.savedVendor || location.state?.deletedVendorId) {
@@ -252,10 +272,10 @@ export default function VendorPage() {
         return () => window.removeEventListener('resize', calculateRows);
     }, []);
 
-    const emptyRowsCount = Math.max(0, visibleRows - vendors.length);
+    const emptyRowsCount = Math.max(0, visibleRows - filteredVendors.length);
     const emptyRows = Array.from({ length: emptyRowsCount }, (_, i) => i);
 
-    const totalRecords = vendors.length;
+    const totalRecords = filteredVendors.length;
     const startRecord = totalRecords > 0 ? 1 : 0;
     const endRecord = totalRecords;
 
@@ -299,8 +319,40 @@ export default function VendorPage() {
                 </button>
             </div>
 
-            {/* Toolbar - Icons commented out */}
-            <div className="flex items-center justify-end gap-2 px-4 py-2 border-b border-gray-100">
+            {/* Toolbar - Filter and Search Controls */}
+            <div className="flex items-center justify-between gap-2 px-4 py-2 border-b border-gray-100">
+                <div className="flex items-center gap-2">
+                    {/* Search */}
+                    <div className="relative">
+                        <input
+                            type="text"
+                            placeholder="Search by name, company, or mobile..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="pl-9 pr-3 py-1.5 border border-gray-300 rounded text-sm w-64 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        />
+                        <svg className="w-4 h-4 absolute left-3 top-2.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        </svg>
+                    </div>
+
+                    {/* Filter by due amount */}
+                    <select
+                        value={filterType}
+                        onChange={(e) => setFilterType(e.target.value)}
+                        className="px-3 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    >
+                        <option value="all">All Vendors</option>
+                        <option value="withDue">With Payable Amount</option>
+                        <option value="withoutDue">No Payable Amount</option>
+                    </select>
+
+                    {/* Results count */}
+                    <span className="text-sm text-gray-600">
+                        {filteredVendors.length} of {vendors.length} vendors
+                    </span>
+                </div>
+
                 <button
                     onClick={handleExportToExcel}
                     className="flex items-center gap-2 px-3 py-1.5 text-gray-600 hover:bg-gray-100 rounded text-sm"
@@ -415,7 +467,7 @@ export default function VendorPage() {
                             </thead>
                             <tbody>
                                 {/* Data rows */}
-                                {vendors.map((vendor, rowIndex) => (
+                                {filteredVendors.map((vendor, rowIndex) => (
                                     <tr
                                         key={vendor.id || vendor._id || rowIndex}
                                         className={`border-b border-gray-400 hover:bg-blue-100 transition-colors cursor-pointer ${rowIndex % 2 === 0 ? 'bg-blue-50/40' : 'bg-white'}`}

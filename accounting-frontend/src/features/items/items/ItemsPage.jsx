@@ -20,9 +20,50 @@ export default function ItemsPage() {
     const [editingItem, setEditingItem] = useState(null);
     const [showMovementModal, setShowMovementModal] = useState(false);
     const [selectedItemForMovement, setSelectedItemForMovement] = useState(null);
+    const [searchTerm, setSearchTerm] = useState("");
+    const [filterCategory, setFilterCategory] = useState("all");
+    const [filterStock, setFilterStock] = useState("all"); // all, inStock, lowStock, outOfStock
 
     const totalStock = meta.totalStock || 0;
     const negativeStockCount = meta.negativeStockCount || 0;
+
+    // GST classification counts
+    const gstCounts = items.reduce((acc, item) => {
+        const rate = item.gstRate != null ? Number(item.gstRate) : null;
+        if (rate === 0) acc.gst0++;
+        else if (rate === 5) acc.gst5++;
+        else if (rate === 12) acc.gst12++;
+        else if (rate === 18) acc.gst18++;
+        else if (rate === 28) acc.gst28++;
+        else acc.other++;
+        return acc;
+    }, { gst0: 0, gst5: 0, gst12: 0, gst18: 0, gst28: 0, other: 0 });
+
+    // Get unique categories from items
+    const categories = ["all", ...new Set(items.map(item => item.category).filter(Boolean))];
+
+    // Filter items
+    const filteredItems = items.filter(item => {
+        // Search filter
+        const matchesSearch = !searchTerm || 
+            (item.itemName?.toLowerCase().includes(searchTerm.toLowerCase())) ||
+            (item.name?.toLowerCase().includes(searchTerm.toLowerCase())) ||
+            (item.hsnNo?.includes(searchTerm));
+
+        // Category filter
+        const matchesCategory = filterCategory === "all" || item.category === filterCategory;
+
+        // Stock filter
+        const stock = item.openingStock || 0;
+        const minStock = item.minStock || 0;
+        const matchesStock = 
+            filterStock === "all" ||
+            (filterStock === "inStock" && stock > minStock) ||
+            (filterStock === "lowStock" && stock > 0 && stock <= minStock) ||
+            (filterStock === "outOfStock" && stock <= 0);
+
+        return matchesSearch && matchesCategory && matchesStock;
+    });
 
     // Handle saved/deleted data from form page (backwards compatibility)
     useEffect(() => {
@@ -221,9 +262,92 @@ export default function ItemsPage() {
                         </div>
                     </div>
 
+                    {/* GST Classification Badges */}
+                    <div className="flex items-center gap-2 px-4 py-2 border-b border-gray-100 bg-gray-50">
+                        <span className="text-xs font-medium text-gray-600">GST Classifications:</span>
+                        {gstCounts.gst0 > 0 && (
+                            <div className="px-2 py-1 rounded text-xs font-semibold bg-gray-100 text-gray-700">
+                                0%: {gstCounts.gst0}
+                            </div>
+                        )}
+                        {gstCounts.gst5 > 0 && (
+                            <div className="px-2 py-1 rounded text-xs font-semibold bg-green-100 text-green-800">
+                                5%: {gstCounts.gst5}
+                            </div>
+                        )}
+                        {gstCounts.gst12 > 0 && (
+                            <div className="px-2 py-1 rounded text-xs font-semibold bg-yellow-100 text-yellow-800">
+                                12%: {gstCounts.gst12}
+                            </div>
+                        )}
+                        {gstCounts.gst18 > 0 && (
+                            <div className="px-2 py-1 rounded text-xs font-semibold bg-orange-100 text-orange-800">
+                                18%: {gstCounts.gst18}
+                            </div>
+                        )}
+                        {gstCounts.gst28 > 0 && (
+                            <div className="px-2 py-1 rounded text-xs font-semibold bg-red-100 text-red-800">
+                                28%: {gstCounts.gst28}
+                            </div>
+                        )}
+                        {gstCounts.other > 0 && (
+                            <div className="px-2 py-1 rounded text-xs font-semibold bg-purple-100 text-purple-800">
+                                Other: {gstCounts.other}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Filters Toolbar */}
+                    <div className="flex items-center justify-between gap-2 px-4 py-2 border-b border-gray-100">
+                        <div className="flex items-center gap-2">
+                            {/* Search */}
+                            <div className="relative">
+                                <input
+                                    type="text"
+                                    placeholder="Search by name or HSN..."
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                    className="pl-9 pr-3 py-1.5 border border-gray-300 rounded text-sm w-64 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                                />
+                                <svg className="w-4 h-4 absolute left-3 top-2.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                </svg>
+                            </div>
+
+                            {/* Category Filter */}
+                            <select
+                                value={filterCategory}
+                                onChange={(e) => setFilterCategory(e.target.value)}
+                                className="px-3 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                            >
+                                <option value="all">All Categories</option>
+                                {categories.filter(c => c !== "all").map(cat => (
+                                    <option key={cat} value={cat}>{cat}</option>
+                                ))}
+                            </select>
+
+                            {/* Stock Filter */}
+                            <select
+                                value={filterStock}
+                                onChange={(e) => setFilterStock(e.target.value)}
+                                className="px-3 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                            >
+                                <option value="all">All Stock Levels</option>
+                                <option value="inStock">In Stock</option>
+                                <option value="lowStock">Low Stock</option>
+                                <option value="outOfStock">Out of Stock</option>
+                            </select>
+
+                            {/* Results count */}
+                            <span className="text-sm text-gray-600">
+                                {filteredItems.length} of {items.length} items
+                            </span>
+                        </div>
+                    </div>
+
                     {/* Table */}
                     <ItemTable 
-                        items={items} 
+                        items={filteredItems} 
                         onEdit={handleEditItem} 
                         onViewMovement={(item) => {
                             setSelectedItemForMovement(item);

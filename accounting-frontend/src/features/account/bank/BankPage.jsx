@@ -4,6 +4,139 @@ import { useNavigate, useLocation } from "react-router-dom";
 import useBank from "./hooks/useBank";
 import { CompanyContext } from "src/App";
 import { exportTableToExcel } from "../../../utils/excelExport";
+import { authFetch, API_BASE_URL } from "../../../services/apiClient";
+
+const API_BASE = API_BASE_URL;
+
+/**
+ * TransferToCashModal - Modal for transferring funds from bank to cash
+ */
+function TransferToCashModal({ isOpen, onClose, onSave, fromAccount }) {
+    const [amount, setAmount] = useState("");
+    const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
+    const [description, setDescription] = useState("");
+    const [error, setError] = useState("");
+
+    useEffect(() => {
+        if (isOpen) {
+            setAmount("");
+            setDate(new Date().toISOString().split("T")[0]);
+            setDescription(`Transfer from ${fromAccount?.accountDisplayName || "Bank"} to Cash`);
+            setError("");
+        }
+    }, [isOpen, fromAccount]);
+
+    const handleSave = () => {
+        if (!amount || parseFloat(amount) <= 0) {
+            setError("Please enter a valid amount");
+            return;
+        }
+        onSave({
+            fromAccount: fromAccount?.accountDisplayName || fromAccount?.bankName,
+            toAccount: "Cash-in-Hand",
+            amount: parseFloat(amount),
+            date,
+            description
+        });
+    };
+
+    if (!isOpen) return null;
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={(e) => e.target === e.currentTarget && onClose()}>
+            <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
+                {/* Header */}
+                <div className="px-5 py-4 bg-gradient-to-r from-blue-600 to-blue-500 rounded-t-lg flex items-center justify-between">
+                    <h3 className="text-lg font-semibold text-white">Transfer to Cash</h3>
+                    <button onClick={onClose} className="text-white/80 hover:text-white transition-colors">
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+
+                {/* Body */}
+                <div className="px-5 py-4 space-y-4">
+                    {error && <div className="text-red-600 text-sm">{error}</div>}
+                    
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                            From Bank Account
+                        </label>
+                        <input
+                            type="text"
+                            value={fromAccount?.accountDisplayName || fromAccount?.bankName || ""}
+                            disabled
+                            className="w-full border border-gray-300 rounded px-3 py-2 text-sm bg-gray-100"
+                        />
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                            To Account
+                        </label>
+                        <input
+                            type="text"
+                            value="Cash-in-Hand"
+                            disabled
+                            className="w-full border border-gray-300 rounded px-3 py-2 text-sm bg-gray-100"
+                        />
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Amount<span className="text-red-500">*</span>
+                        </label>
+                        <input
+                            type="number"
+                            value={amount}
+                            onChange={(e) => {
+                                setAmount(e.target.value);
+                                setError("");
+                            }}
+                            placeholder="Enter amount"
+                            className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        />
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Date<span className="text-red-500">*</span>
+                        </label>
+                        <input
+                            type="date"
+                            value={date}
+                            onChange={(e) => setDate(e.target.value)}
+                            className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        />
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Description
+                        </label>
+                        <textarea
+                            value={description}
+                            onChange={(e) => setDescription(e.target.value)}
+                            rows={3}
+                            className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        />
+                    </div>
+                </div>
+
+                {/* Footer */}
+                <div className="px-5 py-4 bg-gray-50 rounded-b-lg flex justify-end gap-3">
+                    <button onClick={onClose} className="px-4 py-2 text-gray-700 bg-gray-200 rounded hover:bg-gray-300 transition-colors text-sm font-medium">
+                        Cancel
+                    </button>
+                    <button onClick={handleSave} className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors text-sm font-medium">
+                        Transfer
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
 
 /**
  * BankModal - Compact centered modal for creating/editing a bank account
@@ -416,6 +549,8 @@ export default function BankPage() {
     const [selectedCell, setSelectedCell] = useState(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingAccount, setEditingAccount] = useState(null);
+    const [showTransferModal, setShowTransferModal] = useState(false);
+    const [transferFromAccount, setTransferFromAccount] = useState(null);
 
     useEffect(() => {
         if (location?.state?.savedBank || location?.state?.deletedBankId) {
@@ -491,6 +626,34 @@ export default function BankPage() {
         } catch (err) {
             console.error("Failed to delete account:", err);
             alert(err?.message || "Failed to delete bank account");
+        }
+    };
+
+    const handleTransferToCash = (account) => {
+        setTransferFromAccount(account);
+        setShowTransferModal(true);
+    };
+
+    const handleSaveTransfer = async (transferData) => {
+        try {
+            // Create a contra entry record (you'll need to implement this API endpoint)
+            await authFetch(`${API_BASE}/api/contra`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    ...transferData,
+                    accountCompanyName: selectedCompany,
+                    type: "Bank to Cash",
+                    createdAt: new Date().toISOString()
+                })
+            });
+
+            setShowTransferModal(false);
+            setTransferFromAccount(null);
+            alert(`Successfully transferred ₹${transferData.amount} to Cash`);
+        } catch (err) {
+            console.error("Failed to transfer:", err);
+            alert(err?.message || "Failed to create transfer entry");
         }
     };
 
@@ -787,6 +950,13 @@ export default function BankPage() {
                                         <td className={`h-8 px-4 text-left sticky right-0 z-10 border-l border-gray-400 ${rowIndex % 2 === 0 ? 'bg-blue-50' : 'bg-white'}`} style={{ boxShadow: '-4px 0 8px -2px rgba(0, 0, 0, 0.1)' }}>
                                             <div className="flex items-center justify-end gap-2">
                                                 <button
+                                                    onClick={() => handleTransferToCash(account)}
+                                                    className="text-green-600 hover:underline text-sm"
+                                                    title="Transfer to Cash"
+                                                >
+                                                    To Cash
+                                                </button>
+                                                <button
                                                     onClick={() => handleEditAccount(account)}
                                                     className="text-blue-600 hover:underline text-sm"
                                                 >
@@ -841,6 +1011,17 @@ export default function BankPage() {
                 onSave={handleSaveAccount}
                 onDelete={handleDeleteAccount}
                 editData={editingAccount}
+            />
+
+            {/* Transfer to Cash Modal */}
+            <TransferToCashModal
+                isOpen={showTransferModal}
+                onClose={() => {
+                    setShowTransferModal(false);
+                    setTransferFromAccount(null);
+                }}
+                onSave={handleSaveTransfer}
+                fromAccount={transferFromAccount}
             />
         </div>
     );

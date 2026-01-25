@@ -1,5 +1,6 @@
 // ReceiptPage.jsx - Payment In
 import React, { useState, useEffect, useRef } from "react";
+import { useLocation } from "react-router-dom";
 import InvoicePreviewModal from "./components/InvoicePreviewModal";
 import PdfPreviewModal from "../../../components/PdfPreviewModal";
 import receiptApi from "./api/receipt.api";
@@ -11,13 +12,13 @@ import { authFetch, API_BASE_URL } from "../../../services/apiClient";
 /**
  * ReceiptModal - Modal for creating/editing receipt (payment in) entries
  */
-function ReceiptModal({ isOpen, onClose, onSave, onDelete, editData }) {
+function ReceiptModal({ isOpen, onClose, onSave, onDelete, editData, prefilledParty }) {
     const API_BASE = API_BASE_URL;
 
     const [formData, setFormData] = useState({
         date: new Date().toISOString().split('T')[0],
-        party: "",
-        partyId: "",
+        party: prefilledParty?.name || "",
+        partyId: prefilledParty?.id || "",
         amount: "",
         paymentMethod: "Cash",
         invoice: "",
@@ -79,24 +80,26 @@ function ReceiptModal({ isOpen, onClose, onSave, onDelete, editData }) {
 
             const [customersData, vendorsData] = await Promise.all([parseSettled(cRes), parseSettled(vRes)]);
 
-            const normalize = (arr) => (Array.isArray(arr) ? arr.map(item => {
+            const normalize = (arr, isVendor = false) => (Array.isArray(arr) ? arr.map(item => {
                 if (!item) return null;
-                if (typeof item === "string") return { id: null, name: item };
-                const name = item.displayName || item.fullName || item.name || item.companyName || (item.email ? `${item.email}` : "");
-                return { id: item._id || item.id || null, name: name || "" };
+                if (typeof item === "string") return { id: null, name: item, companyName: "", displayName: item };
+                const name = isVendor
+                    ? (item.displayName || item.vendorName || item.fullName || item.name || item.companyName || (item.email ? `${item.email}` : ""))
+                    : (item.displayName || item.customerName || item.fullName || item.name || item.companyName || (item.email ? `${item.email}` : ""));
+                return { 
+                    ...item,
+                    id: item._id || item.id || null, 
+                    name: item.customerName || item.vendorName || item.fullName || item.name || "",
+                    companyName: item.companyName || "",
+                    displayName: name || "" 
+                };
             }).filter(Boolean) : []);
 
-            const custNorm = normalize(customersData);
-            const vendNorm = normalize(vendorsData);
+            const custNorm = normalize(customersData, false);
+            const vendNorm = normalize(vendorsData, true);
 
-            // merged, unique by name (case-insensitive)
-            const map = new Map();
-            [...custNorm, ...vendNorm].forEach(p => {
-                const key = (p.name || "").toString().trim().toLowerCase();
-                if (key) map.set(key, p);
-            });
-
-            setParties(Array.from(map.values()));
+            // merged (no deduplication needed as we store full objects)
+            setParties([...custNorm, ...vendNorm]);
         } catch (err) {
             console.error("Failed to fetch parties for ReceiptModal", err);
             setParties([]);
@@ -424,12 +427,16 @@ function ReceiptModal({ isOpen, onClose, onSave, onDelete, editData }) {
                                     className={`${baseInput} bg-white ${fieldErrors.party ? "border-red-500" : ""}`}
                                 >
                                     <option value="">Search and select party...</option>
-                                    {parties.map((party) => (
-                                        // use party.id if present otherwise use party.name as value
-                                        <option key={(party.id || party.name)} value={party.id || party.name}>
-                                            {party.name}
-                                        </option>
-                                    ))}
+                                    {parties.map((party) => {
+                                        const displayText = party.displayName || party.name;
+                                        const shopName = party.companyName || "";
+                                        const optionLabel = shopName ? `${displayText} - ${shopName}` : displayText;
+                                        return (
+                                            <option key={(party.id || party.name)} value={party.id || party.name}>
+                                                {optionLabel}
+                                            </option>
+                                        );
+                                    })}
                                 </select>
                                 {fieldErrors.party && <p className="mt-1 text-xs text-red-500">{fieldErrors.party}</p>}
                             </div>
@@ -588,6 +595,9 @@ function ReceiptModal({ isOpen, onClose, onSave, onDelete, editData }) {
  * - PDF Invoice export functionality
  */
 export default function ReceiptPage() {
+    const location = useLocation();
+    const prefilledParty = location.state?.prefilledParty || null;
+    
     const { rows: receipts = [], loading: _receiptsLoading, error: receiptsError, reload, create, update, remove } = useReceipt({ useLocalFallback: false });
 
     const [selectedCell, setSelectedCell] = useState(null);
@@ -597,6 +607,13 @@ export default function ReceiptPage() {
     const [selectedReceiptForInvoice, setSelectedReceiptForInvoice] = useState(null);
     const [isPdfPreviewOpen, setIsPdfPreviewOpen] = useState(false);
     const [selectedReceiptForPdf, setSelectedReceiptForPdf] = useState(null);
+
+    // Auto-open modal if prefilled party is provided
+    useEffect(() => {
+        if (prefilledParty && !isModalOpen) {
+            setIsModalOpen(true);
+        }
+    }, [prefilledParty]);
 
     // Company/formatter helpers (kept as you had them)
     const companyData = {
@@ -1213,6 +1230,7 @@ export default function ReceiptPage() {
                 onSave={handleSaveReceipt}
                 onDelete={handleDeleteReceipt}
                 editData={editingReceipt}
+                prefilledParty={prefilledParty}
             />
 
             {/* Invoice Preview Modal */}
