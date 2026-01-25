@@ -720,7 +720,6 @@ export default function ItemModal({ isOpen, onClose, onSave, onDelete, editData 
                                 onChange={(e) => {
                                     if (e.target.value === '__ADD_NEW__') {
                                         handleAddGst();
-                                        e.target.value = '';
                                     } else {
                                         setGstRate(e.target.value);
                                     }
