@@ -65,8 +65,28 @@ export default function CustomerPage() {
     const [selectedCell, setSelectedCell] = useState(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingCustomer, setEditingCustomer] = useState(null);
+    const [searchTerm, setSearchTerm] = useState("");
+    const [filterType, setFilterType] = useState("all"); // all, withDue, withoutDue
 
     const totalPending = meta.totalPending || 0;
+
+    // Filter customers based on search and filter type
+    const filteredCustomers = customers.filter(customer => {
+        // Search filter
+        const matchesSearch = !searchTerm || 
+            (customer.customerName?.toLowerCase().includes(searchTerm.toLowerCase())) ||
+            (customer.companyName?.toLowerCase().includes(searchTerm.toLowerCase())) ||
+            (customer.mobileNumber?.includes(searchTerm));
+
+        // Type filter
+        const pending = customer.pendingAmount || 0;
+        const matchesType = 
+            filterType === "all" || 
+            (filterType === "withDue" && pending !== 0) ||
+            (filterType === "withoutDue" && pending === 0);
+
+        return matchesSearch && matchesType;
+    });
 
     useEffect(() => {
         if (location.state?.savedCustomer || location.state?.deletedCustomerId) {
@@ -293,10 +313,10 @@ export default function CustomerPage() {
         return () => window.removeEventListener('resize', calculateRows);
     }, []);
 
-    const emptyRowsCount = Math.max(0, visibleRows - customers.length);
+    const emptyRowsCount = Math.max(0, visibleRows - filteredCustomers.length);
     const emptyRows = Array.from({ length: emptyRowsCount }, (_, i) => i);
 
-    const totalRecords = customers.length;
+    const totalRecords = filteredCustomers.length;
     const startRecord = totalRecords > 0 ? 1 : 0;
     const endRecord = totalRecords;
 
@@ -340,8 +360,40 @@ export default function CustomerPage() {
                 </button>
             </div>
 
-            {/* Toolbar - Icons commented out */}
-            <div className="flex items-center justify-end gap-2 px-4 py-2 border-b border-gray-100">
+            {/* Toolbar - Filter and Search Controls */}
+            <div className="flex items-center justify-between gap-2 px-4 py-2 border-b border-gray-100">
+                <div className="flex items-center gap-2">
+                    {/* Search */}
+                    <div className="relative">
+                        <input
+                            type="text"
+                            placeholder="Search by name, company, or mobile..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="pl-9 pr-3 py-1.5 border border-gray-300 rounded text-sm w-64 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        />
+                        <svg className="w-4 h-4 absolute left-3 top-2.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        </svg>
+                    </div>
+
+                    {/* Filter by due amount */}
+                    <select
+                        value={filterType}
+                        onChange={(e) => setFilterType(e.target.value)}
+                        className="px-3 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    >
+                        <option value="all">All Customers</option>
+                        <option value="withDue">With Pending Amount</option>
+                        <option value="withoutDue">No Pending Amount</option>
+                    </select>
+
+                    {/* Results count */}
+                    <span className="text-sm text-gray-600">
+                        {filteredCustomers.length} of {customers.length} customers
+                    </span>
+                </div>
+
                 <button
                     onClick={handleExportToExcel}
                     className="flex items-center gap-2 px-3 py-1.5 text-gray-600 hover:bg-gray-100 rounded text-sm"
@@ -456,7 +508,7 @@ export default function CustomerPage() {
                             </thead>
                             <tbody>
                                 {/* Data rows */}
-                                {customers.map((customer, rowIndex) => (
+                                {filteredCustomers.map((customer, rowIndex) => (
                                     <tr
                                         key={customer.id || customer._id || rowIndex}
                                         className={`border-b border-gray-400 hover:bg-blue-100 transition-colors cursor-pointer ${rowIndex % 2 === 0 ? 'bg-blue-50/40' : 'bg-white'}`}

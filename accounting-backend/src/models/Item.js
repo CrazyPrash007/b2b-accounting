@@ -25,6 +25,10 @@ const ItemSchema = new mongoose.Schema({
     minStock: { type: Number, default: 0 },
     openingDate: { type: Date, default: null },
 
+    // Website visibility & image for personal shop website
+    showOnWebsite: { type: Boolean, default: true, index: true }, // Toggle to show/hide on shop website
+    itemImage: { type: String, default: '' }, // URL to product image
+
     isActive: { type: Boolean, default: true },
     isDeleted: { type: Boolean, default: false },
 

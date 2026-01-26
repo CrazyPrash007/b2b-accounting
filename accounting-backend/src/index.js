@@ -19,6 +19,7 @@ const purchaseRoutes = require('./routes/purchase.routes');
 const companyRoutes = require('./routes/company.routes');
 const receiptRoutes = require('./routes/receipt.routes');
 const paymentRoutes = require('./routes/payment.routes');
+const contraRoutes = require('./routes/contra.routes');
 const enquiryRoutes = require('./routes/enquiry.routes');
 const dashboardRoutes = require('./routes/dashboard.routes');
 const adRoutes = require('./routes/ad.routes');
@@ -77,6 +78,7 @@ async function start() {
     app.use('/api/purchases', purchaseRoutes);
     app.use('/api/receipts', receiptRoutes);
     app.use('/api/payments', paymentRoutes);
+    app.use('/api/contra', contraRoutes);
     app.use('/api/enquiries', enquiryRoutes);
     app.use('/api/dashboard', dashboardRoutes);
     app.use('/api/ads', adRoutes);
