@@ -47,6 +47,9 @@ export default function ItemModal({ isOpen, onClose, onSave, onDelete, editData 
     const [openingStock, setOpeningStock] = useState("");
     const [minStock, setMinStock] = useState("");
     const [openingDate, setOpeningDate] = useState("");
+    // Website visibility & image fields
+    const [showOnWebsite, setShowOnWebsite] = useState(true);
+    const [itemImage, setItemImage] = useState("");
 
     // Validation
     const [errorName, setErrorName] = useState("");
@@ -278,6 +281,9 @@ export default function ItemModal({ isOpen, onClose, onSave, onDelete, editData 
                 setOpeningStock(editData.openingStock ?? "");
                 setMinStock(editData.minStock ?? "");
                 setOpeningDate(editData.openingDate ?? new Date().toISOString().split("T")[0]);
+                // Website visibility & image
+                setShowOnWebsite(editData.showOnWebsite !== false); // Default to true
+                setItemImage(editData.itemImage ?? "");
             } else {
                 setItemName("");
                 setDescription("");
@@ -293,6 +299,9 @@ export default function ItemModal({ isOpen, onClose, onSave, onDelete, editData 
                 setOpeningStock("");
                 setMinStock("");
                 setOpeningDate(new Date().toISOString().split("T")[0]);
+                // Reset website fields
+                setShowOnWebsite(true);
+                setItemImage("");
             }
             setErrorName("");
             setTimeout(() => itemNameRef.current?.focus(), 100);
@@ -447,6 +456,9 @@ export default function ItemModal({ isOpen, onClose, onSave, onDelete, editData 
             openingStock: openingStock || "",
             minStock: minStock || "",
             openingDate: openingDate || "",
+            // Website visibility & image
+            showOnWebsite: showOnWebsite,
+            itemImage: itemImage.trim(),
         };
 
         onSave(payload, isEditMode);
@@ -802,6 +814,58 @@ export default function ItemModal({ isOpen, onClose, onSave, onDelete, editData 
                                 onChange={(e) => setOpeningDate(e.target.value)}
                                 className={baseInput}
                             />
+                        </div>
+                    </div>
+                </div>
+
+                {/* Website Settings */}
+                <div className="mb-3">
+                    <h4 className={sectionTitle}>
+                        <svg className="w-4 h-4 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
+                        </svg>
+                        Website Settings
+                        <span className="text-xs font-normal text-gray-500 ml-2">(Personal shop website)</span>
+                    </h4>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                            <label className="relative inline-flex items-center cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    checked={showOnWebsite}
+                                    onChange={(e) => setShowOnWebsite(e.target.checked)}
+                                    className="sr-only peer"
+                                />
+                                <div className="w-11 h-6 bg-gray-300 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-100 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                            </label>
+                            <div>
+                                <p className="text-sm font-medium text-gray-700">Show on Website</p>
+                                <p className="text-xs text-gray-500">Display this item on your personal shop website</p>
+                            </div>
+                        </div>
+                        <div>
+                            <label className={labelClass}>
+                                Item Image URL
+                                <span className="text-xs font-normal text-gray-400 ml-1">(optional)</span>
+                            </label>
+                            <input
+                                type="url"
+                                value={itemImage}
+                                onChange={(e) => setItemImage(e.target.value)}
+                                className={baseInput}
+                                placeholder="https://example.com/image.jpg"
+                            />
+                            {itemImage && (
+                                <div className="mt-2 flex items-center gap-2">
+                                    <img
+                                        src={itemImage}
+                                        alt="Preview"
+                                        className="w-12 h-12 object-cover rounded border border-gray-200"
+                                        onError={(e) => { e.target.style.display = 'none'; }}
+                                    />
+                                    <span className="text-xs text-gray-500">Preview</span>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>

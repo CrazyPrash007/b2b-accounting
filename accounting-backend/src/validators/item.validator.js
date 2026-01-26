@@ -53,6 +53,12 @@ const base = {
         'date.format': 'Date must be in ISO format'
     }),
 
+    // Website visibility and image
+    showOnWebsite: Joi.boolean().optional().default(true),
+    itemImage: Joi.string().uri().allow('').optional().messages({
+        'string.uri': 'Item image must be a valid URL'
+    }),
+
     isActive: Joi.boolean().optional(),
 };
 

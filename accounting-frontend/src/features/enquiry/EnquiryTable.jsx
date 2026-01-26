@@ -72,6 +72,9 @@ export default function EnquiryTable({
         if (type === 'public') {
             return <span className="px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800">PUBLIC</span>;
         }
+        if (type === 'website') {
+            return <span className="px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">WEBSITE</span>;
+        }
         return <span className="px-2 py-0.5 rounded text-xs font-medium bg-teal-100 text-teal-800">VENDORS</span>;
     };
 

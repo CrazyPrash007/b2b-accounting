@@ -45,7 +45,7 @@ export default function ItemsPage() {
     // Filter items
     const filteredItems = items.filter(item => {
         // Search filter
-        const matchesSearch = !searchTerm || 
+        const matchesSearch = !searchTerm ||
             (item.itemName?.toLowerCase().includes(searchTerm.toLowerCase())) ||
             (item.name?.toLowerCase().includes(searchTerm.toLowerCase())) ||
             (item.hsnNo?.includes(searchTerm));
@@ -56,7 +56,7 @@ export default function ItemsPage() {
         // Stock filter
         const stock = item.openingStock || 0;
         const minStock = item.minStock || 0;
-        const matchesStock = 
+        const matchesStock =
             filterStock === "all" ||
             (filterStock === "inStock" && stock > minStock) ||
             (filterStock === "lowStock" && stock > 0 && stock <= minStock) ||
@@ -115,6 +115,10 @@ export default function ItemsPage() {
 
             // normalize date -> ISO or undefined/null
             openingDate: itemData.openingDate ? new Date(itemData.openingDate).toISOString() : null,
+
+            // Website visibility & image
+            showOnWebsite: itemData.showOnWebsite !== false, // Default to true
+            itemImage: (itemData.itemImage || "").toString().trim(),
         };
 
         // Basic client-side validation before hitting backend
@@ -212,11 +216,23 @@ export default function ItemsPage() {
         exportTableToExcel(exportData, columns, 'Items_Report', 'Items');
     };
 
+    // Toggle website visibility for an item
+    const handleToggleWebsite = async (item) => {
+        try {
+            const newValue = item.showOnWebsite === false ? true : false;
+            await update(item.id || item._id, { showOnWebsite: newValue });
+            reload();
+        } catch (err) {
+            console.error("Failed to toggle website visibility:", err);
+            alert("Failed to update website visibility");
+        }
+    };
+
     return (
         <div className="h-full flex flex-col bg-white">
             {/* Show Item Movement History when selected (replaces table view like Party History) */}
             {showMovementModal && selectedItemForMovement ? (
-                <ItemMovementModal 
+                <ItemMovementModal
                     isOpen={showMovementModal}
                     onClose={() => {
                         setShowMovementModal(false);
@@ -346,13 +362,14 @@ export default function ItemsPage() {
                     </div>
 
                     {/* Table */}
-                    <ItemTable 
-                        items={filteredItems} 
-                        onEdit={handleEditItem} 
+                    <ItemTable
+                        items={filteredItems}
+                        onEdit={handleEditItem}
                         onViewMovement={(item) => {
                             setSelectedItemForMovement(item);
                             setShowMovementModal(true);
                         }}
+                        onToggleWebsite={handleToggleWebsite}
                     />
                 </>
             )}
