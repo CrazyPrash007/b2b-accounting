@@ -54,7 +54,7 @@ const EnquirySchema = new mongoose.Schema({
     // Distribution type: how the enquiry is sent
     distributionType: {
         type: String,
-        enum: ['public', 'vendors'],
+        enum: ['public', 'vendors', 'website'],
         required: true,
         default: 'public',
         index: true
