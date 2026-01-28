@@ -1,6 +1,6 @@
 import React from "react";
 
-export default function TotalIncome({ data, period, onPeriodChange }) {
+export default function TotalIncome({ data, period, onPeriodChange, loading }) {
     const formatAmount = (amount) => (amount || 0).toFixed(2);
 
     const periodOptions = [
@@ -11,7 +11,12 @@ export default function TotalIncome({ data, period, onPeriodChange }) {
     ];
 
     return (
-        <div className="card p-4 bg-white border border-gray-200 rounded-lg">
+        <div className={`card p-4 bg-white border border-gray-200 rounded-lg relative ${loading ? 'opacity-70' : ''}`}>
+            {loading && (
+                <div className="absolute inset-0 flex items-center justify-center bg-white/50 rounded-lg z-10">
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-indigo-600"></div>
+                </div>
+            )}
             <div className="flex justify-between items-center mb-4">
                 <h3 className="font-medium text-gray-800">Total Available Income</h3>
                 <select
