@@ -577,13 +577,6 @@ export default function StaffPage() {
                                                                     Terminate
                                                                 </button>
                                                             )}
-                                                            <hr className="my-1" />
-                                                            <button
-                                                                onClick={(e) => { e.stopPropagation(); handleDeleteClick(s); }}
-                                                                className="w-full text-left px-3 py-1.5 text-sm text-red-600 hover:bg-red-50"
-                                                            >
-                                                                Delete
-                                                            </button>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -635,6 +628,7 @@ export default function StaffPage() {
                 isOpen={isModalOpen}
                 onClose={handleCloseModal}
                 onSubmit={handleSubmit}
+                onDelete={handleDeleteClick}
                 editData={editingStaff}
                 loading={loading}
             />
