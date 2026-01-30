@@ -16,6 +16,8 @@ import {
     FiPackage,
     FiLayers,
     FiMessageSquare,
+    FiBell,
+    FiUserCheck,
 } from "react-icons/fi";
 
 /**
@@ -102,6 +104,8 @@ export default function Sidebar() {
                     <Item title="Dashboard" icon={<FiHome />} to="/" />
                     <Item title="My Ads" icon={<FiLayers />} to="/ads" />
                     <Item title="Enquiry" icon={<FiMessageSquare />} to="/enquiry" />
+                    <Item title="Reminders" icon={<FiBell />} to="/reminders" />
+                    <Item title="Staff" icon={<FiUserCheck />} to="/staff" />
                 </div>
 
                 {/* MASTER group with submenus */}
