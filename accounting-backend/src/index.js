@@ -23,6 +23,7 @@ const contraRoutes = require('./routes/contra.routes');
 const enquiryRoutes = require('./routes/enquiry.routes');
 const dashboardRoutes = require('./routes/dashboard.routes');
 const adRoutes = require('./routes/ad.routes');
+const reminderRoutes = require('./routes/reminder.routes');
 const errorHandler = require('./middlewares/errorHandler');
 
 const PORT = process.env.PORT || 4000;
@@ -82,6 +83,7 @@ async function start() {
     app.use('/api/enquiries', enquiryRoutes);
     app.use('/api/dashboard', dashboardRoutes);
     app.use('/api/ads', adRoutes);
+    app.use('/api/reminders', reminderRoutes);
 
     // Global error handler
     app.use(errorHandler);
