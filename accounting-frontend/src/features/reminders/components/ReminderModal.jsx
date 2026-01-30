@@ -1,5 +1,7 @@
 // src/features/reminders/components/ReminderModal.jsx
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useContext } from "react";
+import { CompanyContext } from "src/App";
+import { staffApi } from "../../staff/staff.api";
 
 // Category and subcategory mapping
 const CATEGORY_SUBCATEGORIES = {
@@ -24,16 +26,8 @@ const PRIORITIES = [
     { value: "high", label: "High" }
 ];
 
-// Hardcoded staff for now - will be fetched from staff section later
-const STAFF_LIST = [
-    { id: "1", name: "Rahul (Sales)" },
-    { id: "2", name: "Priya (Accounts)" },
-    { id: "3", name: "Amit (Logistics)" },
-    { id: "4", name: "Lisa (Customer Service)" },
-    { id: "5", name: "Vikram (Manager)" }
-];
-
 export default function ReminderModal({ isOpen, onClose, onSave, editData }) {
+    const { selectedCompany } = useContext(CompanyContext);
     const [title, setTitle] = useState("");
     const [description, setDescription] = useState("");
     const [category, setCategory] = useState("General");
@@ -45,6 +39,27 @@ export default function ReminderModal({ isOpen, onClose, onSave, editData }) {
     const [priority, setPriority] = useState("medium");
     const [error, setError] = useState("");
     const [saving, setSaving] = useState(false);
+    const [staffList, setStaffList] = useState([]);
+    const [loadingStaff, setLoadingStaff] = useState(false);
+
+    // Fetch staff list when modal opens
+    useEffect(() => {
+        if (isOpen && selectedCompany) {
+            setLoadingStaff(true);
+            staffApi.getActiveList({ accountCompanyName: selectedCompany })
+                .then((response) => {
+                    if (response.success) {
+                        setStaffList(response.data);
+                    }
+                })
+                .catch((err) => {
+                    console.error("Error fetching staff list:", err);
+                })
+                .finally(() => {
+                    setLoadingStaff(false);
+                });
+        }
+    }, [isOpen, selectedCompany?.name]);
 
     // Reset form when modal opens/closes or editData changes
     useEffect(() => {
@@ -234,10 +249,15 @@ export default function ReminderModal({ isOpen, onClose, onSave, editData }) {
                                 value={assignedTo}
                                 onChange={(e) => setAssignedTo(e.target.value)}
                                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white"
+                                disabled={loadingStaff}
                             >
-                                <option value="">-- Select Staff --</option>
-                                {STAFF_LIST.map((staff) => (
-                                    <option key={staff.id} value={staff.name}>{staff.name}</option>
+                                <option value="">
+                                    {loadingStaff ? "Loading staff..." : "-- Select Staff --"}
+                                </option>
+                                {staffList.map((staff) => (
+                                    <option key={staff._id} value={staff.name}>
+                                        {staff.name}{staff.designation ? ` (${staff.designation})` : ""}
+                                    </option>
                                 ))}
                             </select>
                         </div>
@@ -292,8 +312,8 @@ export default function ReminderModal({ isOpen, onClose, onSave, editData }) {
                                         className="mr-2"
                                     />
                                     <span className={`text-sm ${p.value === "high" ? "text-red-600" :
-                                            p.value === "medium" ? "text-yellow-600" :
-                                                "text-green-600"
+                                        p.value === "medium" ? "text-yellow-600" :
+                                            "text-green-600"
                                         }`}>
                                         {p.label}
                                     </span>

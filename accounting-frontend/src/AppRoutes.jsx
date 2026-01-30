@@ -23,6 +23,7 @@ import ContraPage from "src/features/transactions/contra/ContraPage";
 import EnquiryPage from "src/features/enquiry/EnquiryPage";
 import AdsPage from "src/features/ads/AdsPage";
 import ReminderPage from "src/features/reminders/ReminderPage";
+import StaffPage from "src/features/staff/StaffPage";
 
 
 export default function AppRoutes() {
@@ -50,6 +51,7 @@ export default function AppRoutes() {
                 <Route path="enquiry" element={<EnquiryPage />} />
                 <Route path="ads" element={<AdsPage />} />
                 <Route path="reminders" element={<ReminderPage />} />
+                <Route path="staff" element={<StaffPage />} />
             </Route>
 
             {/* 404 Not Found - outside AppLayout to show full-page error */}
