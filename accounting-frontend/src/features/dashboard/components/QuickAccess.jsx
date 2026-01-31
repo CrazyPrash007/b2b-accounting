@@ -18,9 +18,9 @@ export default function QuickAccess() {
     };
 
     return (
-        <div className="card p-4">
-            <div className="flex justify-between items-center mb-3">
-                <h3 className="text-lg font-medium text-gray-800">Quick Access</h3>
+        <div>
+            <div className="flex justify-between items-center mb-2">
+                <h3 className="font-medium text-gray-800">Quick Access</h3>
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">

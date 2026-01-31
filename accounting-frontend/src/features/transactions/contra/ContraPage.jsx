@@ -23,12 +23,22 @@ function ContraModal({ isOpen, onClose, onSave, editData }) {
 
     const isEditMode = !!editData;
 
-    // Cash accounts + bank accounts
-    const accounts = [
+    // Cash accounts + bank accounts - all available accounts
+    const allAccounts = [
         "Cash-in-Hand",
         "Petty Cash",
-        ...bankAccounts.map(b => b.accountDisplayName || b.bankName || "")
+        ...bankAccounts.map(b => {
+            const displayName = b.accountDisplayName || b.bankName || "";
+            const accNum = b.accountNumber ? ` (${b.accountNumber.slice(-4)})` : "";
+            return displayName + accNum;
+        }).filter(name => name.trim() !== "")
     ];
+
+    // Filter accounts for From dropdown - exclude the one selected in To
+    const fromAccountOptions = allAccounts.filter(acc => acc !== formData.toAccount);
+    
+    // Filter accounts for To dropdown - exclude the one selected in From
+    const toAccountOptions = allAccounts.filter(acc => acc !== formData.fromAccount);
 
     useEffect(() => {
         if (isOpen) {
@@ -58,9 +68,12 @@ function ContraModal({ isOpen, onClose, onSave, editData }) {
         try {
             const response = await authFetch(`${API_BASE}/api/banks?accountCompanyName=${selectedCompany}`);
             const data = await response.json();
-            setBankAccounts(Array.isArray(data) ? data : (data?.data || []));
+            // Bank API returns { success: true, data: [...], meta: {...} }
+            const banks = data?.data || (Array.isArray(data) ? data : []);
+            setBankAccounts(banks);
         } catch (err) {
             console.error("Failed to fetch bank accounts:", err);
+            setBankAccounts([]);
         }
     };
 
@@ -149,7 +162,7 @@ function ContraModal({ isOpen, onClose, onSave, editData }) {
                                 className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
                             >
                                 <option value="">Select Account</option>
-                                {accounts.map((acc, idx) => (
+                                {fromAccountOptions.map((acc, idx) => (
                                     <option key={idx} value={acc}>{acc}</option>
                                 ))}
                             </select>
@@ -165,7 +178,7 @@ function ContraModal({ isOpen, onClose, onSave, editData }) {
                                 className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
                             >
                                 <option value="">Select Account</option>
-                                {accounts.map((acc, idx) => (
+                                {toAccountOptions.map((acc, idx) => (
                                     <option key={idx} value={acc}>{acc}</option>
                                 ))}
                             </select>

@@ -50,7 +50,7 @@ export default function Dashboard() {
     }
 
     return (
-        <div className="space-y-4">
+        <div className="space-y-3 p-4 bg-slate-50">
             {/* 1. Top Section: Full Width Cards */}
             <BusinessOperations 
                 data={stats?.businessOperations} 
@@ -73,7 +73,7 @@ export default function Dashboard() {
             />
 
             {/* Row: Revenue Inflow (2/3) + Revenue Management (1/3) */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
                 <div className="lg:col-span-2 h-full">
                     <RevenueInflow 
                         data={stats?.revenueInflow} 
@@ -93,7 +93,7 @@ export default function Dashboard() {
             </div>
 
             {/* Changed to grid-cols-2 for 50-50 split */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
                 <div className="h-full">
                     <SaleAnalytics 
                         data={stats?.topSalesItems} 

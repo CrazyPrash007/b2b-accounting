@@ -72,11 +72,17 @@ export default function CustomerPage() {
 
     // Filter customers based on search and filter type
     const filteredCustomers = customers.filter(customer => {
-        // Search filter
+        // Search filter - includes mobile, company, city/district, owner name
+        const searchLower = searchTerm.toLowerCase();
         const matchesSearch = !searchTerm || 
-            (customer.customerName?.toLowerCase().includes(searchTerm.toLowerCase())) ||
-            (customer.companyName?.toLowerCase().includes(searchTerm.toLowerCase())) ||
-            (customer.mobileNumber?.includes(searchTerm));
+            (customer.customerName?.toLowerCase().includes(searchLower)) ||
+            (customer.companyName?.toLowerCase().includes(searchLower)) ||
+            (customer.mobileNumber?.includes(searchTerm)) ||
+            (customer.billingDistrict?.toLowerCase().includes(searchLower)) ||
+            (customer.billingVillage?.toLowerCase().includes(searchLower)) ||
+            (customer.billingTehsil?.toLowerCase().includes(searchLower)) ||
+            (customer.billingState?.toLowerCase().includes(searchLower)) ||
+            (customer.billingAddress?.toLowerCase().includes(searchLower));
 
         // Type filter
         const pending = customer.pendingAmount || 0;
@@ -367,10 +373,10 @@ export default function CustomerPage() {
                     <div className="relative">
                         <input
                             type="text"
-                            placeholder="Search by name, company, or mobile..."
+                            placeholder="Search name, company, mobile, city..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
-                            className="pl-9 pr-3 py-1.5 border border-gray-300 rounded text-sm w-64 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                            className="pl-9 pr-3 py-1.5 border border-gray-300 rounded text-sm w-72 focus:outline-none focus:ring-1 focus:ring-blue-500"
                         />
                         <svg className="w-4 h-4 absolute left-3 top-2.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
