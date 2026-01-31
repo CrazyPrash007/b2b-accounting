@@ -50,6 +50,11 @@ export default function ItemModal({ isOpen, onClose, onSave, onDelete, editData 
     // Website visibility & image fields
     const [showOnWebsite, setShowOnWebsite] = useState(true);
     const [itemImage, setItemImage] = useState("");
+    const [itemImageMimeType, setItemImageMimeType] = useState("");
+    const [imageFile, setImageFile] = useState(null);
+    const [imagePreview, setImagePreview] = useState("");
+    const [isUploadingImage, setIsUploadingImage] = useState(false);
+    const imageInputRef = useRef(null);
 
     // Validation
     const [errorName, setErrorName] = useState("");
@@ -289,6 +294,10 @@ export default function ItemModal({ isOpen, onClose, onSave, onDelete, editData 
                 // Website visibility & image
                 setShowOnWebsite(editData.showOnWebsite !== false); // Default to true
                 setItemImage(editData.itemImage ?? "");
+                setItemImageMimeType(editData.itemImageMimeType ?? "");
+                setImageFile(null);
+                // Set preview from existing base64 image
+                setImagePreview(editData.itemImage ?? "");
             } else {
                 setItemName("");
                 setDescription("");
@@ -307,6 +316,9 @@ export default function ItemModal({ isOpen, onClose, onSave, onDelete, editData 
                 // Reset website fields
                 setShowOnWebsite(true);
                 setItemImage("");
+                setItemImageMimeType("");
+                setImageFile(null);
+                setImagePreview("");
             }
             setErrorName("");
             setTimeout(() => itemNameRef.current?.focus(), 100);
@@ -431,6 +443,73 @@ export default function ItemModal({ isOpen, onClose, onSave, onDelete, editData 
         });
     };
 
+    // 📷 Handle Image File Selection and Upload
+    const handleImageFileChange = async (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        // Validate file type
+        if (!file.type.startsWith('image/')) {
+            alert('Please select a valid image file (JPEG, PNG, GIF, etc.)');
+            return;
+        }
+
+        // Validate file size (5MB max)
+        if (file.size > 5 * 1024 * 1024) {
+            alert('Image file size must be less than 5MB');
+            return;
+        }
+
+        setImageFile(file);
+        // Create local preview
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            setImagePreview(reader.result);
+        };
+        reader.readAsDataURL(file);
+
+        // Upload to server to get base64
+        setIsUploadingImage(true);
+        try {
+            const formData = new FormData();
+            formData.append('itemImage', file);
+
+            const response = await authFetch(`${API_BASE}/api/items/upload-image`, {
+                method: 'POST',
+                body: formData,
+                // Don't set Content-Type header - let browser set it with boundary for multipart/form-data
+            });
+
+            if (response && response.ok) {
+                const result = await response.json();
+                if (result.success && result.data) {
+                    setItemImage(result.data.itemImage);
+                    setItemImageMimeType(result.data.itemImageMimeType);
+                    console.log('✅ Image uploaded successfully');
+                }
+            } else {
+                console.error('❌ Failed to upload image');
+                alert('Failed to upload image. Please try again.');
+            }
+        } catch (err) {
+            console.error('❌ Image upload error:', err);
+            alert('Failed to upload image. Please try again.');
+        } finally {
+            setIsUploadingImage(false);
+        }
+    };
+
+    // Remove uploaded image
+    const handleRemoveImage = () => {
+        setItemImage("");
+        setItemImageMimeType("");
+        setImageFile(null);
+        setImagePreview("");
+        if (imageInputRef.current) {
+            imageInputRef.current.value = "";
+        }
+    };
+
     const baseInput = "w-full border border-gray-300 rounded-md px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white";
     const labelClass = "block text-sm font-medium text-gray-600 mb-1.5";
     const sectionTitle = "text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2";
@@ -461,9 +540,10 @@ export default function ItemModal({ isOpen, onClose, onSave, onDelete, editData 
             openingStock: openingStock || "",
             minStock: minStock || "",
             openingDate: openingDate || "",
-            // Website visibility & image
+            // Website visibility & image (base64 data)
             showOnWebsite: showOnWebsite,
-            itemImage: itemImage.trim(),
+            itemImage: itemImage,
+            itemImageMimeType: itemImageMimeType,
         };
 
         onSave(payload, isEditMode);
@@ -850,27 +930,74 @@ export default function ItemModal({ isOpen, onClose, onSave, onDelete, editData 
                         </div>
                         <div>
                             <label className={labelClass}>
-                                Item Image URL
-                                <span className="text-xs font-normal text-gray-400 ml-1">(optional)</span>
+                                Item Image
+                                <span className="text-xs font-normal text-gray-400 ml-1">(optional, max 5MB)</span>
                             </label>
-                            <input
-                                type="url"
-                                value={itemImage}
-                                onChange={(e) => setItemImage(e.target.value)}
-                                className={baseInput}
-                                placeholder="https://example.com/image.jpg"
-                            />
-                            {itemImage && (
-                                <div className="mt-2 flex items-center gap-2">
-                                    <img
-                                        src={itemImage}
-                                        alt="Preview"
-                                        className="w-12 h-12 object-cover rounded border border-gray-200"
-                                        onError={(e) => { e.target.style.display = 'none'; }}
+                            <div className="flex flex-col gap-2">
+                                {/* File Input */}
+                                <div className="relative">
+                                    <input
+                                        ref={imageInputRef}
+                                        type="file"
+                                        accept="image/*"
+                                        onChange={handleImageFileChange}
+                                        className="hidden"
+                                        id="itemImageInput"
                                     />
-                                    <span className="text-xs text-gray-500">Preview</span>
+                                    <label
+                                        htmlFor="itemImageInput"
+                                        className={`flex items-center justify-center gap-2 px-4 py-2.5 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-colors ${isUploadingImage ? 'opacity-50 pointer-events-none' : ''}`}
+                                    >
+                                        {isUploadingImage ? (
+                                            <>
+                                                <svg className="w-5 h-5 animate-spin text-blue-500" fill="none" viewBox="0 0 24 24">
+                                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                                </svg>
+                                                <span className="text-sm text-gray-500">Uploading...</span>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                                </svg>
+                                                <span className="text-sm text-gray-600">
+                                                    {imagePreview ? 'Change Image' : 'Upload Image'}
+                                                </span>
+                                            </>
+                                        )}
+                                    </label>
                                 </div>
-                            )}
+
+                                {/* Image Preview */}
+                                {imagePreview && (
+                                    <div className="flex items-center gap-3 p-2 bg-gray-50 rounded-lg border border-gray-200">
+                                        <img
+                                            src={imagePreview}
+                                            alt="Preview"
+                                            className="w-16 h-16 object-cover rounded border border-gray-200"
+                                        />
+                                        <div className="flex-1">
+                                            <p className="text-xs text-gray-600">
+                                                {imageFile ? imageFile.name : 'Existing image'}
+                                            </p>
+                                            <p className="text-xs text-gray-400">
+                                                {imageFile ? `${(imageFile.size / 1024).toFixed(1)} KB` : ''}
+                                            </p>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={handleRemoveImage}
+                                            className="p-1.5 text-red-500 hover:bg-red-50 rounded transition-colors"
+                                            title="Remove image"
+                                        >
+                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                            </svg>
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     </div>
                 </div>

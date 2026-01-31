@@ -125,9 +125,10 @@ export default function ItemsPage() {
             // normalize date -> ISO or undefined/null
             openingDate: itemData.openingDate ? new Date(itemData.openingDate).toISOString() : null,
 
-            // Website visibility & image
+            // Website visibility & image (base64 data)
             showOnWebsite: itemData.showOnWebsite !== false, // Default to true
-            itemImage: (itemData.itemImage || "").toString().trim(),
+            itemImage: itemData.itemImage || "",
+            itemImageMimeType: itemData.itemImageMimeType || "",
         };
 
         // Basic client-side validation before hitting backend

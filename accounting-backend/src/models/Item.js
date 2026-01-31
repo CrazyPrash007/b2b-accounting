@@ -27,7 +27,8 @@ const ItemSchema = new mongoose.Schema({
 
     // Website visibility & image for personal shop website
     showOnWebsite: { type: Boolean, default: true, index: true }, // Toggle to show/hide on shop website
-    itemImage: { type: String, default: '' }, // URL to product image
+    itemImage: { type: String, default: '' }, // Base64 encoded image data (data:image/...;base64,...)
+    itemImageMimeType: { type: String, default: '' }, // MIME type of the image (image/jpeg, image/png, etc.)
 
     isActive: { type: Boolean, default: true },
     isDeleted: { type: Boolean, default: false },
