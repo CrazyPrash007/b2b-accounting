@@ -55,8 +55,11 @@ const base = {
 
     // Website visibility and image
     showOnWebsite: Joi.boolean().optional().default(true),
-    itemImage: Joi.string().uri().allow('').optional().messages({
-        'string.uri': 'Item image must be a valid URL'
+    itemImage: Joi.string().allow('').optional().messages({
+        'string.base': 'Item image must be a string'
+    }),
+    itemImageMimeType: Joi.string().allow('').optional().messages({
+        'string.base': 'Item image MIME type must be a string'
     }),
 
     isActive: Joi.boolean().optional(),
