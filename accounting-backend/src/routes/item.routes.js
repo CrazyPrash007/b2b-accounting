@@ -11,6 +11,9 @@ router.use(auth);
 // Global search endpoint - must be before /:id route
 router.get('/global-search', controller.globalSearch);
 
+// Image upload endpoint
+router.post('/upload-image', controller.uploadMiddleware, controller.uploadImage);
+
 router.get('/', controller.list);
 router.post('/', validate(createSchema), controller.create);
 router.get('/:id', controller.getOne);

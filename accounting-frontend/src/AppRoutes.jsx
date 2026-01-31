@@ -2,7 +2,6 @@ import React from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import AppLayout from "src/layouts/AppLayout";
 import NotFoundPage from "src/components/NotFoundPage";
-
 import DashboardPage from "src/features/dashboard/DashboardPage";
 import ItemCategoryPage from "src/features/items/item-category/ItemCategoryPage";
 import ItemsPage from "src/features/items/items/ItemsPage";
