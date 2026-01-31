@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 
-export default function SaleAnalytics({ data, period, onPeriodChange }) {
+export default function SaleAnalytics({ data, period, onPeriodChange, loading }) {
     const [tab, setTab] = useState("top-item");
 
     const periodOptions = [
@@ -14,9 +14,14 @@ export default function SaleAnalytics({ data, period, onPeriodChange }) {
     const formatAmount = (amount) => `₹${(amount || 0).toFixed(2)}`;
 
     return (
-        <div className="card p-4">
-            <div className="flex justify-between items-center mb-3">
-                <h3 className="text-lg font-medium text-gray-800">Sale Analytics</h3>
+        <div className={`relative ${loading ? 'opacity-70' : ''}`}>
+            {loading && (
+                <div className="absolute inset-0 flex items-center justify-center bg-slate-50/50 z-10">
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-indigo-600"></div>
+                </div>
+            )}
+            <div className="flex justify-between items-center mb-2">
+                <h3 className="font-medium text-gray-800">Sale Analytics</h3>
 
                 <div className="flex items-center gap-2">
                     <select

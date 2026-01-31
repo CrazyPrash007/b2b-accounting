@@ -202,26 +202,43 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
             // parse in same order as promises
             const [customersData, vendorsData, itemsData, gstData, bankData] = await Promise.all(promises.map(p => parseSettled(p)));
 
-            // normalize customers: prefer displayName, fullName, name, companyName
+            // normalize customers: keep full objects with displayName, name, and companyName for enhanced search
             const customersNormalized = (Array.isArray(customersData) ? customersData : [])
                 .map(c => {
                     if (!c) return null;
-                    if (typeof c === "string") return c;
-                    return c.displayName || c.fullName || c.name || c.companyName || (c.email ? `${c.email}` : null);
+                    if (typeof c === "string") return { displayName: c, name: c, companyName: "" };
+                    const displayName = c.displayName || c.customerName || c.fullName || c.name || c.companyName || (c.email ? `${c.email}` : "");
+                    return {
+                        ...c,
+                        displayName,
+                        name: c.customerName || c.name || displayName,
+                        companyName: c.companyName || ""
+                    };
                 })
                 .filter(Boolean);
 
-            // normalize vendors: same normalization (we want to merge both into one list)
+            // normalize vendors: keep full objects with displayName, name, and companyName for enhanced search
             const vendorsNormalized = (Array.isArray(vendorsData) ? vendorsData : [])
                 .map(v => {
                     if (!v) return null;
-                    if (typeof v === "string") return v;
-                    return v.displayName || v.fullName || v.name || v.companyName || (v.email ? `${v.email}` : null);
+                    if (typeof v === "string") return { displayName: v, name: v, companyName: "" };
+                    const displayName = v.displayName || v.vendorName || v.fullName || v.name || v.companyName || (v.email ? `${v.email}` : "");
+                    return {
+                        ...v,
+                        displayName,
+                        name: v.vendorName || v.name || displayName,
+                        companyName: v.companyName || ""
+                    };
                 })
                 .filter(Boolean);
 
-            // final merged customers+vendors list (unique)
-            const mergedCustomers = Array.from(new Set([...customersNormalized, ...vendorsNormalized]));
+            // final merged customers+vendors list (keep full objects, dedupe by displayName)
+            const seen = new Set();
+            const mergedCustomers = [...customersNormalized, ...vendorsNormalized].filter(c => {
+                if (seen.has(c.displayName)) return false;
+                seen.add(c.displayName);
+                return true;
+            });
 
             // normalize items: keep whole object but ensure name property
             const itemsNormalized = (Array.isArray(itemsData) ? itemsData : [])
@@ -648,7 +665,7 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
         
         // Check if customer exists in our customer list (must be selected, not just typed)
         const customerExists = customersList.some(c => 
-            c.toLowerCase().trim() === formData.customer.toLowerCase().trim()
+            (c.displayName || c.name || "").toLowerCase().trim() === formData.customer.toLowerCase().trim()
         );
         
         if (!customerExists) {
@@ -772,17 +789,23 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
                             {showCustomerDropdown && (
                                 <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
                                     {customersList
-                                        .filter(c => c.toLowerCase().includes((formData.customer || "").toLowerCase()))
+                                        .filter(c => {
+                                            const searchTerm = (formData.customer || "").toLowerCase();
+                                            const nameMatch = (c.displayName || c.name || "").toLowerCase().includes(searchTerm);
+                                            const shopMatch = (c.companyName || "").toLowerCase().includes(searchTerm);
+                                            return nameMatch || shopMatch;
+                                        })
                                         .map((c, idx) => (
                                             <div
                                                 key={idx}
                                                 onClick={() => {
-                                                    handleChange("customer", c);
+                                                    handleChange("customer", c.displayName || c.name);
                                                     setShowCustomerDropdown(false);
                                                 }}
                                                 className="px-3 py-2 text-sm hover:bg-blue-50 cursor-pointer"
                                             >
-                                                {c}
+                                                <div className="font-medium">{c.displayName || c.name}</div>
+                                                {c.companyName && <div className="text-xs text-gray-500">{c.companyName}</div>}
                                             </div>
                                         ))}
                                     <div
@@ -1906,6 +1929,12 @@ export default function SalesPage() {
                     fetchPdfBlob={() => saleApi.getPdfBlob(selectedInvoiceForPdf._id || selectedInvoiceForPdf.id)}
                     title="Sales Invoice Preview"
                     filename={`SalesInvoice_${selectedInvoiceForPdf.invoicePrefix}${selectedInvoiceForPdf.invoiceNumber}${selectedInvoiceForPdf.invoiceSuffix}.pdf`}
+                    shareData={{
+                        partyName: selectedInvoiceForPdf.customerName || selectedInvoiceForPdf.customer || "",
+                        invoiceNo: `${selectedInvoiceForPdf.invoicePrefix || ""}${selectedInvoiceForPdf.invoiceNumber || ""}${selectedInvoiceForPdf.invoiceSuffix || ""}`,
+                        amount: selectedInvoiceForPdf.totalAmount || selectedInvoiceForPdf.total || 0,
+                        type: 'sale'
+                    }}
                 />
             )}
 

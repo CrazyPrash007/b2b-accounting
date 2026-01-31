@@ -567,3 +567,367 @@ async function calculateBankBalance(ownerId, companyId) {
 
     return openingBalance + totalBankIn - totalBankOut;
 }
+
+/**
+ * GET /api/dashboard/section/:sectionName
+ * Returns stats for a specific dashboard section only
+ * This allows section-level filtering without reloading other sections
+ */
+exports.getSectionStats = async (req, res, next) => {
+    try {
+        const { sectionName } = req.params;
+        const { companyId, startDate, endDate, period = 'current-month' } = req.query;
+        const ownerId = req.user.id;
+
+        if (!companyId) {
+            return res.status(400).json({ error: 'companyId is required' });
+        }
+
+        // Convert companyId to ObjectId
+        let companyObjectId;
+        try {
+            companyObjectId = new mongoose.Types.ObjectId(companyId);
+        } catch (err) {
+            return res.status(400).json({ error: 'Invalid companyId format' });
+        }
+
+        // Calculate date range
+        const dateRange = getDateRange(period, startDate, endDate);
+
+        // Build base query
+        const baseQuery = {
+            ownerId: new mongoose.Types.ObjectId(ownerId),
+            accountCompanyName: companyObjectId,
+            isDeleted: false,
+        };
+
+        let result = {};
+
+        switch (sectionName) {
+            case 'businessOperations': {
+                const salesDateQuery = dateRange ? {
+                    ...baseQuery,
+                    invoiceDate: { $gte: dateRange.start, $lte: dateRange.end }
+                } : baseQuery;
+
+                const purchaseDateQuery = dateRange ? {
+                    ...baseQuery,
+                    invoiceDate: { $gte: dateRange.start, $lte: dateRange.end }
+                } : baseQuery;
+
+                const expenseDateQuery = dateRange ? {
+                    ...baseQuery,
+                    date: { $gte: dateRange.start, $lte: dateRange.end }
+                } : baseQuery;
+
+                const [salesStats, purchaseStats, expenseStats] = await Promise.all([
+                    Sale.aggregate([
+                        { $match: salesDateQuery },
+                        {
+                            $group: {
+                                _id: null,
+                                totalSales: { $sum: '$totalAmount' },
+                                count: { $sum: 1 }
+                            }
+                        }
+                    ]),
+                    Purchase.aggregate([
+                        { $match: purchaseDateQuery },
+                        {
+                            $group: {
+                                _id: null,
+                                totalPurchases: { $sum: '$totalAmount' },
+                                count: { $sum: 1 }
+                            }
+                        }
+                    ]),
+                    Expense.aggregate([
+                        { $match: expenseDateQuery },
+                        {
+                            $group: {
+                                _id: null,
+                                totalExpenses: { $sum: '$expenseAmount' },
+                                count: { $sum: 1 }
+                            }
+                        }
+                    ])
+                ]);
+
+                result = {
+                    totalSales: salesStats[0]?.totalSales || 0,
+                    totalPurchases: purchaseStats[0]?.totalPurchases || 0,
+                    totalExpenses: expenseStats[0]?.totalExpenses || 0,
+                    salesCount: salesStats[0]?.count || 0,
+                    purchaseCount: purchaseStats[0]?.count || 0,
+                    expenseCount: expenseStats[0]?.count || 0
+                };
+                break;
+            }
+
+            case 'revenueProjections': {
+                const salesDateQuery = dateRange ? {
+                    ...baseQuery,
+                    invoiceDate: { $gte: dateRange.start, $lte: dateRange.end }
+                } : baseQuery;
+
+                const purchaseDateQuery = dateRange ? {
+                    ...baseQuery,
+                    invoiceDate: { $gte: dateRange.start, $lte: dateRange.end }
+                } : baseQuery;
+
+                const [salesStats, purchaseStats, futureReceivables, futurePayables] = await Promise.all([
+                    Sale.aggregate([
+                        { $match: salesDateQuery },
+                        {
+                            $group: {
+                                _id: null,
+                                totalReceivable: {
+                                    $sum: { $cond: [{ $gt: ['$dueAmount', 0] }, '$dueAmount', 0] }
+                                }
+                            }
+                        }
+                    ]),
+                    Purchase.aggregate([
+                        { $match: purchaseDateQuery },
+                        {
+                            $group: {
+                                _id: null,
+                                totalPayable: {
+                                    $sum: { $cond: [{ $gt: ['$dueAmount', 0] }, '$dueAmount', 0] }
+                                }
+                            }
+                        }
+                    ]),
+                    Sale.aggregate([
+                        {
+                            $match: {
+                                ...baseQuery,
+                                dueAmount: { $gt: 0 },
+                                invoiceDate: { $gt: new Date() }
+                            }
+                        },
+                        {
+                            $group: {
+                                _id: null,
+                                expectedReceivable: { $sum: '$dueAmount' }
+                            }
+                        }
+                    ]),
+                    Purchase.aggregate([
+                        {
+                            $match: {
+                                ...baseQuery,
+                                dueAmount: { $gt: 0 },
+                                invoiceDate: { $gt: new Date() }
+                            }
+                        },
+                        {
+                            $group: {
+                                _id: null,
+                                expectedPayable: { $sum: '$dueAmount' }
+                            }
+                        }
+                    ])
+                ]);
+
+                result = {
+                    totalReceivable: salesStats[0]?.totalReceivable || 0,
+                    totalPayable: purchaseStats[0]?.totalPayable || 0,
+                    expectedReceivable: futureReceivables[0]?.expectedReceivable || 0,
+                    expectedPayable: futurePayables[0]?.expectedPayable || 0
+                };
+                break;
+            }
+
+            case 'totalIncome': {
+                const incomeDateQuery = dateRange ? {
+                    ...baseQuery,
+                    date: { $gte: dateRange.start, $lte: dateRange.end }
+                } : baseQuery;
+
+                const incomeStats = await Income.aggregate([
+                    { $match: incomeDateQuery },
+                    {
+                        $group: {
+                            _id: null,
+                            totalIncome: { $sum: '$incomeAmount' }
+                        }
+                    }
+                ]);
+
+                // Stock value is independent of period filter
+                const allItems = await Item.find(baseQuery).select('name openingStock buyPrice').lean();
+                let totalStockValue = 0;
+                
+                for (const item of allItems) {
+                    const currentStock = await calculateItemStock(
+                        item._id,
+                        item.name,
+                        item.openingStock,
+                        new mongoose.Types.ObjectId(ownerId),
+                        companyObjectId
+                    );
+                    totalStockValue += (currentStock > 0 ? currentStock : 0) * (Number(item.buyPrice) || 0);
+                }
+
+                result = {
+                    totalIncome: incomeStats[0]?.totalIncome || 0,
+                    totalStockValue: totalStockValue
+                };
+                break;
+            }
+
+            case 'revenueInflow': {
+                const receiptDateQuery = dateRange ? {
+                    ...baseQuery,
+                    date: { $gte: dateRange.start, $lte: dateRange.end }
+                } : baseQuery;
+
+                const receiptStats = await Receipt.aggregate([
+                    { $match: receiptDateQuery },
+                    {
+                        $group: {
+                            _id: null,
+                            totalCashCollected: { $sum: '$amount' },
+                            cashCollections: {
+                                $sum: { $cond: [{ $eq: ['$paymentMethod', 'Cash'] }, '$amount', 0] }
+                            },
+                            bankCollections: {
+                                $sum: { $cond: [{ $ne: ['$paymentMethod', 'Cash'] }, '$amount', 0] }
+                            }
+                        }
+                    }
+                ]);
+
+                result = {
+                    totalCashCollected: receiptStats[0]?.totalCashCollected || 0,
+                    cashCollections: receiptStats[0]?.cashCollections || 0,
+                    bankCollections: receiptStats[0]?.bankCollections || 0,
+                    totalCashBalance: await calculateCashBalance(ownerId, companyObjectId),
+                    totalBankBalance: await calculateBankBalance(ownerId, companyObjectId)
+                };
+                break;
+            }
+
+            case 'revenueManagement': {
+                const salesDateQuery = dateRange ? {
+                    ...baseQuery,
+                    invoiceDate: { $gte: dateRange.start, $lte: dateRange.end }
+                } : baseQuery;
+
+                const purchaseDateQuery = dateRange ? {
+                    ...baseQuery,
+                    invoiceDate: { $gte: dateRange.start, $lte: dateRange.end }
+                } : baseQuery;
+
+                const [salesStats, purchaseStats, futureReceivables, futurePayables] = await Promise.all([
+                    Sale.aggregate([
+                        { $match: salesDateQuery },
+                        {
+                            $group: {
+                                _id: null,
+                                totalReceivable: {
+                                    $sum: { $cond: [{ $gt: ['$dueAmount', 0] }, '$dueAmount', 0] }
+                                },
+                                invoiceReceivableCount: {
+                                    $sum: { $cond: [{ $gt: ['$dueAmount', 0] }, 1, 0] }
+                                }
+                            }
+                        }
+                    ]),
+                    Purchase.aggregate([
+                        { $match: purchaseDateQuery },
+                        {
+                            $group: {
+                                _id: null,
+                                totalPayable: {
+                                    $sum: { $cond: [{ $gt: ['$dueAmount', 0] }, '$dueAmount', 0] }
+                                },
+                                billsPayableCount: {
+                                    $sum: { $cond: [{ $gt: ['$dueAmount', 0] }, 1, 0] }
+                                }
+                            }
+                        }
+                    ]),
+                    Sale.aggregate([
+                        {
+                            $match: {
+                                ...baseQuery,
+                                dueAmount: { $gt: 0 },
+                                invoiceDate: { $gt: new Date() }
+                            }
+                        },
+                        {
+                            $group: {
+                                _id: null,
+                                expectedReceivable: { $sum: '$dueAmount' }
+                            }
+                        }
+                    ]),
+                    Purchase.aggregate([
+                        {
+                            $match: {
+                                ...baseQuery,
+                                dueAmount: { $gt: 0 },
+                                invoiceDate: { $gt: new Date() }
+                            }
+                        },
+                        {
+                            $group: {
+                                _id: null,
+                                expectedPayable: { $sum: '$dueAmount' }
+                            }
+                        }
+                    ])
+                ]);
+
+                result = {
+                    invoiceReceivableCount: salesStats[0]?.invoiceReceivableCount || 0,
+                    invoiceReceivableAmount: salesStats[0]?.totalReceivable || 0,
+                    expectedReceivable: futureReceivables[0]?.expectedReceivable || 0,
+                    billsPayableCount: purchaseStats[0]?.billsPayableCount || 0,
+                    billsPayableAmount: purchaseStats[0]?.totalPayable || 0,
+                    expectedPayable: futurePayables[0]?.expectedPayable || 0
+                };
+                break;
+            }
+
+            case 'saleAnalytics': {
+                const salesDateQuery = dateRange ? {
+                    ...baseQuery,
+                    invoiceDate: { $gte: dateRange.start, $lte: dateRange.end }
+                } : baseQuery;
+
+                const topSalesItems = await Sale.aggregate([
+                    { $match: salesDateQuery },
+                    { $unwind: '$items' },
+                    {
+                        $group: {
+                            _id: '$items.name',
+                            totalAmount: { $sum: '$items.finalAmount' },
+                            totalQuantity: { $sum: '$items.qty' }
+                        }
+                    },
+                    { $sort: { totalAmount: -1 } },
+                    { $limit: 10 }
+                ]);
+
+                result = topSalesItems.map(item => ({
+                    name: item._id,
+                    totalAmount: item.totalAmount,
+                    totalQuantity: item.totalQuantity
+                }));
+                break;
+            }
+
+            default:
+                return res.status(400).json({ error: `Unknown section: ${sectionName}` });
+        }
+
+        res.json({ data: result, period, dateRange });
+
+    } catch (error) {
+        console.error('Section Stats Error:', error);
+        next(error);
+    }
+};

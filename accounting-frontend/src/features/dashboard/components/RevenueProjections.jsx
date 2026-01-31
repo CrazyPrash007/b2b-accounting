@@ -1,4 +1,4 @@
-export default function RevenueProjections({ data, period, onPeriodChange }) {
+export default function RevenueProjections({ data, period, onPeriodChange, loading }) {
     const formatAmount = (amount) => `₹${(amount || 0).toFixed(2)}`;
 
     const periodOptions = [
@@ -9,8 +9,13 @@ export default function RevenueProjections({ data, period, onPeriodChange }) {
     ];
 
     return (
-        <div className="card p-4">
-            <div className="flex justify-between items-center mb-4">
+        <div className={`relative ${loading ? 'opacity-70' : ''}`}>
+            {loading && (
+                <div className="absolute inset-0 flex items-center justify-center bg-slate-50/50 z-10">
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-indigo-600"></div>
+                </div>
+            )}
+            <div className="flex justify-between items-center mb-2">
                 <h3 className="font-medium text-gray-800">Revenue Projections</h3>
 
                 <select

@@ -134,17 +134,43 @@ function PurchaseInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, wit
 
             const [customersData, vendorsData, itemsData, gstData, bankData] = await Promise.all(promises.map(p => parseSettled(p)));
 
-            // Normalize customers and vendors to display strings
-            const normalizePeople = (arr) =>
-            (Array.isArray(arr) ? arr.map(c => {
-                if (!c) return null;
-                if (typeof c === 'string') return c;
-                return c.displayName || c.fullName || c.name || c.companyName || (c.email ? `${c.email}` : null);
-            }).filter(Boolean) : []);
+            // Normalize customers: keep full objects with displayName, name, and companyName for enhanced search
+            const customersNormalized = (Array.isArray(customersData) ? customersData : [])
+                .map(c => {
+                    if (!c) return null;
+                    if (typeof c === 'string') return { displayName: c, name: c, companyName: "" };
+                    const displayName = c.displayName || c.customerName || c.fullName || c.name || c.companyName || (c.email ? `${c.email}` : "");
+                    return {
+                        ...c,
+                        displayName,
+                        name: c.customerName || c.name || displayName,
+                        companyName: c.companyName || ""
+                    };
+                })
+                .filter(Boolean);
 
-            const customersNormalized = normalizePeople(customersData);
-            const vendorsNormalized = normalizePeople(vendorsData);
-            const mergedSuppliers = Array.from(new Set([...customersNormalized, ...vendorsNormalized]));
+            // Normalize vendors: keep full objects with displayName, name, and companyName for enhanced search
+            const vendorsNormalized = (Array.isArray(vendorsData) ? vendorsData : [])
+                .map(v => {
+                    if (!v) return null;
+                    if (typeof v === 'string') return { displayName: v, name: v, companyName: "" };
+                    const displayName = v.displayName || v.vendorName || v.fullName || v.name || v.companyName || (v.email ? `${v.email}` : "");
+                    return {
+                        ...v,
+                        displayName,
+                        name: v.vendorName || v.name || displayName,
+                        companyName: v.companyName || ""
+                    };
+                })
+                .filter(Boolean);
+
+            // final merged suppliers list (keep full objects, dedupe by displayName)
+            const seen = new Set();
+            const mergedSuppliers = [...customersNormalized, ...vendorsNormalized].filter(c => {
+                if (seen.has(c.displayName)) return false;
+                seen.add(c.displayName);
+                return true;
+            });
 
             // Normalize items (keep object and ensure display name)
             const itemsNormalized = (Array.isArray(itemsData) ? itemsData : [])
@@ -706,17 +732,23 @@ function PurchaseInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, wit
                             {showSupplierDropdown && (
                                 <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
                                     {suppliersList
-                                        .filter(s => s.toLowerCase().includes((formData.supplier || "").toLowerCase()))
+                                        .filter(s => {
+                                            const searchTerm = (formData.supplier || "").toLowerCase();
+                                            const nameMatch = (s.displayName || s.name || "").toLowerCase().includes(searchTerm);
+                                            const shopMatch = (s.companyName || "").toLowerCase().includes(searchTerm);
+                                            return nameMatch || shopMatch;
+                                        })
                                         .map((s, idx) => (
                                             <div
                                                 key={idx}
                                                 onClick={() => {
-                                                    handleChange("supplier", s);
+                                                    handleChange("supplier", s.displayName || s.name);
                                                     setShowSupplierDropdown(false);
                                                 }}
                                                 className="px-3 py-2 text-sm hover:bg-blue-50 cursor-pointer"
                                             >
-                                                {s}
+                                                <div className="font-medium">{s.displayName || s.name}</div>
+                                                {s.companyName && <div className="text-xs text-gray-500">{s.companyName}</div>}
                                             </div>
                                         ))}
                                     <div
@@ -1784,6 +1816,12 @@ export default function PurchasePage() {
                     fetchPdfBlob={() => purchaseApi.getPdfBlob(selectedInvoiceForPdf._id || selectedInvoiceForPdf.id)}
                     title="Purchase Invoice Preview"
                     filename={`PurchaseInvoice_${selectedInvoiceForPdf.invoicePrefix}${selectedInvoiceForPdf.invoiceNumber}${selectedInvoiceForPdf.invoiceSuffix}.pdf`}
+                    shareData={{
+                        partyName: selectedInvoiceForPdf.supplierName || selectedInvoiceForPdf.supplier || "",
+                        invoiceNo: `${selectedInvoiceForPdf.invoicePrefix || ""}${selectedInvoiceForPdf.invoiceNumber || ""}${selectedInvoiceForPdf.invoiceSuffix || ""}`,
+                        amount: selectedInvoiceForPdf.totalAmount || selectedInvoiceForPdf.total || 0,
+                        type: 'purchase'
+                    }}
                 />
             )}
 

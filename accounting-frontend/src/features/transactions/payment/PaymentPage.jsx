@@ -32,6 +32,8 @@ function PaymentModal({ isOpen, onClose, onSave, onDelete, editData, prefilledPa
     const [selectedInvoiceData, setSelectedInvoiceData] = useState(null);
 
     const [parties, setParties] = useState([]); // array of { id?, name } (we'll use name as display)
+    const [partySearchText, setPartySearchText] = useState(""); // text input for party search
+    const [showPartyDropdown, setShowPartyDropdown] = useState(false); // toggle party dropdown
     const [invoices, setInvoices] = useState([]); // array of { id, invoiceLabel, due, dateIso, totalAmount, paymentAmount }
     const [invoicesLoading, setInvoicesLoading] = useState(false);
     const [bankAccounts, setBankAccounts] = useState([]); // array of bank accounts
@@ -404,40 +406,65 @@ function PaymentModal({ isOpen, onClose, onSave, onDelete, editData, prefilledPa
                                     autoFocus
                                 />
                             </div>
-                            <div>
+                            <div className="relative">
                                 <label className="block text-sm font-medium text-gray-700 mb-1">
                                     Select Party<span className="text-red-500">*</span>
                                 </label>
 
-                                {/* Party select shows combined customers + vendors */}
-                                <select
-                                    value={formData.partyId || formData.party}
+                                {/* Party searchable input with dropdown */}
+                                <input
+                                    type="text"
+                                    value={partySearchText || formData.party || ""}
                                     onChange={(e) => {
-                                        // we try to pass id if matching option had an id, otherwise pass the name
-                                        const val = e.target.value;
-                                        // find option by value
-                                        const found = parties.find(p => (p.id && p.id.toString() === val.toString()) || (p.name && p.name === val));
-                                        if (found && found.id) {
-                                            handlePartyChange(found.id);
-                                        } else {
-                                            handlePartyChange(val);
-                                        }
+                                        setPartySearchText(e.target.value);
+                                        setShowPartyDropdown(true);
                                     }}
+                                    onFocus={() => setShowPartyDropdown(true)}
+                                    onBlur={() => setTimeout(() => setShowPartyDropdown(false), 200)}
                                     onKeyDown={handleKeyDown}
-                                    className={`${baseInput} bg-white ${fieldErrors.party ? "border-red-500" : ""}`}
-                                >
-                                    <option value="">Search and select party...</option>
-                                    {parties.map((party) => {
-                                        const displayText = party.displayName || party.name;
-                                        const shopName = party.companyName || "";
-                                        const optionLabel = shopName ? `${displayText} - ${shopName}` : displayText;
-                                        return (
-                                            <option key={(party.id || party.name)} value={party.id || party.name}>
-                                                {optionLabel}
-                                            </option>
-                                        );
-                                    })}
-                                </select>
+                                    placeholder="Search by party name or shop name..."
+                                    className={`${baseInput} ${fieldErrors.party ? "border-red-500" : ""}`}
+                                />
+                                {showPartyDropdown && (
+                                    <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                                        {parties
+                                            .filter(p => {
+                                                const searchTerm = (partySearchText || "").toLowerCase();
+                                                const nameMatch = (p.displayName || p.name || "").toLowerCase().includes(searchTerm);
+                                                const shopMatch = (p.companyName || "").toLowerCase().includes(searchTerm);
+                                                return nameMatch || shopMatch;
+                                            })
+                                            .map((party, idx) => {
+                                                const displayText = party.displayName || party.name;
+                                                return (
+                                                    <div
+                                                        key={party.id || party.name || idx}
+                                                        onClick={() => {
+                                                            setPartySearchText("");
+                                                            if (party.id) {
+                                                                handlePartyChange(party.id);
+                                                            } else {
+                                                                handlePartyChange(displayText);
+                                                            }
+                                                            setShowPartyDropdown(false);
+                                                        }}
+                                                        className="px-3 py-2 text-sm hover:bg-blue-50 cursor-pointer"
+                                                    >
+                                                        <div className="font-medium">{displayText}</div>
+                                                        {party.companyName && <div className="text-xs text-gray-500">{party.companyName}</div>}
+                                                    </div>
+                                                );
+                                            })}
+                                        {parties.filter(p => {
+                                            const searchTerm = (partySearchText || "").toLowerCase();
+                                            const nameMatch = (p.displayName || p.name || "").toLowerCase().includes(searchTerm);
+                                            const shopMatch = (p.companyName || "").toLowerCase().includes(searchTerm);
+                                            return nameMatch || shopMatch;
+                                        }).length === 0 && (
+                                            <div className="px-3 py-2 text-sm text-gray-500">No parties found</div>
+                                        )}
+                                    </div>
+                                )}
                                 {fieldErrors.party && <p className="mt-1 text-xs text-red-500">{fieldErrors.party}</p>}
                             </div>
                             <div className="col-span-2">
@@ -1162,6 +1189,12 @@ export default function PaymentPage() {
                     fetchPdfBlob={() => paymentApi.getPdfBlob(selectedPaymentForPdf._id || selectedPaymentForPdf.id)}
                     title="Payment Voucher Preview"
                     filename={`PaymentVoucher_${selectedPaymentForPdf.id || selectedPaymentForPdf._id}.pdf`}
+                    shareData={{
+                        partyName: selectedPaymentForPdf.party || "",
+                        invoiceNo: selectedPaymentForPdf.referenceNumber || selectedPaymentForPdf._id || selectedPaymentForPdf.id || "",
+                        amount: selectedPaymentForPdf.amount || 0,
+                        type: 'payment'
+                    }}
                 />
             )}
 

@@ -11,7 +11,16 @@ import SaleAnalytics from "./SaleAnalytics";
 import LowStockItems from "./LowStockItems";
 
 export default function Dashboard() {
-    const { stats, loading, error, period, changePeriod, refresh } = useDashboard();
+    const { 
+        stats, 
+        loading, 
+        error, 
+        sectionPeriods, 
+        sectionLoading, 
+        refresh, 
+        changeSectionPeriod, 
+        SECTION_NAMES 
+    } = useDashboard();
 
     if (loading) {
         return (
@@ -41,27 +50,57 @@ export default function Dashboard() {
     }
 
     return (
-        <div className="space-y-4">
+        <div className="space-y-3 p-4 bg-slate-50">
             {/* 1. Top Section: Full Width Cards */}
-            <BusinessOperations data={stats?.businessOperations} period={period} onPeriodChange={changePeriod} />
-            <RevenueProjections data={stats?.revenueProjections} period={period} onPeriodChange={changePeriod} />
+            <BusinessOperations 
+                data={stats?.businessOperations} 
+                period={sectionPeriods.businessOperations} 
+                onPeriodChange={(period) => changeSectionPeriod(SECTION_NAMES.BUSINESS_OPERATIONS, period)}
+                loading={sectionLoading.businessOperations}
+            />
+            <RevenueProjections 
+                data={stats?.revenueProjections} 
+                period={sectionPeriods.revenueProjections} 
+                onPeriodChange={(period) => changeSectionPeriod(SECTION_NAMES.REVENUE_PROJECTIONS, period)}
+                loading={sectionLoading.revenueProjections}
+            />
             <QuickAccess />
-            <TotalIncome data={stats?.totalIncome} period={period} onPeriodChange={changePeriod} />
+            <TotalIncome 
+                data={stats?.totalIncome} 
+                period={sectionPeriods.totalIncome} 
+                onPeriodChange={(period) => changeSectionPeriod(SECTION_NAMES.TOTAL_INCOME, period)}
+                loading={sectionLoading.totalIncome}
+            />
 
             {/* Row: Revenue Inflow (2/3) + Revenue Management (1/3) */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
                 <div className="lg:col-span-2 h-full">
-                    <RevenueInflow data={stats?.revenueInflow} period={period} onPeriodChange={changePeriod} />
+                    <RevenueInflow 
+                        data={stats?.revenueInflow} 
+                        period={sectionPeriods.revenueInflow} 
+                        onPeriodChange={(period) => changeSectionPeriod(SECTION_NAMES.REVENUE_INFLOW, period)}
+                        loading={sectionLoading.revenueInflow}
+                    />
                 </div>
                 <div className="lg:col-span-1 h-full">
-                    <RevenueManagement data={stats?.revenueManagement} period={period} onPeriodChange={changePeriod} />
+                    <RevenueManagement 
+                        data={stats?.revenueManagement} 
+                        period={sectionPeriods.revenueManagement} 
+                        onPeriodChange={(period) => changeSectionPeriod(SECTION_NAMES.REVENUE_MANAGEMENT, period)}
+                        loading={sectionLoading.revenueManagement}
+                    />
                 </div>
             </div>
 
             {/* Changed to grid-cols-2 for 50-50 split */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
                 <div className="h-full">
-                    <SaleAnalytics data={stats?.topSalesItems} period={period} onPeriodChange={changePeriod} />
+                    <SaleAnalytics 
+                        data={stats?.topSalesItems} 
+                        period={sectionPeriods.saleAnalytics} 
+                        onPeriodChange={(period) => changeSectionPeriod(SECTION_NAMES.SALE_ANALYTICS, period)}
+                        loading={sectionLoading.saleAnalytics}
+                    />
                 </div>
                 <div className="h-full">
                     <LowStockItems data={stats?.lowStockItems} />

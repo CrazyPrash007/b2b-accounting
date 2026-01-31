@@ -7,8 +7,9 @@ import React, { useRef, useEffect, useState } from "react";
  * @param {Array} items - List of item objects
  * @param {Function} onEdit - Callback when edit is clicked
  * @param {Function} onViewMovement - Callback when view movement is clicked
+ * @param {Function} onToggleWebsite - Callback to toggle showOnWebsite status
  */
-export default function ItemTable({ items, onEdit, onViewMovement }) {
+export default function ItemTable({ items, onEdit, onViewMovement, onToggleWebsite }) {
     const tableContainerRef = useRef(null);
     const [visibleRows, setVisibleRows] = useState(15);
     const [selectedCell, setSelectedCell] = useState(null); // { rowIndex, colIndex }
@@ -59,8 +60,8 @@ export default function ItemTable({ items, onEdit, onViewMovement }) {
     // Cell classes with Excel-like selection border
     const getCellClasses = (rowIndex, colIndex) => {
         const baseClasses = "h-8 px-4 border-r border-gray-400 cursor-cell";
-        const selectedClasses = isCellSelected(rowIndex, colIndex) 
-            ? "outline outline-2 outline-blue-500 outline-offset-[-2px] bg-blue-50" 
+        const selectedClasses = isCellSelected(rowIndex, colIndex)
+            ? "outline outline-2 outline-blue-500 outline-offset-[-2px] bg-blue-50"
             : "";
         return `${baseClasses} ${selectedClasses}`;
     };
@@ -99,245 +100,268 @@ export default function ItemTable({ items, onEdit, onViewMovement }) {
             </div>
 
             {/* Table Container - Scrollable with horizontal scroll */}
-            <div 
-                ref={tableContainerRef} 
+            <div
+                ref={tableContainerRef}
                 className="flex-1 overflow-auto px-4 pb-1"
                 onClick={handleTableContainerClick}
             >
                 <div className="border border-gray-400 rounded overflow-hidden h-full">
                     <div className="overflow-x-auto h-full">
-                    <table className="min-w-[1800px] w-full border-collapse text-sm" style={{ borderSpacing: 0 }}>
-                        <thead className="sticky top-0 z-10 bg-white">
-                            <tr className="border-b border-gray-400">
-                                <th className="min-w-[160px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-gray-400 cursor-grab">⋮⋮</span>
-                                        <span>Item Name</span>
-                                    </div>
-                                </th>
-                                <th className="min-w-[150px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-gray-400 cursor-grab">⋮⋮</span>
-                                        <span>Description</span>
-                                    </div>
-                                </th>
-                                <th className="min-w-[100px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-gray-400 cursor-grab">⋮⋮</span>
-                                        <span>Item Type</span>
-                                    </div>
-                                </th>
-                                <th className="min-w-[100px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-gray-400 cursor-grab">⋮⋮</span>
-                                        <span>Unit</span>
-                                    </div>
-                                </th>
-                                <th className="min-w-[110px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-gray-400 cursor-grab">⋮⋮</span>
-                                        <span>Current Stock</span>
-                                    </div>
-                                </th>
-                                <th className="min-w-[120px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-gray-400 cursor-grab">⋮⋮</span>
-                                        <span>Category</span>
-                                    </div>
-                                </th>
-                                <th className="min-w-[120px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-gray-400 cursor-grab">⋮⋮</span>
-                                        <span>Sub-Category</span>
-                                    </div>
-                                </th>
-                                <th className="min-w-[120px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-gray-400 cursor-grab">⋮⋮</span>
-                                        <span>Brand</span>
-                                    </div>
-                                </th>
-                                <th className="min-w-[100px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-gray-400 cursor-grab">⋮⋮</span>
-                                        <span>HSN No</span>
-                                    </div>
-                                </th>
-                                <th className="min-w-[90px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-gray-400 cursor-grab">⋮⋮</span>
-                                        <span>GST Rate</span>
-                                    </div>
-                                </th>
-                                <th className="min-w-[100px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-gray-400 cursor-grab">⋮⋮</span>
-                                        <span>Buy Price</span>
-                                    </div>
-                                </th>
-                                <th className="min-w-[100px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-gray-400 cursor-grab">⋮⋮</span>
-                                        <span>Sell Price</span>
-                                    </div>
-                                </th>
-                                <th className="min-w-[110px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-gray-400 cursor-grab">⋮⋮</span>
-                                        <span>Opening Stock</span>
-                                    </div>
-                                </th>
-                                <th className="min-w-[90px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-gray-400 cursor-grab">⋮⋮</span>
-                                        <span>Min Stock</span>
-                                    </div>
-                                </th>
-                                <th className="min-w-[100px] h-9 px-4 text-left text-sm font-medium text-gray-700 sticky right-0 z-20 bg-gray-100 border-l border-gray-400" style={{ boxShadow: '-4px 0 8px -2px rgba(0, 0, 0, 0.15)' }}>
-                                    Actions
-                                </th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {/* Data rows */}
-                            {items.map((item, rowIndex) => (
-                                <tr 
-                                    key={item.id} 
-                                    className={`border-b border-gray-400 hover:bg-blue-100 transition-colors cursor-pointer ${rowIndex % 2 === 0 ? 'bg-blue-50/40' : 'bg-white'}`}
-                                    onClick={() => onViewMovement(item)}
-                                >
-                                    <td 
-                                        className={getCellClasses(rowIndex, 0) + " text-left text-blue-600 truncate"}
-                                        onClick={() => handleCellClick(rowIndex, 0)}
+                        <table className="min-w-[1800px] w-full border-collapse text-sm" style={{ borderSpacing: 0 }}>
+                            <thead className="sticky top-0 z-10 bg-white">
+                                <tr className="border-b border-gray-400">
+                                    <th className="min-w-[160px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-gray-400 cursor-grab">⋮⋮</span>
+                                            <span>Item Name</span>
+                                        </div>
+                                    </th>
+                                    <th className="min-w-[150px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-gray-400 cursor-grab">⋮⋮</span>
+                                            <span>Description</span>
+                                        </div>
+                                    </th>
+                                    <th className="min-w-[100px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-gray-400 cursor-grab">⋮⋮</span>
+                                            <span>Item Type</span>
+                                        </div>
+                                    </th>
+                                    <th className="min-w-[100px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-gray-400 cursor-grab">⋮⋮</span>
+                                            <span>Unit</span>
+                                        </div>
+                                    </th>
+                                    <th className="min-w-[110px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-gray-400 cursor-grab">⋮⋮</span>
+                                            <span>Current Stock</span>
+                                        </div>
+                                    </th>
+                                    <th className="min-w-[120px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-gray-400 cursor-grab">⋮⋮</span>
+                                            <span>Category</span>
+                                        </div>
+                                    </th>
+                                    <th className="min-w-[120px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-gray-400 cursor-grab">⋮⋮</span>
+                                            <span>Sub-Category</span>
+                                        </div>
+                                    </th>
+                                    <th className="min-w-[120px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-gray-400 cursor-grab">⋮⋮</span>
+                                            <span>Brand</span>
+                                        </div>
+                                    </th>
+                                    <th className="min-w-[100px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-gray-400 cursor-grab">⋮⋮</span>
+                                            <span>HSN No</span>
+                                        </div>
+                                    </th>
+                                    <th className="min-w-[90px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-gray-400 cursor-grab">⋮⋮</span>
+                                            <span>GST Rate</span>
+                                        </div>
+                                    </th>
+                                    <th className="min-w-[100px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-gray-400 cursor-grab">⋮⋮</span>
+                                            <span>Buy Price</span>
+                                        </div>
+                                    </th>
+                                    <th className="min-w-[100px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-gray-400 cursor-grab">⋮⋮</span>
+                                            <span>Sell Price</span>
+                                        </div>
+                                    </th>
+                                    <th className="min-w-[110px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-gray-400 cursor-grab">⋮⋮</span>
+                                            <span>Opening Stock</span>
+                                        </div>
+                                    </th>
+                                    <th className="min-w-[90px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-gray-400 cursor-grab">⋮⋮</span>
+                                            <span>Min Stock</span>
+                                        </div>
+                                    </th>
+                                    <th className="min-w-[90px] h-9 px-4 text-left text-sm font-medium text-gray-700 border-r border-gray-400">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-gray-400 cursor-grab">⋮⋮</span>
+                                            <span>Website</span>
+                                        </div>
+                                    </th>
+                                    <th className="min-w-[100px] h-9 px-4 text-left text-sm font-medium text-gray-700 sticky right-0 z-20 bg-gray-100 border-l border-gray-400" style={{ boxShadow: '-4px 0 8px -2px rgba(0, 0, 0, 0.15)' }}>
+                                        Actions
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {/* Data rows */}
+                                {items.map((item, rowIndex) => (
+                                    <tr
+                                        key={item.id}
+                                        className={`border-b border-gray-400 hover:bg-blue-100 transition-colors cursor-pointer ${rowIndex % 2 === 0 ? 'bg-blue-50/40' : 'bg-white'}`}
+                                        onClick={() => onViewMovement(item)}
                                     >
-                                        {item.name || item.itemName}
-                                    </td>
-                                    <td 
-                                        className={getCellClasses(rowIndex, 1) + " text-left text-gray-600 truncate"}
-                                        onClick={() => handleCellClick(rowIndex, 1)}
-                                    >
-                                        {item.description || "-"}
-                                    </td>
-                                    <td 
-                                        className={getCellClasses(rowIndex, 2) + " text-left text-gray-600"}
-                                        onClick={() => handleCellClick(rowIndex, 2)}
-                                    >
-                                        <span className="inline-flex items-center px-2 py-0.5 rounded bg-gray-100 text-gray-700 text-xs">
-                                            {item.type || item.itemType || "Goods"}
-                                        </span>
-                                    </td>
-                                    <td 
-                                        className={getCellClasses(rowIndex, 3) + " text-left text-gray-600"}
-                                        onClick={() => handleCellClick(rowIndex, 3)}
-                                    >
-                                        {item.unit || "-"}
-                                    </td>
-                                    <td 
-                                        className={getCellClasses(rowIndex, 4) + ` text-left font-semibold ${item.currentStock < 0 ? 'text-red-700 bg-red-50' : 'text-gray-600'}`}
-                                        onClick={() => handleCellClick(rowIndex, 4)}
-                                    >
-                                        {item.currentStock != null ? item.currentStock.toFixed(2) : '-'}
-                                    </td>
-                                    <td 
-                                        className={getCellClasses(rowIndex, 5) + " text-left text-gray-600 truncate"}
-                                        onClick={() => handleCellClick(rowIndex, 5)}
-                                    >
-                                        {item.category || "-"}
-                                    </td>
-                                    <td 
-                                        className={getCellClasses(rowIndex, 5) + " text-left text-gray-600 truncate"}
-                                        onClick={() => handleCellClick(rowIndex, 5)}
-                                    >
-                                        {item.subCategory || "-"}
-                                    </td>
-                                    <td 
-                                        className={getCellClasses(rowIndex, 6) + " text-left text-gray-600 truncate"}
-                                        onClick={() => handleCellClick(rowIndex, 6)}
-                                    >
-                                        {item.brandName || "-"}
-                                    </td>
-                                    <td 
-                                        className={getCellClasses(rowIndex, 7) + " text-left text-gray-600"}
-                                        onClick={() => handleCellClick(rowIndex, 7)}
-                                    >
-                                        {item.hsnNo || "-"}
-                                    </td>
-                                    <td 
-                                        className={getCellClasses(rowIndex, 8) + " text-left text-gray-600"}
-                                        onClick={() => handleCellClick(rowIndex, 8)}
-                                    >
-                                        {item.gstRate ? `${item.gstRate}%` : "-"}
-                                    </td>
-                                    <td 
-                                        className={getCellClasses(rowIndex, 9) + " text-left text-gray-600"}
-                                        onClick={() => handleCellClick(rowIndex, 9)}
-                                    >
-                                        {item.buyPrice ? `₹${item.buyPrice}` : "-"}
-                                    </td>
-                                    <td 
-                                        className={getCellClasses(rowIndex, 10) + " text-left text-gray-600"}
-                                        onClick={() => handleCellClick(rowIndex, 10)}
-                                    >
-                                        {item.sellPrice ? `₹${item.sellPrice}` : "-"}
-                                    </td>
-                                    <td 
-                                        className={getCellClasses(rowIndex, 11) + " text-left text-gray-600"}
-                                        onClick={() => handleCellClick(rowIndex, 11)}
-                                    >
-                                        {item.openingStock || "-"}
-                                    </td>
-                                    <td 
-                                        className={getCellClasses(rowIndex, 12) + " text-left text-gray-600"}
-                                        onClick={() => handleCellClick(rowIndex, 12)}
-                                    >
-                                        {item.minStock || "-"}
-                                    </td>
-                                    <td className={`h-8 px-4 text-left sticky right-0 z-10 border-l border-gray-400 ${rowIndex % 2 === 0 ? 'bg-blue-50' : 'bg-white'}`} style={{ boxShadow: '-4px 0 8px -2px rgba(0, 0, 0, 0.1)' }}>
-                                        <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
+                                        <td
+                                            className={getCellClasses(rowIndex, 0) + " text-left text-blue-600 truncate"}
+                                            onClick={() => handleCellClick(rowIndex, 0)}
+                                        >
+                                            {item.name || item.itemName}
+                                        </td>
+                                        <td
+                                            className={getCellClasses(rowIndex, 1) + " text-left text-gray-600 truncate"}
+                                            onClick={() => handleCellClick(rowIndex, 1)}
+                                        >
+                                            {item.description || "-"}
+                                        </td>
+                                        <td
+                                            className={getCellClasses(rowIndex, 2) + " text-left text-gray-600"}
+                                            onClick={() => handleCellClick(rowIndex, 2)}
+                                        >
+                                            <span className="inline-flex items-center px-2 py-0.5 rounded bg-gray-100 text-gray-700 text-xs">
+                                                {item.type || item.itemType || "Goods"}
+                                            </span>
+                                        </td>
+                                        <td
+                                            className={getCellClasses(rowIndex, 3) + " text-left text-gray-600"}
+                                            onClick={() => handleCellClick(rowIndex, 3)}
+                                        >
+                                            {item.unit || "-"}
+                                        </td>
+                                        <td
+                                            className={getCellClasses(rowIndex, 4) + ` text-left font-semibold ${item.currentStock < 0 ? 'text-red-700 bg-red-50' : 'text-gray-600'}`}
+                                            onClick={() => handleCellClick(rowIndex, 4)}
+                                        >
+                                            {item.currentStock != null ? item.currentStock.toFixed(2) : '-'}
+                                        </td>
+                                        <td
+                                            className={getCellClasses(rowIndex, 5) + " text-left text-gray-600 truncate"}
+                                            onClick={() => handleCellClick(rowIndex, 5)}
+                                        >
+                                            {item.category || "-"}
+                                        </td>
+                                        <td
+                                            className={getCellClasses(rowIndex, 5) + " text-left text-gray-600 truncate"}
+                                            onClick={() => handleCellClick(rowIndex, 5)}
+                                        >
+                                            {item.subCategory || "-"}
+                                        </td>
+                                        <td
+                                            className={getCellClasses(rowIndex, 6) + " text-left text-gray-600 truncate"}
+                                            onClick={() => handleCellClick(rowIndex, 6)}
+                                        >
+                                            {item.brandName || "-"}
+                                        </td>
+                                        <td
+                                            className={getCellClasses(rowIndex, 7) + " text-left text-gray-600"}
+                                            onClick={() => handleCellClick(rowIndex, 7)}
+                                        >
+                                            {item.hsnNo || "-"}
+                                        </td>
+                                        <td
+                                            className={getCellClasses(rowIndex, 8) + " text-left text-gray-600"}
+                                            onClick={() => handleCellClick(rowIndex, 8)}
+                                        >
+                                            {item.gstRate ? `${item.gstRate}%` : "-"}
+                                        </td>
+                                        <td
+                                            className={getCellClasses(rowIndex, 9) + " text-left text-gray-600"}
+                                            onClick={() => handleCellClick(rowIndex, 9)}
+                                        >
+                                            {item.buyPrice ? `₹${item.buyPrice}` : "-"}
+                                        </td>
+                                        <td
+                                            className={getCellClasses(rowIndex, 10) + " text-left text-gray-600"}
+                                            onClick={() => handleCellClick(rowIndex, 10)}
+                                        >
+                                            {item.sellPrice ? `₹${item.sellPrice}` : "-"}
+                                        </td>
+                                        <td
+                                            className={getCellClasses(rowIndex, 11) + " text-left text-gray-600"}
+                                            onClick={() => handleCellClick(rowIndex, 11)}
+                                        >
+                                            {item.openingStock || "-"}
+                                        </td>
+                                        <td
+                                            className={getCellClasses(rowIndex, 12) + " text-left text-gray-600"}
+                                            onClick={() => handleCellClick(rowIndex, 12)}
+                                        >
+                                            {item.minStock || "-"}
+                                        </td>
+                                        <td
+                                            className={getCellClasses(rowIndex, 13) + " text-center"}
+                                            onClick={(e) => e.stopPropagation()}
+                                        >
                                             <button
                                                 type="button"
-                                                className="text-blue-600 hover:underline text-sm"
-                                                onClick={() => onEdit(item)}
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    onToggleWebsite && onToggleWebsite(item);
+                                                }}
+                                                className={`w-8 h-5 rounded-full transition-colors relative ${item.showOnWebsite !== false ? 'bg-green-500' : 'bg-gray-300'}`}
+                                                title={item.showOnWebsite !== false ? 'Visible on website' : 'Hidden from website'}
                                             >
-                                                Edit
+                                                <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${item.showOnWebsite !== false ? 'translate-x-3.5' : 'translate-x-0.5'}`}></span>
                                             </button>
-                                            <button className="text-gray-400 hover:text-gray-600">
-                                                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                                                    <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z" />
-                                                </svg>
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
-                        ))}
-                        {/* Empty rows to fill the display */}
-                        {emptyRows.map((_, idx) => {
-                            const rowIndex = items.length + idx;
-                            return (
-                                <tr 
-                                    key={`empty-${idx}`} 
-                                    className={`border-b border-gray-400 hover:bg-blue-100 transition-colors ${rowIndex % 2 === 0 ? 'bg-blue-50/40' : 'bg-white'}`}
-                                >
-                                    <td className={getCellClasses(rowIndex, 0)} onClick={() => handleCellClick(rowIndex, 0)}></td>
-                                    <td className={getCellClasses(rowIndex, 1)} onClick={() => handleCellClick(rowIndex, 1)}></td>
-                                    <td className={getCellClasses(rowIndex, 2)} onClick={() => handleCellClick(rowIndex, 2)}></td>
-                                    <td className={getCellClasses(rowIndex, 3)} onClick={() => handleCellClick(rowIndex, 3)}></td>
-                                    <td className={getCellClasses(rowIndex, 4)} onClick={() => handleCellClick(rowIndex, 4)}></td>
-                                    <td className={getCellClasses(rowIndex, 5)} onClick={() => handleCellClick(rowIndex, 5)}></td>
-                                    <td className={getCellClasses(rowIndex, 6)} onClick={() => handleCellClick(rowIndex, 6)}></td>
-                                    <td className={getCellClasses(rowIndex, 7)} onClick={() => handleCellClick(rowIndex, 7)}></td>
-                                    <td className={getCellClasses(rowIndex, 8)} onClick={() => handleCellClick(rowIndex, 8)}></td>
-                                    <td className={getCellClasses(rowIndex, 9)} onClick={() => handleCellClick(rowIndex, 9)}></td>
-                                    <td className={getCellClasses(rowIndex, 10)} onClick={() => handleCellClick(rowIndex, 10)}></td>
-                                    <td className={getCellClasses(rowIndex, 11)} onClick={() => handleCellClick(rowIndex, 11)}></td>
-                                    <td className={getCellClasses(rowIndex, 12)} onClick={() => handleCellClick(rowIndex, 12)}></td>
-                                    <td className={getCellClasses(rowIndex, 13)} onClick={() => handleCellClick(rowIndex, 13)}></td>
-                                    <td className={`h-8 px-4 sticky right-0 z-10 border-l border-gray-400 ${rowIndex % 2 === 0 ? 'bg-blue-50' : 'bg-white'}`} style={{ boxShadow: '-4px 0 8px -2px rgba(0, 0, 0, 0.1)' }}></td>
-                                </tr>
-                            );
-                        })}
-                    </tbody>
-                </table>
+                                        </td>
+                                        <td className={`h-8 px-4 text-left sticky right-0 z-10 border-l border-gray-400 ${rowIndex % 2 === 0 ? 'bg-blue-50' : 'bg-white'}`} style={{ boxShadow: '-4px 0 8px -2px rgba(0, 0, 0, 0.1)' }}>
+                                            <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
+                                                <button
+                                                    type="button"
+                                                    className="text-blue-600 hover:underline text-sm"
+                                                    onClick={() => onEdit(item)}
+                                                >
+                                                    Edit
+                                                </button>
+                                                <button className="text-gray-400 hover:text-gray-600">
+                                                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                                                        <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z" />
+                                                    </svg>
+                                                </button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))}
+                                {/* Empty rows to fill the display */}
+                                {emptyRows.map((_, idx) => {
+                                    const rowIndex = items.length + idx;
+                                    return (
+                                        <tr
+                                            key={`empty-${idx}`}
+                                            className={`border-b border-gray-400 hover:bg-blue-100 transition-colors ${rowIndex % 2 === 0 ? 'bg-blue-50/40' : 'bg-white'}`}
+                                        >
+                                            <td className={getCellClasses(rowIndex, 0)} onClick={() => handleCellClick(rowIndex, 0)}></td>
+                                            <td className={getCellClasses(rowIndex, 1)} onClick={() => handleCellClick(rowIndex, 1)}></td>
+                                            <td className={getCellClasses(rowIndex, 2)} onClick={() => handleCellClick(rowIndex, 2)}></td>
+                                            <td className={getCellClasses(rowIndex, 3)} onClick={() => handleCellClick(rowIndex, 3)}></td>
+                                            <td className={getCellClasses(rowIndex, 4)} onClick={() => handleCellClick(rowIndex, 4)}></td>
+                                            <td className={getCellClasses(rowIndex, 5)} onClick={() => handleCellClick(rowIndex, 5)}></td>
+                                            <td className={getCellClasses(rowIndex, 6)} onClick={() => handleCellClick(rowIndex, 6)}></td>
+                                            <td className={getCellClasses(rowIndex, 7)} onClick={() => handleCellClick(rowIndex, 7)}></td>
+                                            <td className={getCellClasses(rowIndex, 8)} onClick={() => handleCellClick(rowIndex, 8)}></td>
+                                            <td className={getCellClasses(rowIndex, 9)} onClick={() => handleCellClick(rowIndex, 9)}></td>
+                                            <td className={getCellClasses(rowIndex, 10)} onClick={() => handleCellClick(rowIndex, 10)}></td>
+                                            <td className={getCellClasses(rowIndex, 11)} onClick={() => handleCellClick(rowIndex, 11)}></td>
+                                            <td className={getCellClasses(rowIndex, 12)} onClick={() => handleCellClick(rowIndex, 12)}></td>
+                                            <td className={getCellClasses(rowIndex, 13)} onClick={() => handleCellClick(rowIndex, 13)}></td>
+                                            <td className={getCellClasses(rowIndex, 14)} onClick={() => handleCellClick(rowIndex, 14)}></td>
+                                            <td className={`h-8 px-4 sticky right-0 z-10 border-l border-gray-400 ${rowIndex % 2 === 0 ? 'bg-blue-50' : 'bg-white'}`} style={{ boxShadow: '-4px 0 8px -2px rgba(0, 0, 0, 0.1)' }}></td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             </div>

@@ -39,6 +39,40 @@ const dashboardApi = {
             console.error('Dashboard API - Error:', error);
             throw error;
         }
+    },
+
+    /**
+     * Get stats for a specific dashboard section (section-level filtering)
+     * @param {string} sectionName - Section name: businessOperations, revenueProjections, totalIncome, revenueInflow, revenueManagement, saleAnalytics
+     * @param {string} period - Filter period
+     * @param {string} startDate - Custom start date
+     * @param {string} endDate - Custom end date
+     * @returns {Promise} Section-specific stats
+     */
+    getSectionStats: async (sectionName, period = 'current-month', startDate = null, endDate = null) => {
+        const companyId = getCurrentCompany();
+        
+        if (!companyId) {
+            throw new Error('No company selected');
+        }
+
+        const params = {
+            companyId: companyId,
+            period
+        };
+
+        if (period === 'custom' && startDate && endDate) {
+            params.startDate = startDate;
+            params.endDate = endDate;
+        }
+
+        try {
+            const response = await apiClient.get(`/api/dashboard/section/${sectionName}`, { params });
+            return response.data;
+        } catch (error) {
+            console.error(`Dashboard Section API Error (${sectionName}):`, error);
+            throw error;
+        }
     }
 };
 
