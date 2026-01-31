@@ -37,7 +37,13 @@ async function globalSearch(req, res, next) {
                         { name: { $regex: searchTerm, $options: "i" } },
                         { companyName: { $regex: searchTerm, $options: "i" } },
                         { mobileNumber: { $regex: searchTerm, $options: "i" } },
-                        { emailAddress: { $regex: searchTerm, $options: "i" } }
+                        { emailAddress: { $regex: searchTerm, $options: "i" } },
+                        { billingAddress: { $regex: searchTerm, $options: "i" } },
+                        { billingVillage: { $regex: searchTerm, $options: "i" } },
+                        { billingTehsil: { $regex: searchTerm, $options: "i" } },
+                        { billingDistrict: { $regex: searchTerm, $options: "i" } },
+                        { billingState: { $regex: searchTerm, $options: "i" } },
+                        { billingPinCode: { $regex: searchTerm, $options: "i" } }
                     ]
                 }
             },

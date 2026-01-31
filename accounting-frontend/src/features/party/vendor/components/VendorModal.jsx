@@ -423,9 +423,11 @@ export default function VendorModal({ isOpen, onClose, onSave, onDelete, editDat
                                                             .join(' • ')}
                                                     </div>
                                                 </div>
+                                                {/* Popularity count - commented out
                                                 <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
                                                     {vendor.popularity || 1} {vendor.popularity === 1 ? 'user' : 'users'}
                                                 </span>
+                                                */}
                                             </div>
                                         </button>
                                     ))}

@@ -72,17 +72,19 @@ export default function CustomerPage() {
 
     // Filter customers based on search and filter type
     const filteredCustomers = customers.filter(customer => {
-        // Search filter - includes mobile, company, city/district, owner name
+        // Search filter - includes name, mobile, company, billing location
         const searchLower = searchTerm.toLowerCase();
         const matchesSearch = !searchTerm || 
             (customer.customerName?.toLowerCase().includes(searchLower)) ||
             (customer.companyName?.toLowerCase().includes(searchLower)) ||
             (customer.mobileNumber?.includes(searchTerm)) ||
-            (customer.billingDistrict?.toLowerCase().includes(searchLower)) ||
+            (customer.billingAddress?.toLowerCase().includes(searchLower)) ||
+            (customer.billingPinCode?.includes(searchTerm)) ||
             (customer.billingVillage?.toLowerCase().includes(searchLower)) ||
             (customer.billingTehsil?.toLowerCase().includes(searchLower)) ||
+            (customer.billingDistrict?.toLowerCase().includes(searchLower)) ||
             (customer.billingState?.toLowerCase().includes(searchLower)) ||
-            (customer.billingAddress?.toLowerCase().includes(searchLower));
+            (customer.billingCountry?.toLowerCase().includes(searchLower));
 
         // Type filter
         const pending = customer.pendingAmount || 0;

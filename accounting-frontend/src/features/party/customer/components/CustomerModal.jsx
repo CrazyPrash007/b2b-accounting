@@ -423,9 +423,11 @@ export default function CustomerModal({ isOpen, onClose, onSave, onDelete, editD
                                                             .join(' • ')}
                                                     </div>
                                                 </div>
+                                                {/* Popularity count - commented out
                                                 <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
                                                     {customer.popularity || 1} {customer.popularity === 1 ? 'user' : 'users'}
                                                 </span>
+                                                */}
                                             </div>
                                         </button>
                                     ))}

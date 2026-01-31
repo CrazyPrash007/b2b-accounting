@@ -23,10 +23,9 @@ function ContraModal({ isOpen, onClose, onSave, editData }) {
 
     const isEditMode = !!editData;
 
-    // Cash accounts + bank accounts - all available accounts
+    // Cash accounts + bank accounts - all available accounts (no Petty Cash)
     const allAccounts = [
         "Cash-in-Hand",
-        "Petty Cash",
         ...bankAccounts.map(b => {
             const displayName = b.accountDisplayName || b.bankName || "";
             const accNum = b.accountNumber ? ` (${b.accountNumber.slice(-4)})` : "";
@@ -66,7 +65,7 @@ function ContraModal({ isOpen, onClose, onSave, editData }) {
 
     const fetchBankAccounts = async () => {
         try {
-            const response = await authFetch(`${API_BASE}/api/banks?accountCompanyName=${selectedCompany}`);
+            const response = await authFetch(`${API_BASE}/api/bank?accountCompanyName=${selectedCompany}`);
             const data = await response.json();
             // Bank API returns { success: true, data: [...], meta: {...} }
             const banks = data?.data || (Array.isArray(data) ? data : []);
