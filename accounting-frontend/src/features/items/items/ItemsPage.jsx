@@ -23,6 +23,7 @@ export default function ItemsPage() {
     const [searchTerm, setSearchTerm] = useState("");
     const [filterCategory, setFilterCategory] = useState("all");
     const [filterStock, setFilterStock] = useState("all"); // all, inStock, lowStock, outOfStock
+    const [filterGst, setFilterGst] = useState("all"); // all, withGst, withoutGst
 
     const totalStock = meta.totalStock || 0;
     const negativeStockCount = meta.negativeStockCount || 0;
@@ -62,7 +63,15 @@ export default function ItemsPage() {
             (filterStock === "lowStock" && stock > 0 && stock <= minStock) ||
             (filterStock === "outOfStock" && stock <= 0);
 
-        return matchesSearch && matchesCategory && matchesStock;
+        // GST filter
+        const gstRate = item.gstRate != null ? Number(item.gstRate) : null;
+        const hasGst = gstRate !== null && gstRate > 0;
+        const matchesGst =
+            filterGst === "all" ||
+            (filterGst === "withGst" && hasGst) ||
+            (filterGst === "withoutGst" && !hasGst);
+
+        return matchesSearch && matchesCategory && matchesStock && matchesGst;
     });
 
     // Handle saved/deleted data from form page (backwards compatibility)
@@ -352,6 +361,17 @@ export default function ItemsPage() {
                                 <option value="inStock">In Stock</option>
                                 <option value="lowStock">Low Stock</option>
                                 <option value="outOfStock">Out of Stock</option>
+                            </select>
+
+                            {/* GST Filter */}
+                            <select
+                                value={filterGst}
+                                onChange={(e) => setFilterGst(e.target.value)}
+                                className="px-3 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                            >
+                                <option value="all">All GST</option>
+                                <option value="withGst">With GST</option>
+                                <option value="withoutGst">Without GST</option>
                             </select>
 
                             {/* Results count */}

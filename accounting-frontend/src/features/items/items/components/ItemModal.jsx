@@ -59,6 +59,7 @@ export default function ItemModal({ isOpen, onClose, onSave, onDelete, editData 
     const [brandsList, setBrandsList] = useState([]);
     const [categoriesList, setCategoriesList] = useState([]);
     const [gstList, setGstList] = useState([]);
+    const [gstListFromDb, setGstListFromDb] = useState(false); // Track if GST list is from actual DB entries
     const [listsLoading, setListsLoading] = useState(false);
     const [listsError, setListsError] = useState(null);
 
@@ -114,14 +115,16 @@ export default function ItemModal({ isOpen, onClose, onSave, onDelete, editData 
                 if (g.rate != null) return String(g.rate);
                 return null;
             }).filter(Boolean);
-            const gstFinal = gstNormalized.length ? Array.from(new Set(gstNormalized)) : ["0", "5", "12", "18", "28"];
+            const hasDbGstEntries = gstNormalized.length > 0;
+            const gstFinal = hasDbGstEntries ? Array.from(new Set(gstNormalized)) : ["0", "5", "12", "18", "28"];
 
-            console.log('📋 Normalized lists:', { units: unitsNormalized, brands: brandsNormalized, categories: catsNormalized, gst: gstFinal });
+            console.log('📋 Normalized lists:', { units: unitsNormalized, brands: brandsNormalized, categories: catsNormalized, gst: gstFinal, gstFromDb: hasDbGstEntries });
 
             setUnitsList(Array.from(new Set(unitsNormalized)));
             setBrandsList(Array.from(new Set(brandsNormalized)));
             setCategoriesList(catsNormalized);
             setGstList(gstFinal);
+            setGstListFromDb(hasDbGstEntries);
         } catch (err) {
             console.error("❌ Failed to fetch suggestion lists", err);
             setListsError(err);
@@ -192,13 +195,15 @@ export default function ItemModal({ isOpen, onClose, onSave, onDelete, editData 
             const trimmed = value.trim();
 
             // Check if already exists in current list
+            // For GST, only check against DB entries, not fallback values
             let exists = false;
             if (field === 'unit') {
                 exists = unitsList.some(u => u.toLowerCase() === trimmed.toLowerCase());
             } else if (field === 'brand') {
                 exists = brandsList.some(b => b.toLowerCase() === trimmed.toLowerCase());
             } else if (field === 'gst') {
-                exists = gstList.some(g => String(g) === String(trimmed));
+                // Only consider it "exists" if we have actual DB entries and the rate is in that list
+                exists = gstListFromDb && gstList.some(g => String(g) === String(trimmed));
             }
 
             if (!exists) {
