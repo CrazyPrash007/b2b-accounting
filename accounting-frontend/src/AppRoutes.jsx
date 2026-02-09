@@ -23,6 +23,8 @@ import EnquiryPage from "src/features/enquiry/EnquiryPage";
 import AdsPage from "src/features/ads/AdsPage";
 import ReminderPage from "src/features/reminders/ReminderPage";
 import StaffPage from "src/features/staff/StaffPage";
+import AttendancePage from "src/features/staff/attendance/AttendancePage";
+import PayrollPage from "src/features/staff/payroll/PayrollPage";
 
 
 export default function AppRoutes() {
@@ -51,6 +53,8 @@ export default function AppRoutes() {
                 <Route path="ads" element={<AdsPage />} />
                 <Route path="reminders" element={<ReminderPage />} />
                 <Route path="staff" element={<StaffPage />} />
+                <Route path="attendance" element={<AttendancePage />} />
+                <Route path="payroll" element={<PayrollPage />} />
             </Route>
 
             {/* 404 Not Found - outside AppLayout to show full-page error */}
