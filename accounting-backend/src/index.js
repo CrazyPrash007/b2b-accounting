@@ -25,6 +25,8 @@ const dashboardRoutes = require('./routes/dashboard.routes');
 const adRoutes = require('./routes/ad.routes');
 const reminderRoutes = require('./routes/reminder.routes');
 const staffRoutes = require('./routes/staff.routes');
+const attendanceRoutes = require('./routes/attendance.routes');
+const payrollRoutes = require('./routes/payroll.routes');
 const errorHandler = require('./middlewares/errorHandler');
 
 const PORT = process.env.PORT || 4000;
@@ -86,6 +88,8 @@ async function start() {
     app.use('/api/ads', adRoutes);
     app.use('/api/reminders', reminderRoutes);
     app.use('/api/staff', staffRoutes);
+    app.use('/api/attendance', attendanceRoutes);
+    app.use('/api/payroll', payrollRoutes);
 
     // Global error handler
     app.use(errorHandler);

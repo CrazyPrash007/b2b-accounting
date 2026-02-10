@@ -7,6 +7,7 @@ const initialFormData = {
     dateOfBirth: '',
     dateOfJoining: new Date().toISOString().split('T')[0],
     mobile: '',
+    fatherMobileNumber: '',
     email: '',
     address: '',
     aadharNumber: '',
@@ -35,6 +36,7 @@ export default function StaffModal({ isOpen, onClose, onSubmit, onDelete, editDa
                 dateOfBirth: editData.dateOfBirth ? new Date(editData.dateOfBirth).toISOString().split('T')[0] : '',
                 dateOfJoining: editData.dateOfJoining ? new Date(editData.dateOfJoining).toISOString().split('T')[0] : '',
                 mobile: editData.mobile || '',
+                fatherMobileNumber: editData.fatherMobileNumber || '',
                 email: editData.email || '',
                 address: editData.address || '',
                 aadharNumber: editData.aadharNumber || '',
@@ -186,6 +188,18 @@ export default function StaffModal({ isOpen, onClose, onSubmit, onDelete, editDa
                                     value={formData.mobile}
                                     onChange={handleChange}
                                     placeholder="Enter mobile number"
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Father Mobile Number</label>
+                                <input
+                                    type="text"
+                                    name="fatherMobileNumber"
+                                    value={formData.fatherMobileNumber}
+                                    onChange={handleChange}
+                                    placeholder="Enter father's mobile number"
                                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                                 />
                             </div>

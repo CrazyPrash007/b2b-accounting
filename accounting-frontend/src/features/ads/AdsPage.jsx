@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback, useContext } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { CompanyContext } from '../../App';
-import adApi from './api/ad.api';
+import advertisementApi from './api/advertisement.api';
 import { State, City } from 'country-state-city';
 import './AdsPage.css';
 
@@ -61,7 +61,7 @@ export default function AdsPage() {
     useEffect(() => {
         const loadOptions = async () => {
             try {
-                const options = await adApi.getTargetingOptions();
+                const options = await advertisementApi.getTargetingOptions();
                 setTargetingOptions(options);
             } catch (err) {
                 console.error('Failed to load targeting options:', err);
@@ -81,8 +81,8 @@ export default function AdsPage() {
         try {
             setLoading(true);
             const [adsResponse, statsData] = await Promise.all([
-                adApi.listMyAds(selectedCompany, { status: statusFilter }),
-                adApi.getMyStats(selectedCompany)
+                advertisementApi.listMyAds(selectedCompany, { status: statusFilter }),
+                advertisementApi.getMyStats(selectedCompany)
             ]);
             setAds(adsResponse.data || []);
             setStats(statsData);
@@ -325,9 +325,9 @@ export default function AdsPage() {
             };
 
             if (editingAd) {
-                await adApi.update(editingAd._id, data, selectedCompany);
+                await advertisementApi.update(editingAd._id, data, selectedCompany);
             } else {
-                await adApi.create(data, selectedCompany);
+                await advertisementApi.create(data, selectedCompany);
             }
 
             setShowModal(false);
@@ -343,7 +343,7 @@ export default function AdsPage() {
     const handleStop = async (ad) => {
         if (!window.confirm(`Stop ad "${ad.title}"? It will no longer be displayed.`)) return;
         try {
-            await adApi.stop(ad._id, selectedCompany);
+            await advertisementApi.stop(ad._id, selectedCompany);
             loadData();
         } catch (err) {
             alert(err.response?.data?.message || 'Failed to stop ad');
@@ -354,7 +354,7 @@ export default function AdsPage() {
     const handleReactivate = async (ad) => {
         if (!window.confirm(`Resubmit ad "${ad.title}" for review?`)) return;
         try {
-            await adApi.reactivate(ad._id, selectedCompany);
+            await advertisementApi.reactivate(ad._id, selectedCompany);
             loadData();
         } catch (err) {
             alert(err.response?.data?.message || 'Failed to reactivate ad');
@@ -365,7 +365,7 @@ export default function AdsPage() {
     const handleDelete = async (ad) => {
         if (!window.confirm(`Delete ad "${ad.title}"? This cannot be undone.`)) return;
         try {
-            await adApi.remove(ad._id, selectedCompany);
+            await advertisementApi.remove(ad._id, selectedCompany);
             loadData();
         } catch (err) {
             alert(err.response?.data?.message || 'Failed to delete ad');

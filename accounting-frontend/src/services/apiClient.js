@@ -83,9 +83,10 @@ apiClient.interceptors.request.use(
             }
         }
 
-        // Inject selected company
+        // Inject selected company - only for GET requests (query params)
+        // For POST/PUT/DELETE, the individual API methods add it to the body
         const company = getCurrentCompany();
-        if (company) {
+        if (company && config.method && config.method.toLowerCase() === 'get') {
             config.params = config.params || {};
             config.params.accountCompanyName = company;
         }
@@ -106,12 +107,18 @@ apiClient.interceptors.response.use(
         if (err.response && err.response.status === 401) {
             // Check if this is the auth/me endpoint - don't redirect, let AuthContext handle it
             if (err.config?.url?.includes('/api/auth/')) {
-                return Promise.reject(new Error('401 Authentication required'));
+                const error = new Error('401 Authentication required');
+                error.response = err.response;
+                error.status = 401;
+                return Promise.reject(error);
             }
 
             console.warn('[API] Authentication failed (401) - redirecting to login');
             safeRedirectToLogin();
-            return Promise.reject(new Error('Session expired. Please log in again.'));
+            const error = new Error('Session expired. Please log in again.');
+            error.response = err.response;
+            error.status = 401;
+            return Promise.reject(error);
         }
 
         // Handle 403 Forbidden
@@ -127,18 +134,29 @@ apiClient.interceptors.response.use(
                 localStorage.removeItem('selectedCompany');
                 alert(errorMessage || 'Your account has been blocked. Please contact support.');
                 window.location.href = '/';
-                return Promise.reject(new Error(errorMessage || 'Account blocked'));
+                const error = new Error(errorMessage || 'Account blocked');
+                error.response = err.response;
+                error.status = 403;
+                return Promise.reject(error);
             }
 
             console.warn('[API] Access forbidden (403)');
-            return Promise.reject(new Error(errorMessage || 'Access denied. You do not have permission to perform this action.'));
+            const error = new Error(errorMessage || 'Access denied. You do not have permission to perform this action.');
+            error.response = err.response;
+            error.status = 403;
+            return Promise.reject(error);
         }
 
         if (err.response) {
             const msg = err.response.data && err.response.data.error
                 ? (err.response.data.error.message || JSON.stringify(err.response.data.error))
                 : err.response.statusText;
-            return Promise.reject(new Error(`${err.response.status} ${msg}`));
+
+            // Create a new error but preserve the response object
+            const error = new Error(`${err.response.status} ${msg}`);
+            error.response = err.response;  // Preserve the response object
+            error.status = err.response.status;
+            return Promise.reject(error);
         }
 
         // Network errors

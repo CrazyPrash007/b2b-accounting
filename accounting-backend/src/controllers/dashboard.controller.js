@@ -8,6 +8,9 @@ const Receipt = require('../models/Receipt');
 const Payment = require('../models/Payment');
 const Item = require('../models/Item');
 const Bank = require('../models/Bank');
+const PayrollPeriod = require('../models/PayrollPeriod');
+const PayrollCalculation = require('../models/PayrollCalculation');
+const Staff = require('../models/Staff');
 
 /**
  * Calculate current stock for an item (centralized logic)
@@ -396,6 +399,7 @@ exports.getDashboardStats = async (req, res, next) => {
                 totalAmount: item.totalAmount,
                 totalQuantity: item.totalQuantity
             })),
+            payrollOverview: await getPayrollOverview(ownerId, companyId),
             period: period,
             dateRange: dateRange
         };
@@ -931,3 +935,66 @@ exports.getSectionStats = async (req, res, next) => {
         next(error);
     }
 };
+
+/**
+ * Helper: get payroll overview for dashboard
+ */
+async function getPayrollOverview(ownerId, accountCompanyName) {
+    try {
+        const totalStaff = await Staff.countDocuments({
+            accountCompanyName,
+            isDeleted: false,
+            status: 'active',
+        });
+
+        // Get current month payroll period
+        const now = new Date();
+        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+        const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+
+        const currentPeriod = await PayrollPeriod.findOne({
+            accountCompanyName,
+            isDeleted: false,
+            fromDate: { $lte: monthEnd },
+            toDate: { $gte: monthStart },
+        }).lean();
+
+        // Overall pending salary
+        const pendingCalcs = await PayrollCalculation.aggregate([
+            {
+                $match: {
+                    accountCompanyName,
+                    isDeleted: false,
+                    paymentStatus: { $in: ['pending', 'partial'] },
+                },
+            },
+            {
+                $group: {
+                    _id: null,
+                    totalPending: { $sum: { $subtract: [{ $ifNull: ['$netSalary', 0] }, { $ifNull: ['$paidAmount', 0] }] } },
+                    count: { $sum: 1 },
+                },
+            },
+        ]);
+
+        return {
+            totalActiveStaff: totalStaff,
+            currentPeriod: currentPeriod ? {
+                periodName: currentPeriod.periodName,
+                status: currentPeriod.status,
+                totalPayableSalary: currentPeriod.totalPayableSalary || 0,
+                totalPaidSalary: currentPeriod.totalPaidSalary || 0,
+            } : null,
+            pendingSalary: pendingCalcs[0]?.totalPending || 0,
+            pendingStaffCount: pendingCalcs[0]?.count || 0,
+        };
+    } catch (error) {
+        console.error('Error getting payroll overview:', error);
+        return {
+            totalActiveStaff: 0,
+            currentPeriod: null,
+            pendingSalary: 0,
+            pendingStaffCount: 0,
+        };
+    }
+}
