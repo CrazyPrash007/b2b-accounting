@@ -435,7 +435,10 @@ exports.calculatePayroll = async (req, res) => {
         // Calculate final salary
         const finalSalary = totalCalculatedAmount;
         const totalAdditions = 0; // Can be added later
-        const totalDeductions = 0; // Can be added later
+        
+        // Include pending deductions from previous payrolls
+        const pendingDeductionAmount = staff.pendingDeductions?.amount || 0;
+        const totalDeductions = pendingDeductionAmount;
         const netSalary = finalSalary + totalAdditions - totalDeductions;
 
         if (calculation) {
@@ -447,9 +450,14 @@ exports.calculatePayroll = async (req, res) => {
           calculation.baseSalary = staff.salaryAmount;
           calculation.finalSalary = finalSalary;
           calculation.totalAdditions = totalAdditions;
+          calculation.otherDeductions = pendingDeductionAmount;
           calculation.totalDeductions = totalDeductions;
           calculation.netSalary = netSalary;
           calculation.updatedBy = userId;
+          if (pendingDeductionAmount > 0) {
+            calculation.remarks = (calculation.remarks ? calculation.remarks + ' | ' : '') + 
+              `Pending deduction from previous payroll: ₹${pendingDeductionAmount}`;
+          }
         } else {
           // Create new calculation
           calculation = new PayrollCalculation({
@@ -465,8 +473,10 @@ exports.calculatePayroll = async (req, res) => {
             baseSalary: staff.salaryAmount,
             finalSalary,
             totalAdditions,
+            otherDeductions: pendingDeductionAmount,
             totalDeductions,
             netSalary,
+            remarks: pendingDeductionAmount > 0 ? `Pending deduction from previous payroll: ₹${pendingDeductionAmount}` : '',
             createdBy: userId,
             updatedBy: userId,
           });
@@ -527,7 +537,7 @@ exports.getPayrollCalculations = async (req, res) => {
       payrollPeriodId: new mongoose.Types.ObjectId(payrollPeriodId),
       isDeleted: false,
     })
-      .populate('staffId', 'name department designation mobile email')
+      .populate('staffId', 'name department designation mobile email bankName bankAccountNumber bankIfscCode upiId')
       .sort({ 'staffId.name': 1 })
       .lean();
 
@@ -592,7 +602,7 @@ exports.updatePayrollCalculation = async (req, res) => {
       _id: new mongoose.Types.ObjectId(id),
       accountCompanyName,
       isDeleted: false,
-    });
+    }).populate('staffId');
 
     if (!calculation) {
       return res.status(404).json({
@@ -620,7 +630,46 @@ exports.updatePayrollCalculation = async (req, res) => {
     // Recalculate totals
     calculation.totalAdditions = (calculation.overtimePay || 0) + (calculation.bonuses || 0) + (calculation.allowances || 0);
     calculation.totalDeductions = (calculation.latePenaltyAmount || 0) + (calculation.advanceDeduction || 0) + (calculation.otherDeductions || 0);
-    calculation.netSalary = calculation.finalSalary + calculation.totalAdditions - calculation.totalDeductions;
+    const newNetSalary = calculation.finalSalary + calculation.totalAdditions - calculation.totalDeductions;
+    
+    // Check if deductions exceed current salary
+    if (newNetSalary < 0) {
+      // Carry forward the excess deduction to next payroll
+      const excessDeduction = Math.abs(newNetSalary);
+      const staff = await Staff.findOne({
+        _id: calculation.staffId._id,
+        accountCompanyName,
+        isDeleted: false,
+      });
+
+      if (staff) {
+        const currentPending = staff.pendingDeductions?.amount || 0;
+        staff.pendingDeductions = {
+          amount: currentPending + excessDeduction,
+          reason: `Excess deduction from payroll (${new Date().toLocaleDateString()})`,
+          addedAt: new Date(),
+          addedBy: new mongoose.Types.ObjectId(userId),
+        };
+        await staff.save();
+      }
+
+      // Set net salary to 0 for this period
+      calculation.netSalary = 0;
+      calculation.remarks = (calculation.remarks ? calculation.remarks + ' | ' : '') + 
+        `₹${excessDeduction.toFixed(2)} carried forward to next payroll`;
+    } else {
+      calculation.netSalary = newNetSalary;
+    }
+
+    // Update payment status based on new net salary and paid amount
+    const currentPaidAmount = calculation.paidAmount || 0;
+    if (currentPaidAmount === 0) {
+      calculation.paymentStatus = 'pending';
+    } else if (currentPaidAmount >= calculation.netSalary) {
+      calculation.paymentStatus = 'paid';
+    } else {
+      calculation.paymentStatus = 'partial';
+    }
 
     calculation.updatedBy = userId;
     await calculation.save();
@@ -739,6 +788,23 @@ exports.recordPayment = async (req, res) => {
 
     if (calculation.paidAmount >= calculation.netSalary) {
       calculation.paymentStatus = 'paid';
+      
+      // Clear pending deductions from staff when salary is fully paid
+      const staff = await Staff.findOne({
+        _id: calculation.staffId,
+        accountCompanyName,
+        isDeleted: false,
+      }).session(session);
+
+      if (staff && staff.pendingDeductions && staff.pendingDeductions.amount > 0) {
+        staff.pendingDeductions = {
+          amount: 0,
+          reason: null,
+          addedAt: null,
+          addedBy: null,
+        };
+        await staff.save({ session });
+      }
     } else if (calculation.paidAmount > 0) {
       calculation.paymentStatus = 'partial';
     }
@@ -897,6 +963,23 @@ exports.bulkPayment = async (req, res) => {
       }
       calc.updatedBy = userId;
       await calc.save({ session });
+
+      // Clear pending deductions from staff when salary is fully paid
+      const staff = await Staff.findOne({
+        _id: calc.staffId,
+        accountCompanyName,
+        isDeleted: false,
+      }).session(session);
+
+      if (staff && staff.pendingDeductions && staff.pendingDeductions.amount > 0) {
+        staff.pendingDeductions = {
+          amount: 0,
+          reason: null,
+          addedAt: null,
+          addedBy: null,
+        };
+        await staff.save({ session });
+      }
 
       totalPaidAmount += remainingAmount;
       successCount++;

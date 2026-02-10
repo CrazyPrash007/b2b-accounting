@@ -68,6 +68,14 @@ const StaffSchema = new mongoose.Schema({
     exitDate: { type: Date, default: null },
     exitReason: { type: String, trim: true, default: null },
 
+    // ── Pending Deductions (carry-forward to next payroll) ────────────
+    pendingDeductions: {
+        amount: { type: Number, default: 0, min: 0 },
+        reason: { type: String, trim: true, default: null },
+        addedAt: { type: Date, default: null },
+        addedBy: { type: mongoose.Schema.Types.ObjectId, default: null }
+    },
+
     // ── Meta fields ────────────────────────────────────────────────────
     isActive: { type: Boolean, default: true },
     isDeleted: { type: Boolean, default: false },

@@ -38,6 +38,7 @@ const StaffTableRow = ({
   onCellClick,
   onOpenModal,
   onOpenDetailsModal,
+  onOpenHistoryModal,
   onStatusChange,
   getCellClasses,
 }) => {
@@ -52,14 +53,14 @@ const StaffTableRow = ({
       className={`border-b border-gray-400 hover:bg-blue-100 transition-colors cursor-pointer ${
         rowIndex % 2 === 0 ? 'bg-blue-50/40' : 'bg-white'
       }`}
-      onClick={() => onOpenModal(staff)}
+      onClick={() => onOpenHistoryModal(staff)}
     >
       <td
         className={getCellClasses(rowIndex, 0) + ' text-left text-blue-600 font-medium'}
         onClick={(e) => {
           e.stopPropagation();
           onCellClick(rowIndex, 0);
-          onOpenModal(staff);
+          onOpenHistoryModal(staff);
         }}
       >
         {sanitize(staff.name)}

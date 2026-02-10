@@ -25,7 +25,7 @@ router.delete('/periods/:id', payrollController.deletePayrollPeriod);
 router.post('/calculate', validate(calculatePayrollSchema), payrollController.calculatePayroll);
 router.get('/calculations/:payrollPeriodId', payrollController.getPayrollCalculations);
 router.get('/calculation/:id', payrollController.getPayrollCalculation);
-router.put('/calculation/:id', validate(updatePayrollCalculationSchema), payrollController.updatePayrollCalculation);
+router.put('/calculations/:id', validate(updatePayrollCalculationSchema), payrollController.updatePayrollCalculation);
 
 // Payment routes
 router.post('/payment', validate(recordPaymentSchema), payrollController.recordPayment);
