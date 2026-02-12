@@ -6,6 +6,8 @@ import ItemTable from "./ItemTable";
 import { exportTableToExcel } from "../../../utils/excelExport";
 import ItemModal from "./components/ItemModal";
 import ItemMovementModal from "./components/ItemMovementModal";
+import { authFetch, API_BASE_URL } from "../../../services/apiClient";
+import { getCurrentCompany } from "../../../services/companyContextAccessor";
 
 /**
  * ItemsPage - main page for Items management
@@ -101,47 +103,89 @@ export default function ItemsPage() {
 
     const handleSaveItem = async (itemData, isEdit) => {
         // Build normalized payload expected by backend/validator
-        const normalized = {
-            // ensure canonical required field
-            name: (itemData.name || itemData.itemName || "").toString().trim(),
-            itemName: (itemData.itemName || itemData.name || "").toString().trim(),
-            description: (itemData.description || "").toString().trim(),
-            category: (itemData.category || "").toString().trim(),
-            subCategory: (itemData.subCategory || "").toString().trim(),
-            brandName: (itemData.brandName || "").toString().trim(),
-
-            // coerce numeric fields (backend expects numbers)
-            gstRate: itemData.gstRate === "" || itemData.gstRate == null ? null : Number(itemData.gstRate),
-            buyPrice: itemData.buyPrice === "" || itemData.buyPrice == null ? 0 : Number(itemData.buyPrice),
-            sellPrice: itemData.sellPrice === "" || itemData.sellPrice == null ? 0 : Number(itemData.sellPrice),
-            openingStock: itemData.openingStock === "" || itemData.openingStock == null ? 0 : Number(itemData.openingStock),
-            minStock: itemData.minStock === "" || itemData.minStock == null ? 0 : Number(itemData.minStock),
-
-            hsnNo: (itemData.hsnNo || "").toString().trim(),
-            itemType: (itemData.itemType || itemData.type || "Goods").toString(),
-            type: (itemData.type || itemData.itemType || "Goods").toString(),
-            unit: (itemData.unit || "").toString().trim(),
-
-            // normalize date -> ISO or undefined/null
-            openingDate: itemData.openingDate ? new Date(itemData.openingDate).toISOString() : null,
-
-            // Website visibility & image (base64 data)
-            showOnWebsite: itemData.showOnWebsite !== false, // Default to true
-            itemImage: itemData.itemImage || "",
-            itemImageMimeType: itemData.itemImageMimeType || "",
-        };
-
-        // Basic client-side validation before hitting backend
-        if (!normalized.name) {
-            alert("Item Name is required.");
-            return;
-        }
+        const normalizeItem = (data) => ({
+            name: (data.name || data.itemName || "").toString().trim(),
+            itemName: (data.itemName || data.name || "").toString().trim(),
+            description: (data.description || "").toString().trim(),
+            category: (data.category || "").toString().trim(),
+            subCategory: (data.subCategory || "").toString().trim(),
+            brandName: (data.brandName || "").toString().trim(),
+            gstRate: data.gstRate === "" || data.gstRate == null ? null : Number(data.gstRate),
+            buyPrice: data.buyPrice === "" || data.buyPrice == null ? 0 : Number(data.buyPrice),
+            sellPrice: data.sellPrice === "" || data.sellPrice == null ? 0 : Number(data.sellPrice),
+            openingStock: data.openingStock === "" || data.openingStock == null ? 0 : Number(data.openingStock),
+            minStock: data.minStock === "" || data.minStock == null ? 0 : Number(data.minStock),
+            hsnNo: (data.hsnNo || "").toString().trim(),
+            itemType: (data.itemType || data.type || "Goods").toString(),
+            type: (data.type || data.itemType || "Goods").toString(),
+            unit: (data.unit || "").toString().trim(),
+            openingDate: data.openingDate ? new Date(data.openingDate).toISOString() : null,
+            showOnWebsite: data.showOnWebsite !== false,
+            itemImage: data.itemImage || "",
+            itemImageMimeType: data.itemImageMimeType || "",
+        });
 
         try {
             if (isEdit) {
+                const normalized = normalizeItem(itemData);
+                if (!normalized.name) {
+                    alert("Item Name is required.");
+                    return;
+                }
                 const id = itemData.id ?? itemData._id;
                 await update(id, normalized);
+            } else if (Array.isArray(itemData)) {
+                // Batch creation - call backend batch API
+                const companyId = getCurrentCompany();
+                const normalizedItems = itemData.map(normalizeItem);
+
+                // Validate all items have names
+                const invalid = normalizedItems.findIndex(n => !n.name);
+                if (invalid !== -1) {
+                    alert(`Item #${invalid + 1} is missing a name.`);
+                    return;
+                }
+
+                const payload = {
+                    items: normalizedItems,
+                    accountCompanyName: companyId
+                };
+                console.log('📤 Batch items payload:', payload);
+
+                const res = await authFetch(`${API_BASE_URL}/api/items/batch`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const result = await res.json();
+                console.log('📥 Batch response:', result);
+
+                if (result.success) {
+                    // Show detailed alert with success and failures
+                    let message = `Successfully created ${result.summary.created} item(s)`;
+                    
+                    if (result.summary.failed > 0 && result.errors?.length > 0) {
+                        message += `\n\n⚠️ ${result.summary.failed} item(s) failed:`;
+                        result.errors.forEach((err, idx) => {
+                            const itemName = normalizedItems[err.index]?.itemName || `Item #${err.index + 1}`;
+                            message += `\n• ${itemName}: ${err.error}`;
+                        });
+                    }
+                    
+                    alert(message);
+                } else {
+                    const errorMsg = result.error?.message || result.message || 'Batch creation failed';
+                    console.error('❌ Batch creation error:', result);
+                    throw new Error(errorMsg);
+                }
             } else {
+                // Single creation
+                const normalized = normalizeItem(itemData);
+                if (!normalized.name) {
+                    alert("Item Name is required.");
+                    return;
+                }
                 await create(normalized);
             }
 
