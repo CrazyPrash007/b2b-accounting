@@ -93,7 +93,7 @@ const DailyAttendanceModal = ({
         status: selectedRecord.status,
         leaveType: selectedRecord.leaveType,
         halfDayType: selectedRecord.halfDayType,
-        checkInTime: getCurrentTime(),
+        checkInTime: selectedRecord.checkInTime || getCurrentTime(),
         remarks: selectedRecord.remarks || '',
       });
 
@@ -185,7 +185,7 @@ const DailyAttendanceModal = ({
           status: formData.status,
           leaveType: formData.status === 'leave' ? formData.leaveType : null,
           halfDayType: formData.status === 'half-day' ? formData.halfDayType : null,
-          checkInTime: formData.checkInTime,
+          checkInTime: (formData.status === 'present' || formData.status === 'half-day') ? formData.checkInTime : undefined,
           remarks: formData.remarks,
         };
         console.log('Updating attendance with data:', submitData);
@@ -199,7 +199,7 @@ const DailyAttendanceModal = ({
             status: formData.status,
             leaveType: formData.status === 'leave' ? formData.leaveType : null,
             halfDayType: formData.status === 'half-day' ? formData.halfDayType : null,
-            checkInTime: formData.checkInTime,
+            checkInTime: (formData.status === 'present' || formData.status === 'half-day') ? formData.checkInTime : undefined,
             remarks: formData.remarks,
           };
           console.log('Creating attendance with data:', submitData);

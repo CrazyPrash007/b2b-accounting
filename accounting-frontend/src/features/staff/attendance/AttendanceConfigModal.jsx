@@ -73,7 +73,7 @@ const AttendanceConfigModal = ({ isOpen, onClose }) => {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl mx-4 flex flex-col max-h-[85vh]" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
-        <div className="flex justify-between items-center p-6 border-b border-gray-200 sticky top-0 bg-white z-10">
+        <div className="flex justify-between items-center p-6 border-b border-gray-200 bg-white">
           <h2 className="text-xl font-bold text-gray-900">Attendance Configuration</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
             <X className="w-6 h-6" />
@@ -81,7 +81,8 @@ const AttendanceConfigModal = ({ isOpen, onClose }) => {
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-6">
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+          <div className="p-6 space-y-6 overflow-y-auto flex-1">
           {/* Working Days */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -252,9 +253,10 @@ const AttendanceConfigModal = ({ isOpen, onClose }) => {
               ))}
             </div>
           </div>
+          </div>
 
           {/* Actions */}
-          <div className="flex gap-3 pt-4 border-t border-gray-200">
+          <div className="flex gap-3 p-6 border-t border-gray-200 bg-white">
             <button
               type="button"
               onClick={onClose}

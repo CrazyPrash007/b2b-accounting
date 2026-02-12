@@ -11,7 +11,7 @@ export default function NotFoundPage() {
     const navigate = useNavigate();
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 p-4">
+        <div className="flex items-center justify-center p-8 min-h-[calc(100vh-200px)]">
             <div className="max-w-md w-full text-center">
                 {/* 404 Icon */}
                 <div className="mb-8 flex justify-center">

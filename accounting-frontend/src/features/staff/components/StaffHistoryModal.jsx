@@ -46,6 +46,24 @@ export default function StaffHistoryModal({ isOpen, onClose, staff }) {
                     const data = response.data.data;
                     console.log('Staff history data received:', data);
                     console.log('Attendance records sample:', data.attendanceRecords?.[0]);
+                    console.log('Total attendance records:', data.attendanceRecords?.length);
+                    
+                    // Log records with missing check-in or check-out
+                    const recordsWithMissingTimes = data.attendanceRecords?.filter(r => 
+                        (r.status === 'present' || r.status === 'half-day') && 
+                        (!r.checkInTime || !r.checkOutTime)
+                    );
+                    if (recordsWithMissingTimes && recordsWithMissingTimes.length > 0) {
+                        console.warn(`Found ${recordsWithMissingTimes.length} records with missing times:`, 
+                            recordsWithMissingTimes.map(r => ({
+                                date: r.date,
+                                status: r.status,
+                                checkInTime: r.checkInTime,
+                                checkOutTime: r.checkOutTime
+                            }))
+                        );
+                    }
+                    
                     setHistoryData(data);
                     setAllAttendance(data.attendanceRecords || []);
                     setAllPayroll(data.payrollCalculations || []);
