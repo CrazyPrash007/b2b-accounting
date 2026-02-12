@@ -14,6 +14,9 @@ router.get('/global-search', controller.globalSearch);
 // Image upload endpoint
 router.post('/upload-image', controller.uploadMiddleware, controller.uploadImage);
 
+// Batch create
+router.post('/batch', controller.batchCreate);
+
 router.get('/', controller.list);
 router.post('/', validate(createSchema), controller.create);
 router.get('/:id', controller.getOne);

@@ -594,4 +594,103 @@ async function uploadImage(req, res, next) {
     }
 }
 
-module.exports = { list, getOne, create, update, remove, globalSearch, getItemMovement, uploadImage, uploadMiddleware };
+/* ============================= BATCH CREATE ============================= */
+async function batchCreate(req, res, next) {
+    try {
+        const ownerId = req.user.ownerId;
+        const { items, accountCompanyName: companyIdStr } = req.body;
+
+        console.log('📥 Batch items request - ownerId:', ownerId, 'companyIdStr:', companyIdStr, 'itemsCount:', items?.length);
+
+        const companyId = toObjectId(companyIdStr);
+        if (!companyId) {
+            console.error('❌ Invalid companyId - received:', companyIdStr, 'type:', typeof companyIdStr);
+            return res.status(400).json({
+                success: false,
+                error: { message: `Valid accountCompanyName (companyId) is required. Received: ${companyIdStr}` }
+            });
+        }
+
+        if (!Array.isArray(items) || items.length === 0) {
+            return res.status(400).json({
+                success: false,
+                error: { message: "items array is required and must not be empty" }
+            });
+        }
+
+        const results = [];
+        const errors = [];
+
+        for (let i = 0; i < items.length; i++) {
+            const itemData = items[i];
+
+            try {
+                const itemName = (itemData.name || itemData.itemName || "").trim();
+                if (!itemName) {
+                    errors.push({ index: i, error: "Item name is required" });
+                    continue;
+                }
+
+                const payload = {
+                    ...itemData,
+                    ownerId,
+                    accountCompanyName: companyId,
+                    createdBy: req.user.id,
+                    name: itemName,
+                    itemName: itemName,
+                };
+
+                // Numeric coercions
+                ["gstRate", "buyPrice", "sellPrice", "openingStock", "minStock"].forEach((field) => {
+                    if (payload[field] != null && payload[field] !== "") {
+                        payload[field] = Number(payload[field]) || 0;
+                    }
+                });
+
+                // Date coercion
+                if (payload.openingDate) {
+                    payload.openingDate = new Date(payload.openingDate);
+                }
+
+                // Check for duplicates
+                const exists = await Item.findOne({
+                    ownerId,
+                    accountCompanyName: companyId,
+                    name: { $regex: `^${itemName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, $options: 'i' },
+                    isDeleted: false,
+                }).lean();
+
+                if (exists) {
+                    errors.push({ index: i, itemName, error: "Item with same name already exists" });
+                    continue;
+                }
+
+                const doc = await Item.create(payload);
+                results.push({ index: i, success: true, data: doc });
+
+            } catch (err) {
+                if (err.code === 11000) {
+                    errors.push({ index: i, itemName: itemData.name || itemData.itemName, error: "Item already exists" });
+                } else {
+                    errors.push({ index: i, itemName: itemData.name || itemData.itemName, error: err.message });
+                }
+            }
+        }
+
+        return res.status(results.length > 0 ? 201 : 400).json({
+            success: results.length > 0,
+            data: results,
+            errors: errors,
+            summary: {
+                total: items.length,
+                created: results.length,
+                failed: errors.length
+            }
+        });
+
+    } catch (err) {
+        next(err);
+    }
+}
+
+module.exports = { list, getOne, create, update, remove, globalSearch, getItemMovement, uploadImage, uploadMiddleware, batchCreate };
