@@ -192,6 +192,14 @@ export function authFetch(url, options = {}) {
         ...options,
         headers,
         credentials: 'include',
+    }).then(res => {
+        if (!res.ok) {
+            console.warn(`[authFetch] ${options.method || 'GET'} ${url} → ${res.status} ${res.statusText}`);
+        }
+        return res;
+    }).catch(err => {
+        console.error(`[authFetch] Network error for ${url}:`, err.message);
+        throw err;
     });
 }
 
