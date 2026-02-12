@@ -1,5 +1,6 @@
 // src/controllers/customer.controller.js
 const Customer = require("../models/Customer");
+const Vendor = require("../models/Vendor");
 const Sale = require("../models/Sale");
 const Receipt = require("../models/Receipt");
 const mongoose = require("mongoose");
@@ -79,8 +80,7 @@ async function globalSearch(req, res, next) {
                     count: { $sum: 1 }
                 }
             },
-            { $sort: { count: -1 } }, // Most common customers first
-            { $limit: Number(limit) },
+            { $sort: { count: -1 } },
             {
                 $project: {
                     _id: 0,
@@ -111,7 +111,94 @@ async function globalSearch(req, res, next) {
             }
         ]);
 
-        return res.json({ success: true, data: customers });
+        // Search vendors collection and map vendorName -> customerName
+        const vendorsAsCustomers = await Vendor.aggregate([
+            {
+                $match: {
+                    isDeleted: false,
+                    $or: [
+                        { vendorName: { $regex: searchTerm, $options: "i" } },
+                        { name: { $regex: searchTerm, $options: "i" } },
+                        { companyName: { $regex: searchTerm, $options: "i" } },
+                        { mobileNumber: { $regex: searchTerm, $options: "i" } },
+                        { emailAddress: { $regex: searchTerm, $options: "i" } },
+                        { billingAddress: { $regex: searchTerm, $options: "i" } },
+                        { billingVillage: { $regex: searchTerm, $options: "i" } },
+                        { billingTehsil: { $regex: searchTerm, $options: "i" } },
+                        { billingDistrict: { $regex: searchTerm, $options: "i" } },
+                        { billingState: { $regex: searchTerm, $options: "i" } },
+                        { billingPinCode: { $regex: searchTerm, $options: "i" } }
+                    ]
+                }
+            },
+            {
+                $group: {
+                    _id: { 
+                        name: { $toLower: "$vendorName" },
+                        company: { $toLower: { $ifNull: ["$companyName", ""] } }
+                    },
+                    vendorName: { $first: "$vendorName" },
+                    mobileNumber: { $first: "$mobileNumber" },
+                    emailAddress: { $first: "$emailAddress" },
+                    websiteLink: { $first: "$websiteLink" },
+                    companyName: { $first: "$companyName" },
+                    gstType: { $first: "$gstType" },
+                    gstNumber: { $first: "$gstNumber" },
+                    billingAddress: { $first: "$billingAddress" },
+                    billingPinCode: { $first: "$billingPinCode" },
+                    billingVillage: { $first: "$billingVillage" },
+                    billingTehsil: { $first: "$billingTehsil" },
+                    billingDistrict: { $first: "$billingDistrict" },
+                    billingState: { $first: "$billingState" },
+                    billingCountry: { $first: "$billingCountry" },
+                    shippingAddress: { $first: "$shippingAddress" },
+                    shippingPinCode: { $first: "$shippingPinCode" },
+                    shippingVillage: { $first: "$shippingVillage" },
+                    shippingTehsil: { $first: "$shippingTehsil" },
+                    shippingDistrict: { $first: "$shippingDistrict" },
+                    shippingState: { $first: "$shippingState" },
+                    shippingCountry: { $first: "$shippingCountry" },
+                    sameAsBilling: { $first: "$sameAsBilling" },
+                    count: { $sum: 1 }
+                }
+            },
+            { $sort: { count: -1 } },
+            {
+                $project: {
+                    _id: 0,
+                    customerName: "$vendorName", // Map vendorName to customerName
+                    mobileNumber: 1,
+                    emailAddress: 1,
+                    websiteLink: 1,
+                    companyName: 1,
+                    gstType: 1,
+                    gstNumber: 1,
+                    billingAddress: 1,
+                    billingPinCode: 1,
+                    billingVillage: 1,
+                    billingTehsil: 1,
+                    billingDistrict: 1,
+                    billingState: 1,
+                    billingCountry: 1,
+                    shippingAddress: 1,
+                    shippingPinCode: 1,
+                    shippingVillage: 1,
+                    shippingTehsil: 1,
+                    shippingDistrict: 1,
+                    shippingState: 1,
+                    shippingCountry: 1,
+                    sameAsBilling: 1,
+                    popularity: "$count"
+                }
+            }
+        ]);
+
+        // Merge both results and limit
+        const allParties = [...customers, ...vendorsAsCustomers]
+            .sort((a, b) => (b.popularity || 0) - (a.popularity || 0))
+            .slice(0, Number(limit));
+
+        return res.json({ success: true, data: allParties });
 
     } catch (err) {
         next(err);
