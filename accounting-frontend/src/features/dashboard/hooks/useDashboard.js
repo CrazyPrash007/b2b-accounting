@@ -40,7 +40,6 @@ export default function useDashboard() {
         if (!selectedCompany) {
             console.log('Waiting for company selection...');
             setLoading(true);
-            setError(null);
             return;
         }
 
@@ -56,32 +55,14 @@ export default function useDashboard() {
 
             console.log('Fetching initial dashboard stats, company:', selectedCompany);
 
-            // Add retry logic for network failures
-            let retries = 3;
-            let lastError = null;
+            const data = await dashboardApi.getStats('current-month');
             
-            while (retries > 0) {
-                try {
-                    const data = await dashboardApi.getStats('current-month');
-                    console.log('Dashboard stats received:', data);
-                    setStats(data);
-                    return; // Success - exit retry loop
-                } catch (err) {
-                    lastError = err;
-                    retries--;
-                    if (retries > 0) {
-                        console.log(`Retrying dashboard fetch... (${retries} attempts left)`);
-                        await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1s before retry
-                    }
-                }
-            }
-            
-            // All retries failed
-            throw lastError;
+            console.log('Dashboard stats received:', data);
+            setStats(data);
         } catch (err) {
             if (err.name === 'AbortError') return;
             console.error('Error fetching dashboard stats:', err);
-            setError(err.response?.data?.error || err.message || 'Failed to load dashboard data');
+            setError(err.message || 'Failed to load dashboard data');
         } finally {
             setLoading(false);
         }
