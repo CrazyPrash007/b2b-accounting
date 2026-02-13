@@ -310,8 +310,8 @@ function CreateEnquiryModal({ isOpen, onClose, onSave, registeredVendors: vendor
                                 type="button"
                                 onClick={() => setDistributionType("public")}
                                 className={`p-4 border-2 rounded-lg text-left transition-all ${distributionType === "public"
-                                        ? "border-blue-500 bg-blue-50"
-                                        : "border-gray-200 hover:border-gray-300"
+                                    ? "border-blue-500 bg-blue-50"
+                                    : "border-gray-200 hover:border-gray-300"
                                     }`}
                             >
                                 <div className="flex items-center mb-2">
@@ -328,8 +328,8 @@ function CreateEnquiryModal({ isOpen, onClose, onSave, registeredVendors: vendor
                                 type="button"
                                 onClick={() => setDistributionType("vendors")}
                                 className={`p-4 border-2 rounded-lg text-left transition-all ${distributionType === "vendors"
-                                        ? "border-green-500 bg-green-50"
-                                        : "border-gray-200 hover:border-gray-300"
+                                    ? "border-green-500 bg-green-50"
+                                    : "border-gray-200 hover:border-gray-300"
                                     }`}
                             >
                                 <div className="flex items-center mb-2">
@@ -375,8 +375,8 @@ function CreateEnquiryModal({ isOpen, onClose, onSave, registeredVendors: vendor
                                     <label
                                         key={state}
                                         className={`flex items-center p-2 rounded border cursor-pointer transition-all ${selectedStates.includes(state)
-                                                ? "border-blue-500 bg-blue-100"
-                                                : "border-gray-200 hover:bg-gray-100"
+                                            ? "border-blue-500 bg-blue-100"
+                                            : "border-gray-200 hover:bg-gray-100"
                                             }`}
                                     >
                                         <input
@@ -428,8 +428,8 @@ function CreateEnquiryModal({ isOpen, onClose, onSave, registeredVendors: vendor
                                         <label
                                             key={vendor.id || vendor._id}
                                             className={`flex items-center p-3 rounded border cursor-pointer transition-all ${selectedVendors.find(v => (v.id || v._id) === (vendor.id || vendor._id))
-                                                    ? "border-green-500 bg-green-50"
-                                                    : "border-gray-200 hover:bg-gray-100"
+                                                ? "border-green-500 bg-green-50"
+                                                : "border-gray-200 hover:bg-gray-100"
                                                 }`}
                                         >
                                             <input
@@ -1086,12 +1086,12 @@ function ViewResponsesModal({ isOpen, onClose, enquiry, onMarkViewed, onSelectRe
                                 <div
                                     key={response._id || idx}
                                     className={`border rounded-lg p-4 hover:shadow-sm ${response.selectionStatus === 'accepted'
-                                            ? 'border-2 border-green-500 bg-green-50'
-                                            : response.selectionStatus === 'rejected'
-                                                ? 'border-gray-300 bg-gray-100 opacity-60'
-                                                : !response.viewedAt
-                                                    ? 'border-l-4 border-l-purple-500 bg-purple-50/30'
-                                                    : ''
+                                        ? 'border-2 border-green-500 bg-green-50'
+                                        : response.selectionStatus === 'rejected'
+                                            ? 'border-gray-300 bg-gray-100 opacity-60'
+                                            : !response.viewedAt
+                                                ? 'border-l-4 border-l-purple-500 bg-purple-50/30'
+                                                : ''
                                         }`}
                                 >
                                     {/* Selection Status Banner */}
@@ -1256,6 +1256,7 @@ export default function EnquiryPage() {
         loadRegisteredVendors,
         create,
         remove,
+        removeWebsiteEnquiry,
         respond,
         close: closeEnquiry,
         markResponseViewed,
@@ -1343,6 +1344,17 @@ export default function EnquiryPage() {
             } catch (err) {
                 console.error("Failed to delete enquiry", err);
                 alert(err?.response?.data?.error?.message || "Failed to delete enquiry");
+            }
+        }
+    };
+
+    const handleDeleteWebsiteEnquiry = async (item) => {
+        if (window.confirm(`Permanently delete this website enquiry from "${item.creatorName || 'Unknown'}"?\n\nThis action cannot be undone.`)) {
+            try {
+                await removeWebsiteEnquiry(item.id || item._id);
+            } catch (err) {
+                console.error("Failed to delete website enquiry", err);
+                alert(err?.response?.data?.error?.message || "Failed to delete website enquiry");
             }
         }
     };
@@ -1589,7 +1601,7 @@ export default function EnquiryPage() {
                 {activeTab === "responses" ? (
                     <MyResponsesTable data={myResponses} loading={loading} />
                 ) : activeTab === "website" ? (
-                    <WebsiteEnquiriesTable data={websiteEnquiries} loading={loading} />
+                    <WebsiteEnquiriesTable data={websiteEnquiries} loading={loading} onDelete={handleDeleteWebsiteEnquiry} />
                 ) : (
                     <EnquiryTable
                         data={getCurrentData()}
@@ -1633,7 +1645,7 @@ export default function EnquiryPage() {
 /**
  * WebsiteEnquiriesTable - Table for enquiries received from the marketing website
  */
-function WebsiteEnquiriesTable({ data, loading }) {
+function WebsiteEnquiriesTable({ data, loading, onDelete }) {
     const formatDate = (dateStr) => {
         if (!dateStr) return "-";
         return new Date(dateStr).toLocaleDateString('en-IN', {
@@ -1643,6 +1655,19 @@ function WebsiteEnquiriesTable({ data, loading }) {
             hour: '2-digit',
             minute: '2-digit'
         });
+    };
+
+    /**
+     * Determine source: "B2B" (from B2B Directory) or "Personal" (from personal website)
+     * Marketing directory sets specifications = 'Source: B2B Directory'
+     * Personal website sets specifications = 'Source: website | Subject: ...'
+     */
+    const getSourceTag = (enq) => {
+        const specs = (enq.specifications || '').toLowerCase();
+        if (specs.includes('b2b directory')) {
+            return { label: 'B2B', color: 'bg-indigo-100 text-indigo-700', title: 'From B2B Directory' };
+        }
+        return { label: 'Personal', color: 'bg-amber-100 text-amber-700', title: 'From Personal Website' };
     };
 
     if (loading) {
@@ -1673,39 +1698,64 @@ function WebsiteEnquiriesTable({ data, loading }) {
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase">Customer Name</th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase">Phone</th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase">Message</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase">Source</th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase">Status</th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase">Received On</th>
+                        <th className="px-4 py-3 text-center text-xs font-medium text-gray-600 uppercase">Actions</th>
                     </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                    {data.map((enq) => (
-                        <tr key={enq._id || enq.id} className="hover:bg-gray-50">
-                            <td className="px-4 py-4">
-                                <div className="font-medium text-gray-900">{enq.creatorName || '-'}</div>
-                            </td>
-                            <td className="px-4 py-4">
-                                <a href={`tel:${enq.creatorMobile}`} className="text-sm text-blue-600 hover:underline">
-                                    {enq.creatorMobile || '-'}
-                                </a>
-                            </td>
-                            <td className="px-4 py-4">
-                                <div className="text-sm text-gray-600 max-w-xs truncate" title={enq.description}>
-                                    {enq.description || '-'}
-                                </div>
-                            </td>
-                            <td className="px-4 py-4">
-                                <span className={`px-2 py-1 text-xs font-medium rounded ${enq.status === 'open'
+                    {data.map((enq) => {
+                        const source = getSourceTag(enq);
+                        return (
+                            <tr key={enq._id || enq.id} className="hover:bg-gray-50">
+                                <td className="px-4 py-4">
+                                    <div className="font-medium text-gray-900">{enq.creatorName || '-'}</div>
+                                </td>
+                                <td className="px-4 py-4">
+                                    <a href={`tel:${enq.creatorMobile}`} className="text-sm text-blue-600 hover:underline">
+                                        {enq.creatorMobile || '-'}
+                                    </a>
+                                </td>
+                                <td className="px-4 py-4">
+                                    <div className="text-sm text-gray-600 max-w-xs truncate" title={enq.description}>
+                                        {enq.description || '-'}
+                                    </div>
+                                </td>
+                                <td className="px-4 py-4">
+                                    <span
+                                        className={`px-2 py-1 text-xs font-medium rounded ${source.color}`}
+                                        title={source.title}
+                                    >
+                                        {source.label}
+                                    </span>
+                                </td>
+                                <td className="px-4 py-4">
+                                    <span className={`px-2 py-1 text-xs font-medium rounded ${enq.status === 'open'
                                         ? 'bg-green-100 text-green-700'
                                         : 'bg-gray-100 text-gray-600'
-                                    }`}>
-                                    {enq.status?.toUpperCase() || 'OPEN'}
-                                </span>
-                            </td>
-                            <td className="px-4 py-4 text-sm text-gray-500">
-                                {formatDate(enq.createdAt)}
-                            </td>
-                        </tr>
-                    ))}
+                                        }`}>
+                                        {enq.status?.toUpperCase() || 'OPEN'}
+                                    </span>
+                                </td>
+                                <td className="px-4 py-4 text-sm text-gray-500">
+                                    {formatDate(enq.createdAt)}
+                                </td>
+                                <td className="px-4 py-4 text-center">
+                                    <button
+                                        onClick={() => onDelete(enq)}
+                                        className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-red-600 bg-red-50 border border-red-200 rounded hover:bg-red-100 transition-colors"
+                                        title="Permanently delete this enquiry"
+                                    >
+                                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                        </svg>
+                                        Delete
+                                    </button>
+                                </td>
+                            </tr>
+                        );
+                    })}
                 </tbody>
             </table>
         </div>
@@ -1760,7 +1810,7 @@ function MyResponsesTable({ data, loading }) {
                 <tbody className="bg-white divide-y divide-gray-200">
                     {data.map((response) => (
                         <tr key={response._id || response.id} className={`hover:bg-gray-50 ${response.selectionStatus === 'accepted' ? 'bg-green-50' :
-                                response.selectionStatus === 'rejected' ? 'bg-gray-50 opacity-70' : ''
+                            response.selectionStatus === 'rejected' ? 'bg-gray-50 opacity-70' : ''
                             }`}>
                             <td className="px-4 py-4">
                                 <div className="font-medium text-gray-900">{response.enquiryDetails?.productName || 'N/A'}</div>
