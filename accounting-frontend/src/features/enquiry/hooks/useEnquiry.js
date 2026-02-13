@@ -172,6 +172,13 @@ export default function useEnquiry() {
         return loadMyEnquiries();
     }, [selectedCompany, loadMyEnquiries]);
 
+    // Permanently delete website enquiry
+    const removeWebsiteEnquiry = useCallback(async (id) => {
+        if (!selectedCompany) throw new Error("No company selected");
+        await enquiryApi.removeWebsiteEnquiry(id, selectedCompany);
+        return loadWebsiteEnquiries();
+    }, [selectedCompany, loadWebsiteEnquiries]);
+
     // Respond to enquiry
     const respond = useCallback(async (id, payload) => {
         await enquiryApi.respond(id, payload);
@@ -231,6 +238,7 @@ export default function useEnquiry() {
         getEnquiryResponses,
         create,
         remove,
+        removeWebsiteEnquiry,
         respond,
         close,
         markResponseViewed,
