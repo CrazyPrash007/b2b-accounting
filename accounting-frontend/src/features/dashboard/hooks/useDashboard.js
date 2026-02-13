@@ -13,8 +13,8 @@ const SECTION_NAMES = {
     SALE_ANALYTICS: 'saleAnalytics'
 };
 
-// Cache duration in milliseconds (30 seconds)
-const CACHE_DURATION = 30 * 1000;
+// Cache duration in milliseconds (10 minutes)
+const CACHE_DURATION = 10 * 60 * 1000;
 
 // Cache storage
 const dashboardCache = {
