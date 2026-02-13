@@ -28,7 +28,6 @@ export default function Dashboard() {
                 <div className="text-center">
                     <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto"></div>
                     <p className="mt-4 text-gray-600">Loading dashboard...</p>
-                    <p className="mt-2 text-gray-500 text-sm">This may take a few moments</p>
                 </div>
             </div>
         );
@@ -37,17 +36,14 @@ export default function Dashboard() {
     if (error) {
         return (
             <div className="flex items-center justify-center min-h-screen">
-                <div className="text-center max-w-md mx-auto p-6">
-                    <div className="text-5xl mb-4">⚠️</div>
-                    <h3 className="text-lg font-semibold text-gray-900 mb-2">Failed to Load Dashboard</h3>
-                    <p className="text-red-600 mb-4 text-sm">{error}</p>
+                <div className="text-center">
+                    <p className="text-red-600 mb-4">{error}</p>
                     <button
                         onClick={refresh}
-                        className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors"
+                        className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
                     >
-                        Retry Now
+                        Retry
                     </button>
-                    <p className="mt-3 text-gray-500 text-xs">If the problem persists, please check your connection or contact support.</p>
                 </div>
             </div>
         );

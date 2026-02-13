@@ -13,6 +13,16 @@ const SECTION_NAMES = {
     SALE_ANALYTICS: 'saleAnalytics'
 };
 
+// Cache duration in milliseconds (10 minutes)
+const CACHE_DURATION = 10 * 60 * 1000;
+
+// Cache storage
+const dashboardCache = {
+    data: null,
+    timestamp: null,
+    companyId: null
+};
+
 export default function useDashboard() {
     const { selectedCompany } = useContext(CompanyContext);
     const [stats, setStats] = useState(null);
@@ -35,11 +45,28 @@ export default function useDashboard() {
     // AbortController refs for cancelling ongoing requests
     const abortControllerRef = useRef(null);
 
+    // Check if cache is valid
+    const isCacheValid = useCallback((companyId) => {
+        if (!dashboardCache.data || !dashboardCache.timestamp) return false;
+        if (dashboardCache.companyId !== companyId) return false;
+        
+        const age = Date.now() - dashboardCache.timestamp;
+        return age < CACHE_DURATION;
+    }, []);
+
     // Initial load - fetch all stats with default period
-    const fetchAllStats = useCallback(async () => {
+    const fetchAllStats = useCallback(async (forceRefresh = false) => {
         if (!selectedCompany) {
             console.log('Waiting for company selection...');
             setLoading(true);
+            return;
+        }
+
+        // Use cache if valid and not forcing refresh
+        if (!forceRefresh && isCacheValid(selectedCompany)) {
+            console.log('Using cached dashboard data');
+            setStats(dashboardCache.data);
+            setLoading(false);
             setError(null);
             return;
         }
@@ -51,41 +78,38 @@ export default function useDashboard() {
         abortControllerRef.current = new AbortController();
 
         try {
-            setLoading(true);
+            // Only show loading if we don't have cached data
+            if (!dashboardCache.data || dashboardCache.companyId !== selectedCompany) {
+                setLoading(true);
+            }
             setError(null);
 
-            console.log('Fetching initial dashboard stats, company:', selectedCompany);
+            console.log('Fetching fresh dashboard stats, company:', selectedCompany);
 
-            // Add retry logic for network failures
-            let retries = 3;
-            let lastError = null;
+            const data = await dashboardApi.getStats('current-month');
             
-            while (retries > 0) {
-                try {
-                    const data = await dashboardApi.getStats('current-month');
-                    console.log('Dashboard stats received:', data);
-                    setStats(data);
-                    return; // Success - exit retry loop
-                } catch (err) {
-                    lastError = err;
-                    retries--;
-                    if (retries > 0) {
-                        console.log(`Retrying dashboard fetch... (${retries} attempts left)`);
-                        await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1s before retry
-                    }
-                }
-            }
+            console.log('Dashboard stats received:', data);
             
-            // All retries failed
-            throw lastError;
+            // Update cache
+            dashboardCache.data = data;
+            dashboardCache.timestamp = Date.now();
+            dashboardCache.companyId = selectedCompany;
+            
+            setStats(data);
         } catch (err) {
             if (err.name === 'AbortError') return;
             console.error('Error fetching dashboard stats:', err);
-            setError(err.response?.data?.error || err.message || 'Failed to load dashboard data');
+            setError(err.message || 'Failed to load dashboard data');
+            
+            // If we have cached data, use it even if refresh failed
+            if (dashboardCache.data && dashboardCache.companyId === selectedCompany) {
+                console.log('Using stale cache due to fetch error');
+                setStats(dashboardCache.data);
+            }
         } finally {
             setLoading(false);
         }
-    }, [selectedCompany]);
+    }, [selectedCompany, isCacheValid]);
 
     // Fetch stats for a specific section only (no full page reload)
     const fetchSectionStats = useCallback(async (sectionName, period) => {
@@ -159,7 +183,7 @@ export default function useDashboard() {
     }, [fetchAllStats]);
 
     const refresh = () => {
-        fetchAllStats();
+        fetchAllStats(true); // Force refresh, bypass cache
     };
 
     return {
