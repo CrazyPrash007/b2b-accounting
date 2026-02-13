@@ -93,6 +93,15 @@ exports.markAttendance = async (req, res) => {
 
     await attendance.save();
 
+    console.log('[markAttendance] Created attendance record:', {
+      staffId,
+      date,
+      status,
+      checkInTime: attendance.checkInTime,
+      checkOutTime: attendance.checkOutTime,
+      workHours: attendance.workHours
+    });
+
     res.status(201).json({
       success: true,
       message: 'Attendance marked successfully',
@@ -469,6 +478,15 @@ exports.updateAttendance = async (req, res) => {
 
     const { status, leaveType, halfDayType, checkInTime, checkOutTime, remarks } = req.body;
 
+    console.log('[updateAttendance] Request data:', {
+      status,
+      leaveType,
+      halfDayType,
+      checkInTime,
+      checkOutTime,
+      remarks
+    });
+
     // Get attendance config
     const config = await AttendanceConfig.findOne({
       accountCompanyName,
@@ -478,8 +496,16 @@ exports.updateAttendance = async (req, res) => {
     if (status) attendance.status = status;
     if (status === 'leave') attendance.leaveType = leaveType;
     if (status === 'half-day') attendance.halfDayType = halfDayType;
-    if (checkInTime !== undefined) attendance.checkInTime = checkInTime || null;
-    if (checkOutTime !== undefined) attendance.checkOutTime = checkOutTime || null;
+    
+    // Only update times if they are provided with valid values (not empty strings)
+    // This prevents accidentally clearing existing times during partial updates (e.g., checkout only)
+    if (checkInTime !== undefined && checkInTime !== null && checkInTime !== '') {
+      attendance.checkInTime = checkInTime;
+    }
+    if (checkOutTime !== undefined && checkOutTime !== null && checkOutTime !== '') {
+      attendance.checkOutTime = checkOutTime;
+    }
+    
     if (remarks !== undefined) attendance.remarks = remarks;
 
     // Recalculate metrics
@@ -496,6 +522,16 @@ exports.updateAttendance = async (req, res) => {
     attendance.updatedBy = userId;
 
     await attendance.save();
+
+    console.log('[updateAttendance] Updated attendance record:', {
+      id: attendance._id,
+      staffId: attendance.staffId,
+      date: attendance.date,
+      status: attendance.status,
+      checkInTime: attendance.checkInTime,
+      checkOutTime: attendance.checkOutTime,
+      workHours: attendance.workHours
+    });
 
     res.status(200).json({
       success: true,

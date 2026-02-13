@@ -20,7 +20,12 @@ const EditDeductionsModal = ({ isOpen, onClose, calculation, onSuccess }) => {
     try {
       const response = await updatePayrollCalculation(calculation._id, formData);
       if (response.success) {
-        alert('Payroll updated successfully');
+        const netSalary = calculateTotals().netSalary;
+        if (netSalary < 0) {
+          alert(`Deductions exceed salary! ₹${Math.abs(netSalary).toFixed(2)} will be carried forward to the next payroll.`);
+        } else {
+          alert('Payroll updated successfully');
+        }
         onSuccess();
       }
     } catch (error) {
@@ -191,11 +196,20 @@ const EditDeductionsModal = ({ isOpen, onClose, calculation, onSuccess }) => {
           </div>
 
           {/* Net Salary */}
-          <div className="bg-blue-50 rounded-lg p-4">
+          <div className={`rounded-lg p-4 ${netSalary < 0 ? 'bg-red-50' : 'bg-blue-50'}`}>
             <div className="flex justify-between items-center">
               <span className="text-sm font-semibold text-gray-900">Net Salary:</span>
-              <span className="text-2xl font-bold text-blue-600">{formatCurrency(netSalary)}</span>
+              <span className={`text-2xl font-bold ${netSalary < 0 ? 'text-red-600' : 'text-blue-600'}`}>
+                {formatCurrency(Math.max(0, netSalary))}
+              </span>
             </div>
+            {netSalary < 0 && (
+              <div className="mt-2 text-sm text-red-700 border-t border-red-200 pt-2">
+                <strong>⚠️ Warning:</strong> Deductions exceed salary by {formatCurrency(Math.abs(netSalary))}.
+                <br />
+                This amount will be carried forward to the next payroll.
+              </div>
+            )}
           </div>
 
           {/* Actions */}

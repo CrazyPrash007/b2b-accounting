@@ -14,6 +14,7 @@ const StaffTable = ({
   onCellClick,
   onOpenModal,
   onOpenDetailsModal,
+  onOpenHistoryModal,
   onStatusChange,
   getCellClasses,
 }) => {
@@ -168,6 +169,7 @@ const StaffTable = ({
                 onCellClick={onCellClick}
                 onOpenModal={onOpenModal}
                 onOpenDetailsModal={onOpenDetailsModal}
+                onOpenHistoryModal={onOpenHistoryModal}
                 onStatusChange={onStatusChange}
                 getCellClasses={getCellClasses}
               />

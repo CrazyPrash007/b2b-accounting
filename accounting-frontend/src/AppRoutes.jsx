@@ -55,10 +55,10 @@ export default function AppRoutes() {
                 <Route path="staff" element={<StaffPage />} />
                 <Route path="attendance" element={<AttendancePage />} />
                 <Route path="payroll" element={<PayrollPage />} />
+                
+                {/* 404 Not Found - inside AppLayout to show within content area */}
+                <Route path="*" element={<NotFoundPage />} />
             </Route>
-
-            {/* 404 Not Found - outside AppLayout to show full-page error */}
-            <Route path="*" element={<NotFoundPage />} />
         </Routes>
     );
 }

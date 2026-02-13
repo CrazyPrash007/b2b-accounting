@@ -556,10 +556,14 @@ exports.getCurrentSalary = async (req, res, next) => {
 exports.getCompleteHistory = async (req, res, next) => {
     try {
         const { id } = req.params;
-        const accountCompanyName = req.accountCompanyName;
+        const accountCompanyName = req.query.accountCompanyName || req.body.accountCompanyName;
 
         if (!isValidObjectId(id)) {
             return res.status(400).json({ success: false, message: 'Invalid staff ID' });
+        }
+
+        if (!accountCompanyName) {
+            return res.status(400).json({ success: false, message: 'accountCompanyName is required' });
         }
 
         const staff = await Staff.findOne({
@@ -589,6 +593,11 @@ exports.getCompleteHistory = async (req, res, next) => {
         const attendanceRecords = await Attendance.find(attendanceQuery)
             .sort({ date: -1 })
             .lean();
+
+        console.log('[getCompleteHistory] Attendance records count:', attendanceRecords.length);
+        if (attendanceRecords.length > 0) {
+            console.log('[getCompleteHistory] First attendance record:', JSON.stringify(attendanceRecords[0], null, 2));
+        }
 
         // Attendance summary
         const attendanceSummary = {

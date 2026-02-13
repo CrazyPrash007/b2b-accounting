@@ -59,6 +59,11 @@ export default function ItemModal({ isOpen, onClose, onSave, onDelete, editData 
     // Validation
     const [errorName, setErrorName] = useState("");
 
+    // Multi-select state
+    const [selectedItems, setSelectedItems] = useState([]);
+    const [editingIndex, setEditingIndex] = useState(null);
+    const [expandedItemIndex, setExpandedItemIndex] = useState(null);
+
     // Lists from backend
     const [unitsList, setUnitsList] = useState([]);
     const [brandsList, setBrandsList] = useState([]);
@@ -254,6 +259,142 @@ export default function ItemModal({ isOpen, onClose, onSave, onDelete, editData 
         setShowSearchDropdown(false);
     };
 
+    // Helper: get current form data as an object
+    const getFormData = () => ({
+        itemName: itemName.trim(),
+        description: description.trim(),
+        category: category.trim(),
+        subCategory: subCategory.trim(),
+        brandName: brandName.trim(),
+        gstRate: gstRate || "",
+        hsnNo: hsnNo.trim(),
+        itemType,
+        unit: unit.trim(),
+        buyPrice: buyPrice || "",
+        sellPrice: sellPrice || "",
+        openingStock: openingStock || "",
+        minStock: minStock || "",
+        openingDate: openingDate || new Date().toISOString().split("T")[0],
+        showOnWebsite,
+        itemImage,
+        itemImageMimeType,
+    });
+
+    // Helper: reset form to empty
+    const resetForm = () => {
+        setItemName("");
+        setDescription("");
+        setCategory("");
+        setSubCategory("");
+        setBrandName("");
+        setGstRate("");
+        setHsnNo("");
+        setItemType("Goods");
+        setUnit("");
+        setBuyPrice("");
+        setSellPrice("");
+        setOpeningStock("");
+        setMinStock("");
+        setOpeningDate(new Date().toISOString().split("T")[0]);
+        setShowOnWebsite(true);
+        setItemImage("");
+        setItemImageMimeType("");
+        setImageFile(null);
+        setImagePreview("");
+        setErrorName("");
+        setEditingIndex(null);
+    };
+
+    // Helper: fill form from an item object
+    const fillFormWithItem = (item) => {
+        setItemName(item.itemName || "");
+        setDescription(item.description || "");
+        setCategory(item.category || "");
+        setSubCategory(item.subCategory || "");
+        setBrandName(item.brandName || "");
+        setGstRate(item.gstRate != null ? String(item.gstRate) : "");
+        setHsnNo(item.hsnNo || "");
+        setItemType(item.itemType || "Goods");
+        setUnit(item.unit || "");
+        setBuyPrice(item.buyPrice || "");
+        setSellPrice(item.sellPrice || "");
+        setOpeningStock(item.openingStock || "");
+        setMinStock(item.minStock || "");
+        setOpeningDate(item.openingDate || new Date().toISOString().split("T")[0]);
+        setShowOnWebsite(item.showOnWebsite !== false);
+        setItemImage(item.itemImage || "");
+        setItemImageMimeType(item.itemImageMimeType || "");
+        setImagePreview(item.itemImage || "");
+    };
+
+    // Add current form to batch list
+    const handleAddToList = () => {
+        setErrorName("");
+        const trimmedName = itemName.trim();
+        if (!trimmedName) {
+            setErrorName("Item name is required to add to list");
+            return;
+        }
+
+        const formData = getFormData();
+
+        // Check for duplicate in list
+        const existsInList = selectedItems.some(
+            (item, idx) => idx !== editingIndex &&
+                item.itemName.toLowerCase() === formData.itemName.toLowerCase()
+        );
+        if (existsInList) {
+            alert("This item is already in the list");
+            return;
+        }
+
+        if (editingIndex !== null) {
+            const updated = [...selectedItems];
+            updated[editingIndex] = formData;
+            setSelectedItems(updated);
+            setEditingIndex(null);
+        } else {
+            setSelectedItems([...selectedItems, formData]);
+        }
+        resetForm();
+    };
+
+    // Edit an item from the batch list (loads into main form)
+    const handleEditFromList = (index) => {
+        const item = selectedItems[index];
+        fillFormWithItem(item);
+        setEditingIndex(index);
+        setExpandedItemIndex(null);
+    };
+
+    // Remove an item from the batch list
+    const handleRemoveFromList = (index) => {
+        const updated = selectedItems.filter((_, i) => i !== index);
+        setSelectedItems(updated);
+        if (editingIndex === index) {
+            resetForm();
+        } else if (editingIndex !== null && index < editingIndex) {
+            setEditingIndex(editingIndex - 1);
+        }
+        if (expandedItemIndex === index) {
+            setExpandedItemIndex(null);
+        } else if (expandedItemIndex !== null && index < expandedItemIndex) {
+            setExpandedItemIndex(expandedItemIndex - 1);
+        }
+    };
+
+    // Toggle inline expand for editing an item's details
+    const handleToggleExpand = (index) => {
+        setExpandedItemIndex(expandedItemIndex === index ? null : index);
+    };
+
+    // Update a field in an expanded item inline
+    const handleInlineFieldChange = (index, field, value) => {
+        const updated = [...selectedItems];
+        updated[index] = { ...updated[index], [field]: value };
+        setSelectedItems(updated);
+    };
+
     // Fetch dropdown lists when modal opens
     useEffect(() => {
         if (isOpen) {
@@ -262,6 +403,10 @@ export default function ItemModal({ isOpen, onClose, onSave, onDelete, editData 
             setGlobalSearchQuery("");
             setGlobalSearchResults([]);
             setShowSearchDropdown(false);
+            // Reset multi-select state
+            setSelectedItems([]);
+            setEditingIndex(null);
+            setExpandedItemIndex(null);
         }
     }, [isOpen]);
 
@@ -515,38 +660,74 @@ export default function ItemModal({ isOpen, onClose, onSave, onDelete, editData 
     const sectionTitle = "text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2";
 
     const handleSave = () => {
-        setErrorName("");
-        const trimmedName = itemName.trim();
-        if (!trimmedName) {
-            setErrorName("Item name is required. Please enter a valid item name.");
-            return;
+        if (isEditMode) {
+            // Single edit mode
+            setErrorName("");
+            const trimmedName = itemName.trim();
+            if (!trimmedName) {
+                setErrorName("Item name is required. Please enter a valid item name.");
+                return;
+            }
+
+            const payload = {
+                id: editData?.id ?? String(Date.now()),
+                itemName: trimmedName,
+                name: trimmedName,
+                description: description.trim(),
+                category: category.trim(),
+                subCategory: subCategory.trim(),
+                brandName: brandName.trim(),
+                gstRate: gstRate || "",
+                hsnNo: hsnNo.trim(),
+                itemType,
+                type: itemType,
+                unit: unit.trim(),
+                buyPrice: buyPrice || "",
+                sellPrice: sellPrice || "",
+                openingStock: openingStock || "",
+                minStock: minStock || "",
+                openingDate: openingDate || "",
+                showOnWebsite: showOnWebsite,
+                itemImage: itemImage,
+                itemImageMimeType: itemImageMimeType,
+            };
+
+            onSave(payload, true);
+        } else {
+            // Batch mode
+            const formData = getFormData();
+            let itemsToSave = [...selectedItems];
+
+            // If form has data, add it to the list
+            if (formData.itemName.trim()) {
+                const existsInList = selectedItems.some(
+                    i => i.itemName.toLowerCase() === formData.itemName.toLowerCase()
+                );
+                if (!existsInList) {
+                    itemsToSave.push(formData);
+                }
+            }
+
+            if (itemsToSave.length === 0) {
+                setErrorName("Please add at least one item");
+                return;
+            }
+
+            // If only one item, pass as single object for backward compatibility
+            if (itemsToSave.length === 1) {
+                const single = itemsToSave[0];
+                const payload = {
+                    id: String(Date.now()),
+                    ...single,
+                    name: single.itemName,
+                    type: single.itemType,
+                };
+                onSave(payload, false);
+            } else {
+                // Multiple items - pass array
+                onSave(itemsToSave, false);
+            }
         }
-
-        const payload = {
-            id: editData?.id ?? String(Date.now()),
-            itemName: trimmedName,
-            name: trimmedName,
-            description: description.trim(),
-            category: category.trim(),
-            subCategory: subCategory.trim(),
-            brandName: brandName.trim(),
-            gstRate: gstRate || "",
-            hsnNo: hsnNo.trim(),
-            itemType,
-            type: itemType,
-            unit: unit.trim(),
-            buyPrice: buyPrice || "",
-            sellPrice: sellPrice || "",
-            openingStock: openingStock || "",
-            minStock: minStock || "",
-            openingDate: openingDate || "",
-            // Website visibility & image (base64 data)
-            showOnWebsite: showOnWebsite,
-            itemImage: itemImage,
-            itemImageMimeType: itemImageMimeType,
-        };
-
-        onSave(payload, isEditMode);
     };
 
     const handleKeyDown = (e) => {
@@ -569,7 +750,7 @@ export default function ItemModal({ isOpen, onClose, onSave, onDelete, editData 
             {/* Modal Header */}
             <div className="flex items-center justify-between px-6 py-4 rounded-t-xl" style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
                 <h3 className="text-lg font-semibold text-white">
-                    {isEditMode ? "Edit Item" : "New Item"}
+                    {isEditMode ? "Edit Item" : "Add Items"}
                 </h3>
                 <button
                     onClick={onClose}
@@ -646,6 +827,147 @@ export default function ItemModal({ isOpen, onClose, onSave, onDelete, editData 
                                 No items found matching "{globalSearchQuery}"
                             </div>
                         )}
+                    </div>
+                </div>
+            )}
+
+            {/* Selected Items List - Accordion with inline editing */}
+            {!isEditMode && selectedItems.length > 0 && (
+                <div className="px-6 py-3 bg-green-50 border-b border-green-200">
+                    <div className="flex items-center gap-2 mb-2">
+                        <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                        </svg>
+                        <span className="text-sm font-medium text-green-800">
+                            {selectedItems.length} item{selectedItems.length > 1 ? 's' : ''} ready to save
+                        </span>
+                    </div>
+                    <div className="space-y-2 max-h-60 overflow-y-auto">
+                        {selectedItems.map((item, idx) => (
+                            <div key={idx} className={`rounded-lg border ${expandedItemIndex === idx ? 'border-blue-400 bg-white shadow-sm' : 'border-green-300 bg-white'}`}>
+                                {/* Item header row */}
+                                <div className="flex items-center justify-between px-3 py-2">
+                                    <button
+                                        onClick={() => handleToggleExpand(idx)}
+                                        className="flex items-center gap-2 flex-1 text-left hover:text-blue-600 transition-colors"
+                                        title="Click to expand/collapse inline editing"
+                                    >
+                                        <svg className={`w-4 h-4 text-gray-400 transition-transform ${expandedItemIndex === idx ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                        </svg>
+                                        <span className={`font-medium text-sm ${editingIndex === idx ? 'text-blue-700' : 'text-gray-800'}`}>
+                                            {item.itemName}
+                                        </span>
+                                        <span className="text-xs text-gray-500">
+                                            {[item.unit, item.brandName, item.gstRate ? `GST ${item.gstRate}%` : null, item.sellPrice ? `₹${item.sellPrice}` : null]
+                                                .filter(Boolean).join(' • ')}
+                                        </span>
+                                    </button>
+                                    <div className="flex items-center gap-1">
+                                        <button
+                                            onClick={() => handleEditFromList(idx)}
+                                            className="p-1 text-blue-500 hover:bg-blue-50 rounded transition-colors"
+                                            title="Edit in main form"
+                                        >
+                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                            </svg>
+                                        </button>
+                                        <button
+                                            onClick={() => handleRemoveFromList(idx)}
+                                            className="p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
+                                            title="Remove from list"
+                                        >
+                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                            </svg>
+                                        </button>
+                                    </div>
+                                </div>
+                                {/* Expanded inline editing fields */}
+                                {expandedItemIndex === idx && (
+                                    <div className="px-3 pb-3 border-t border-gray-100 pt-2">
+                                        <div className="grid grid-cols-4 gap-2 text-xs">
+                                            <div>
+                                                <label className="block text-gray-500 mb-0.5">Item Name</label>
+                                                <input type="text" value={item.itemName} onChange={(e) => handleInlineFieldChange(idx, 'itemName', e.target.value)}
+                                                    className="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-blue-500 focus:border-blue-500" />
+                                            </div>
+                                            <div>
+                                                <label className="block text-gray-500 mb-0.5">Unit</label>
+                                                <select value={item.unit || ''} onChange={(e) => handleInlineFieldChange(idx, 'unit', e.target.value)}
+                                                    className="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
+                                                    <option value="">Select</option>
+                                                    {unitsList.map((u, i) => <option key={i} value={u}>{u}</option>)}
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label className="block text-gray-500 mb-0.5">Category</label>
+                                                <select value={item.category || ''} onChange={(e) => handleInlineFieldChange(idx, 'category', e.target.value)}
+                                                    className="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
+                                                    <option value="">Select</option>
+                                                    {categoriesList.map((c, i) => <option key={i} value={c.name}>{c.name}</option>)}
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label className="block text-gray-500 mb-0.5">Brand</label>
+                                                <select value={item.brandName || ''} onChange={(e) => handleInlineFieldChange(idx, 'brandName', e.target.value)}
+                                                    className="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
+                                                    <option value="">Select</option>
+                                                    {brandsList.map((b, i) => <option key={i} value={b}>{b}</option>)}
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label className="block text-gray-500 mb-0.5">GST Rate (%)</label>
+                                                <select value={item.gstRate != null ? String(item.gstRate) : ''} onChange={(e) => handleInlineFieldChange(idx, 'gstRate', e.target.value)}
+                                                    className="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
+                                                    <option value="">Select</option>
+                                                    {gstList.map((g, i) => <option key={i} value={String(g)}>{g}%</option>)}
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label className="block text-gray-500 mb-0.5">HSN No</label>
+                                                <input type="text" value={item.hsnNo || ''} onChange={(e) => handleInlineFieldChange(idx, 'hsnNo', e.target.value)}
+                                                    className="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-blue-500 focus:border-blue-500" />
+                                            </div>
+                                            <div>
+                                                <label className="block text-gray-500 mb-0.5">Buy Price (₹)</label>
+                                                <input type="number" value={item.buyPrice || ''} onChange={(e) => handleInlineFieldChange(idx, 'buyPrice', e.target.value)}
+                                                    className="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-blue-500 focus:border-blue-500" min="0" step="0.01" />
+                                            </div>
+                                            <div>
+                                                <label className="block text-gray-500 mb-0.5">Sell Price (₹)</label>
+                                                <input type="number" value={item.sellPrice || ''} onChange={(e) => handleInlineFieldChange(idx, 'sellPrice', e.target.value)}
+                                                    className="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-blue-500 focus:border-blue-500" min="0" step="0.01" />
+                                            </div>
+                                            <div>
+                                                <label className="block text-gray-500 mb-0.5">Opening Stock</label>
+                                                <input type="number" value={item.openingStock || ''} onChange={(e) => handleInlineFieldChange(idx, 'openingStock', e.target.value)}
+                                                    className="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-blue-500 focus:border-blue-500" min="0" />
+                                            </div>
+                                            <div>
+                                                <label className="block text-gray-500 mb-0.5">Min Stock</label>
+                                                <input type="number" value={item.minStock || ''} onChange={(e) => handleInlineFieldChange(idx, 'minStock', e.target.value)}
+                                                    className="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-blue-500 focus:border-blue-500" min="0" />
+                                            </div>
+                                            <div>
+                                                <label className="block text-gray-500 mb-0.5">Type</label>
+                                                <select value={item.itemType || 'Goods'} onChange={(e) => handleInlineFieldChange(idx, 'itemType', e.target.value)}
+                                                    className="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
+                                                    <option value="Goods">Goods</option>
+                                                    <option value="Service">Service</option>
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label className="block text-gray-500 mb-0.5">Description</label>
+                                                <input type="text" value={item.description || ''} onChange={(e) => handleInlineFieldChange(idx, 'description', e.target.value)}
+                                                    className="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-blue-500 focus:border-blue-500" />
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        ))}
                     </div>
                 </div>
             )}
@@ -1032,7 +1354,16 @@ export default function ItemModal({ isOpen, onClose, onSave, onDelete, editData 
                         Delete Item
                     </button>
                 ) : (
-                    <div></div>
+                    <button
+                        type="button"
+                        onClick={handleAddToList}
+                        className="px-4 py-2.5 text-sm font-medium text-green-700 hover:text-white border border-green-400 rounded-lg hover:bg-green-500 transition-colors flex items-center gap-2"
+                    >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                        </svg>
+                        {editingIndex !== null ? "Update in List" : "Add to List"}
+                    </button>
                 )}
                 <div className="flex items-center gap-3">
                     <button
@@ -1045,9 +1376,18 @@ export default function ItemModal({ isOpen, onClose, onSave, onDelete, editData 
                     <button
                         type="button"
                         onClick={handleSave}
-                        className="px-5 py-2.5 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
+                        className="px-5 py-2.5 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm flex items-center gap-2"
                     >
-                        {isEditMode ? "Update Item" : "Save Item"}
+                        {isEditMode ? (
+                            "Update Item"
+                        ) : (
+                            <>
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                </svg>
+                                Save {selectedItems.length > 0 ? `(${selectedItems.length + (itemName.trim() ? 1 : 0)})` : ''}
+                            </>
+                        )}
                     </button>
                 </div>
             </div>
