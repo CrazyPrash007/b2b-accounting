@@ -71,17 +71,19 @@ export default function VendorPage() {
 
     // Filter vendors based on search and filter type
     const filteredVendors = vendors.filter(vendor => {
-        // Search filter - includes mobile, company, city/district, owner name
+        // Search filter - includes name, mobile, company, billing location
         const searchLower = searchTerm.toLowerCase();
         const matchesSearch = !searchTerm || 
             (vendor.vendorName?.toLowerCase().includes(searchLower)) ||
             (vendor.companyName?.toLowerCase().includes(searchLower)) ||
             (vendor.mobileNumber?.includes(searchTerm)) ||
-            (vendor.billingDistrict?.toLowerCase().includes(searchLower)) ||
+            (vendor.billingAddress?.toLowerCase().includes(searchLower)) ||
+            (vendor.billingPinCode?.includes(searchTerm)) ||
             (vendor.billingVillage?.toLowerCase().includes(searchLower)) ||
             (vendor.billingTehsil?.toLowerCase().includes(searchLower)) ||
+            (vendor.billingDistrict?.toLowerCase().includes(searchLower)) ||
             (vendor.billingState?.toLowerCase().includes(searchLower)) ||
-            (vendor.billingAddress?.toLowerCase().includes(searchLower));
+            (vendor.billingCountry?.toLowerCase().includes(searchLower));
 
         // Type filter
         const payable = vendor.payableAmount || 0;

@@ -2,7 +2,6 @@ import React from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import AppLayout from "src/layouts/AppLayout";
 import NotFoundPage from "src/components/NotFoundPage";
-
 import DashboardPage from "src/features/dashboard/DashboardPage";
 import ItemCategoryPage from "src/features/items/item-category/ItemCategoryPage";
 import ItemsPage from "src/features/items/items/ItemsPage";
@@ -24,6 +23,8 @@ import EnquiryPage from "src/features/enquiry/EnquiryPage";
 import AdsPage from "src/features/ads/AdsPage";
 import ReminderPage from "src/features/reminders/ReminderPage";
 import StaffPage from "src/features/staff/StaffPage";
+import AttendancePage from "src/features/staff/attendance/AttendancePage";
+import PayrollPage from "src/features/staff/payroll/PayrollPage";
 
 
 export default function AppRoutes() {
@@ -52,10 +53,12 @@ export default function AppRoutes() {
                 <Route path="ads" element={<AdsPage />} />
                 <Route path="reminders" element={<ReminderPage />} />
                 <Route path="staff" element={<StaffPage />} />
+                <Route path="attendance" element={<AttendancePage />} />
+                <Route path="payroll" element={<PayrollPage />} />
+                
+                {/* 404 Not Found - inside AppLayout to show within content area */}
+                <Route path="*" element={<NotFoundPage />} />
             </Route>
-
-            {/* 404 Not Found - outside AppLayout to show full-page error */}
-            <Route path="*" element={<NotFoundPage />} />
         </Routes>
     );
 }

@@ -84,7 +84,7 @@ const enquiryApi = {
 
     // Close an enquiry
     async close(id, accountCompanyName, closureReason = '') {
-        const res = await apiClient.patch(`${BASE}/${id}/close`, 
+        const res = await apiClient.patch(`${BASE}/${id}/close`,
             { closureReason },
             { params: { accountCompanyName } }
         );
@@ -104,6 +104,22 @@ const enquiryApi = {
             { selectionNote },
             { params: { accountCompanyName } }
         );
+        return res?.data?.data;
+    },
+
+    // List website enquiries (from marketing website)
+    async listWebsite(accountCompanyName, params = {}) {
+        const res = await apiClient.get(`${BASE}/website`, {
+            params: { accountCompanyName, ...params }
+        });
+        return res?.data?.data || [];
+    },
+
+    // Permanently delete a website enquiry (hard delete)
+    async removeWebsiteEnquiry(id, accountCompanyName) {
+        const res = await apiClient.delete(`${BASE}/website/${id}`, {
+            params: { accountCompanyName }
+        });
         return res?.data?.data;
     }
 };

@@ -11,6 +11,7 @@ export default function useEnquiry() {
     const [publicEnquiries, setPublicEnquiries] = useState([]);
     const [vendorEnquiries, setVendorEnquiries] = useState([]);
     const [myResponses, setMyResponses] = useState([]);
+    const [websiteEnquiries, setWebsiteEnquiries] = useState([]);
     const [registeredVendors, setRegisteredVendors] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -96,6 +97,28 @@ export default function useEnquiry() {
         }
     }, []);
 
+    // Load website enquiries (from marketing website)
+    const loadWebsiteEnquiries = useCallback(async (params = {}) => {
+        if (!selectedCompany) {
+            setWebsiteEnquiries([]);
+            return;
+        }
+        setLoading(true);
+        setError(null);
+
+        try {
+            const data = await enquiryApi.listWebsite(selectedCompany, params);
+            const normalized = Array.isArray(data) ? data.map(normalize) : [];
+            setWebsiteEnquiries(normalized);
+        } catch (err) {
+            console.error('[useEnquiry] Failed loading website enquiries', err);
+            setError(err);
+            setWebsiteEnquiries([]);
+        } finally {
+            setLoading(false);
+        }
+    }, [selectedCompany]);
+
     // Load registered vendors (for vendor selection)
     const loadRegisteredVendors = useCallback(async (search = '') => {
         if (!selectedCompany) {
@@ -132,7 +155,8 @@ export default function useEnquiry() {
         loadPublicEnquiries();
         loadVendorEnquiries();
         loadMyResponses();
-    }, [loadMyEnquiries, loadPublicEnquiries, loadVendorEnquiries, loadMyResponses]);
+        loadWebsiteEnquiries();
+    }, [loadMyEnquiries, loadPublicEnquiries, loadVendorEnquiries, loadMyResponses, loadWebsiteEnquiries]);
 
     // Create enquiry
     const create = useCallback(async (payload) => {
@@ -147,6 +171,13 @@ export default function useEnquiry() {
         await enquiryApi.remove(id, selectedCompany);
         return loadMyEnquiries();
     }, [selectedCompany, loadMyEnquiries]);
+
+    // Permanently delete website enquiry
+    const removeWebsiteEnquiry = useCallback(async (id) => {
+        if (!selectedCompany) throw new Error("No company selected");
+        await enquiryApi.removeWebsiteEnquiry(id, selectedCompany);
+        return loadWebsiteEnquiries();
+    }, [selectedCompany, loadWebsiteEnquiries]);
 
     // Respond to enquiry
     const respond = useCallback(async (id, payload) => {
@@ -185,13 +216,15 @@ export default function useEnquiry() {
         loadPublicEnquiries();
         loadVendorEnquiries();
         loadMyResponses();
-    }, [loadMyEnquiries, loadPublicEnquiries, loadVendorEnquiries, loadMyResponses]);
+        loadWebsiteEnquiries();
+    }, [loadMyEnquiries, loadPublicEnquiries, loadVendorEnquiries, loadMyResponses, loadWebsiteEnquiries]);
 
     return {
         myEnquiries,
         publicEnquiries,
         vendorEnquiries,
         myResponses,
+        websiteEnquiries,
         registeredVendors,
         loading,
         error,
@@ -200,10 +233,12 @@ export default function useEnquiry() {
         loadPublicEnquiries,
         loadVendorEnquiries,
         loadMyResponses,
+        loadWebsiteEnquiries,
         loadRegisteredVendors,
         getEnquiryResponses,
         create,
         remove,
+        removeWebsiteEnquiry,
         respond,
         close,
         markResponseViewed,

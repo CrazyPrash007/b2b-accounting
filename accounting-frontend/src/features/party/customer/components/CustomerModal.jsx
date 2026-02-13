@@ -26,6 +26,7 @@ export default function CustomerModal({ isOpen, onClose, onSave, onDelete, editD
     // Multi-select state - list of customers to be added
     const [selectedCustomers, setSelectedCustomers] = useState([]);
     const [editingIndex, setEditingIndex] = useState(null); // Index of customer being edited in the batch
+    const [expandedCustomerIndex, setExpandedCustomerIndex] = useState(null); // For inline editing
 
     // Basic Details
     const [customerName, setCustomerName] = useState("");
@@ -263,6 +264,23 @@ export default function CustomerModal({ isOpen, onClose, onSave, onDelete, editD
         } else if (editingIndex !== null && index < editingIndex) {
             setEditingIndex(editingIndex - 1);
         }
+        if (expandedCustomerIndex === index) {
+            setExpandedCustomerIndex(null);
+        } else if (expandedCustomerIndex !== null && index < expandedCustomerIndex) {
+            setExpandedCustomerIndex(expandedCustomerIndex - 1);
+        }
+    };
+
+    // Toggle inline editing expand
+    const handleToggleCustomerExpand = (index) => {
+        setExpandedCustomerIndex(expandedCustomerIndex === index ? null : index);
+    };
+
+    // Update a field inline for a customer in the list
+    const handleInlineCustomerChange = (index, field, value) => {
+        const updated = [...selectedCustomers];
+        updated[index] = { ...updated[index], [field]: value };
+        setSelectedCustomers(updated);
     };
 
     // Track when modal opens/closes or editData changes to reset form
@@ -273,6 +291,7 @@ export default function CustomerModal({ isOpen, onClose, onSave, onDelete, editD
             setShowSearchDropdown(false);
             setSelectedCustomers([]);
             setEditingIndex(null);
+            setExpandedCustomerIndex(null);
 
             if (editData) {
                 fillFormWithCustomer(editData);
@@ -423,9 +442,11 @@ export default function CustomerModal({ isOpen, onClose, onSave, onDelete, editD
                                                             .join(' • ')}
                                                     </div>
                                                 </div>
+                                                {/* Popularity count - commented out
                                                 <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
                                                     {customer.popularity || 1} {customer.popularity === 1 ? 'user' : 'users'}
                                                 </span>
+                                                */}
                                             </div>
                                         </button>
                                     ))}
@@ -442,7 +463,7 @@ export default function CustomerModal({ isOpen, onClose, onSave, onDelete, editD
                     </div>
                 )}
 
-                {/* Selected Customers List - Only show when not in edit mode and has selections */}
+                {/* Selected Customers List - Accordion with inline editing */}
                 {!isEditMode && selectedCustomers.length > 0 && (
                     <div className="px-6 py-3 bg-green-50 border-b border-green-200">
                         <div className="flex items-center gap-2 mb-2">
@@ -453,35 +474,114 @@ export default function CustomerModal({ isOpen, onClose, onSave, onDelete, editD
                                 {selectedCustomers.length} customer{selectedCustomers.length > 1 ? 's' : ''} ready to save
                             </span>
                         </div>
-                        <div className="flex flex-wrap gap-2">
+                        <div className="space-y-2 max-h-60 overflow-y-auto">
                             {selectedCustomers.map((customer, idx) => (
-                                <div
-                                    key={idx}
-                                    className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-sm ${
-                                        editingIndex === idx 
-                                            ? 'bg-blue-100 text-blue-800 ring-2 ring-blue-400' 
-                                            : 'bg-white text-gray-700 border border-green-300'
-                                    }`}
-                                >
-                                    <button
-                                        onClick={() => handleEditFromList(idx)}
-                                        className="hover:text-blue-600 font-medium"
-                                        title="Click to edit"
-                                    >
-                                        {customer.customerName}
-                                        {customer.companyName && (
-                                            <span className="text-xs text-gray-500 ml-1">({customer.companyName})</span>
-                                        )}
-                                    </button>
-                                    <button
-                                        onClick={() => handleRemoveFromList(idx)}
-                                        className="ml-1 text-gray-400 hover:text-red-500 transition-colors"
-                                        title="Remove from list"
-                                    >
-                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                        </svg>
-                                    </button>
+                                <div key={idx} className={`rounded-lg border ${expandedCustomerIndex === idx ? 'border-blue-400 bg-white shadow-sm' : 'border-green-300 bg-white'}`}>
+                                    {/* Customer header row */}
+                                    <div className="flex items-center justify-between px-3 py-2">
+                                        <button
+                                            onClick={() => handleToggleCustomerExpand(idx)}
+                                            className="flex items-center gap-2 flex-1 text-left hover:text-blue-600 transition-colors"
+                                            title="Click to expand/collapse inline editing"
+                                        >
+                                            <svg className={`w-4 h-4 text-gray-400 transition-transform ${expandedCustomerIndex === idx ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                            </svg>
+                                            <span className={`font-medium text-sm ${editingIndex === idx ? 'text-blue-700' : 'text-gray-800'}`}>
+                                                {customer.customerName}
+                                            </span>
+                                            <span className="text-xs text-gray-500">
+                                                {[customer.companyName, customer.mobileNumber, customer.billingState]
+                                                    .filter(Boolean).join(' • ')}
+                                            </span>
+                                        </button>
+                                        <div className="flex items-center gap-1">
+                                            <button
+                                                onClick={() => handleEditFromList(idx)}
+                                                className="p-1 text-blue-500 hover:bg-blue-50 rounded transition-colors"
+                                                title="Edit in main form"
+                                            >
+                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                                </svg>
+                                            </button>
+                                            <button
+                                                onClick={() => handleRemoveFromList(idx)}
+                                                className="p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
+                                                title="Remove from list"
+                                            >
+                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                                </svg>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    {/* Expanded inline editing fields */}
+                                    {expandedCustomerIndex === idx && (
+                                        <div className="px-3 pb-3 border-t border-gray-100 pt-2">
+                                            <div className="grid grid-cols-4 gap-2 text-xs">
+                                                <div>
+                                                    <label className="block text-gray-500 mb-0.5">Customer Name</label>
+                                                    <input type="text" value={customer.customerName} onChange={(e) => handleInlineCustomerChange(idx, 'customerName', e.target.value)}
+                                                        className="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-blue-500 focus:border-blue-500" />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-gray-500 mb-0.5">Mobile</label>
+                                                    <input type="text" value={customer.mobileNumber || ''} onChange={(e) => handleInlineCustomerChange(idx, 'mobileNumber', e.target.value)}
+                                                        className="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-blue-500 focus:border-blue-500" />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-gray-500 mb-0.5">Email</label>
+                                                    <input type="text" value={customer.emailAddress || ''} onChange={(e) => handleInlineCustomerChange(idx, 'emailAddress', e.target.value)}
+                                                        className="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-blue-500 focus:border-blue-500" />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-gray-500 mb-0.5">Company</label>
+                                                    <input type="text" value={customer.companyName || ''} onChange={(e) => handleInlineCustomerChange(idx, 'companyName', e.target.value)}
+                                                        className="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-blue-500 focus:border-blue-500" />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-gray-500 mb-0.5">GST Type</label>
+                                                    <select value={customer.gstType || 'Unregistered'} onChange={(e) => handleInlineCustomerChange(idx, 'gstType', e.target.value)}
+                                                        className="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
+                                                        <option value="Unregistered">Unregistered</option>
+                                                        <option value="Regular">Regular</option>
+                                                        <option value="Composition">Composition</option>
+                                                    </select>
+                                                </div>
+                                                {customer.gstType !== 'Unregistered' && (
+                                                    <div>
+                                                        <label className="block text-gray-500 mb-0.5">GST Number</label>
+                                                        <input type="text" value={customer.gstNumber || ''} onChange={(e) => handleInlineCustomerChange(idx, 'gstNumber', e.target.value)}
+                                                            className="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-blue-500 focus:border-blue-500" />
+                                                    </div>
+                                                )}
+                                                <div>
+                                                    <label className="block text-gray-500 mb-0.5">Billing Address</label>
+                                                    <input type="text" value={customer.billingAddress || ''} onChange={(e) => handleInlineCustomerChange(idx, 'billingAddress', e.target.value)}
+                                                        className="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-blue-500 focus:border-blue-500" />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-gray-500 mb-0.5">State</label>
+                                                    <input type="text" value={customer.billingState || ''} onChange={(e) => handleInlineCustomerChange(idx, 'billingState', e.target.value)}
+                                                        className="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-blue-500 focus:border-blue-500" />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-gray-500 mb-0.5">Balance Type</label>
+                                                    <select value={customer.openingBalanceType || 'Credit'} onChange={(e) => handleInlineCustomerChange(idx, 'openingBalanceType', e.target.value)}
+                                                        className="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
+                                                        <option value="Credit">Received (Credit)</option>
+                                                        <option value="Debit">Payment (Debit)</option>
+                                                    </select>
+                                                </div>
+                                                <div>
+                                                    <label className="block text-gray-500 mb-0.5">Balance Amount</label>
+                                                    <input type="number" value={customer.openingBalanceAmount || ''} onChange={(e) => handleInlineCustomerChange(idx, 'openingBalanceAmount', e.target.value)}
+                                                        className="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-blue-500 focus:border-blue-500" />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             ))}
                         </div>

@@ -1,9 +1,9 @@
-// src/features/ads/api/ad.api.js
+// src/features/ads/api/advertisement.api.js
 import apiClient from "src/services/apiClient";
 
 const BASE = "/api/ads";
 
-const adApi = {
+const advertisementApi = {
     // Get targeting options (categories, positions, states, dimensions)
     async getTargetingOptions() {
         const res = await apiClient.get(`${BASE}/targeting-options`);
@@ -67,4 +67,4 @@ const adApi = {
     }
 };
 
-export default adApi;
+export default advertisementApi;

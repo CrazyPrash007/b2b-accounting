@@ -25,6 +25,8 @@ const dashboardRoutes = require('./routes/dashboard.routes');
 const adRoutes = require('./routes/ad.routes');
 const reminderRoutes = require('./routes/reminder.routes');
 const staffRoutes = require('./routes/staff.routes');
+const attendanceRoutes = require('./routes/attendance.routes');
+const payrollRoutes = require('./routes/payroll.routes');
 const errorHandler = require('./middlewares/errorHandler');
 
 const PORT = process.env.PORT || 4000;
@@ -42,12 +44,15 @@ const corsOptions = {
     origin: (origin, callback) => {
         if (!origin) return callback(null, true);
         if (allowedOrigins.indexOf(origin) === -1) {
+            console.warn(`[CORS] Blocked origin: ${origin}. Allowed: ${allowedOrigins.join(', ')}`);
             const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
             return callback(new Error(msg), false);
         }
         return callback(null, true);
     },
-    credentials: true
+    credentials: true,
+    allowedHeaders: ['Content-Type', 'Authorization', 'x-owner-id', 'x-user-id', 'X-User-Id', 'user-id', 'Accept'],
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
 };
 
 async function start() {
@@ -86,6 +91,8 @@ async function start() {
     app.use('/api/ads', adRoutes);
     app.use('/api/reminders', reminderRoutes);
     app.use('/api/staff', staffRoutes);
+    app.use('/api/attendance', attendanceRoutes);
+    app.use('/api/payroll', payrollRoutes);
 
     // Global error handler
     app.use(errorHandler);

@@ -3,6 +3,27 @@ const Item = require("../models/Item");
 const Sale = require("../models/Sale");
 const Purchase = require("../models/Purchase");
 const mongoose = require("mongoose");
+const multer = require("multer");
+
+// Configure multer to store files in memory (for converting to Base64)
+const storage = multer.memoryStorage();
+const upload = multer({
+    storage,
+    limits: {
+        fileSize: 5 * 1024 * 1024, // 5MB max file size
+    },
+    fileFilter: (req, file, cb) => {
+        // Only allow image files
+        if (file.mimetype.startsWith('image/')) {
+            cb(null, true);
+        } else {
+            cb(new Error('Only image files are allowed'), false);
+        }
+    }
+});
+
+// Export multer middleware for use in routes
+const uploadMiddleware = upload.single('itemImage');
 
 /* --------------------------- Helper --------------------------- */
 function toObjectId(id) {
@@ -34,9 +55,9 @@ async function calculateStock(itemId, itemName, openingStock, ownerId, companyId
     for (const purchase of purchases) {
         for (const item of purchase.items) {
             const matchById = item.itemId && itemIdStr && item.itemId.toString() === itemIdStr;
-            const matchByName = normalizedItemName && item.name && 
+            const matchByName = normalizedItemName && item.name &&
                 item.name.toLowerCase().trim() === normalizedItemName;
-            
+
             if (matchById || matchByName) {
                 stock += Number(item.qty) || 0;
             }
@@ -53,9 +74,9 @@ async function calculateStock(itemId, itemName, openingStock, ownerId, companyId
     for (const sale of sales) {
         for (const item of sale.items) {
             const matchById = item.itemId && itemIdStr && item.itemId.toString() === itemIdStr;
-            const matchByName = normalizedItemName && item.name && 
+            const matchByName = normalizedItemName && item.name &&
                 item.name.toLowerCase().trim() === normalizedItemName;
-            
+
             if (matchById || matchByName) {
                 stock -= Number(item.qty) || 0;
             }
@@ -198,9 +219,9 @@ async function list(req, res, next) {
         return res.json({
             success: true,
             data: itemsWithStock,
-            meta: { 
-                page: Number(page), 
-                limit: Number(limit), 
+            meta: {
+                page: Number(page),
+                limit: Number(limit),
                 total,
                 totalStock,
                 negativeStockCount
@@ -461,9 +482,9 @@ async function getItemMovement(req, res, next) {
         for (const purchase of allPurchases) {
             for (const pItem of purchase.items) {
                 const matchById = pItem.itemId && pItem.itemId.toString() === itemIdStr;
-                const matchByName = itemName && pItem.name && 
+                const matchByName = itemName && pItem.name &&
                     pItem.name.toLowerCase().trim() === itemName.toLowerCase().trim();
-                
+
                 if (matchById || matchByName) {
                     purchaseHistory.push({
                         date: purchase.invoiceDate || purchase.date,
@@ -486,9 +507,9 @@ async function getItemMovement(req, res, next) {
         for (const sale of allSales) {
             for (const sItem of sale.items) {
                 const matchById = sItem.itemId && sItem.itemId.toString() === itemIdStr;
-                const matchByName = itemName && sItem.name && 
+                const matchByName = itemName && sItem.name &&
                     sItem.name.toLowerCase().trim() === itemName.toLowerCase().trim();
-                
+
                 if (matchById || matchByName) {
                     salesHistory.push({
                         date: sale.invoiceDate || sale.date,
@@ -506,7 +527,7 @@ async function getItemMovement(req, res, next) {
         }
 
         // Combine and sort by date (newest first)
-        const movements = [...purchaseHistory, ...salesHistory].sort((a, b) => 
+        const movements = [...purchaseHistory, ...salesHistory].sort((a, b) =>
             new Date(b.date) - new Date(a.date)
         );
 
@@ -543,4 +564,133 @@ async function getItemMovement(req, res, next) {
     }
 }
 
-module.exports = { list, getOne, create, update, remove, globalSearch, getItemMovement };
+/* ============================= UPLOAD ITEM IMAGE ============================= */
+async function uploadImage(req, res, next) {
+    try {
+        if (!req.file) {
+            return res.status(400).json({
+                success: false,
+                error: { message: "No image file provided" }
+            });
+        }
+
+        // Convert image buffer to Base64 string
+        const base64Image = req.file.buffer.toString('base64');
+        const mimeType = req.file.mimetype;
+        const dataUri = `data:${mimeType};base64,${base64Image}`;
+
+        return res.json({
+            success: true,
+            data: {
+                itemImage: dataUri,
+                itemImageMimeType: mimeType,
+                originalName: req.file.originalname,
+                size: req.file.size
+            }
+        });
+
+    } catch (err) {
+        next(err);
+    }
+}
+
+/* ============================= BATCH CREATE ============================= */
+async function batchCreate(req, res, next) {
+    try {
+        const ownerId = req.user.ownerId;
+        const { items, accountCompanyName: companyIdStr } = req.body;
+
+        console.log('📥 Batch items request - ownerId:', ownerId, 'companyIdStr:', companyIdStr, 'itemsCount:', items?.length);
+
+        const companyId = toObjectId(companyIdStr);
+        if (!companyId) {
+            console.error('❌ Invalid companyId - received:', companyIdStr, 'type:', typeof companyIdStr);
+            return res.status(400).json({
+                success: false,
+                error: { message: `Valid accountCompanyName (companyId) is required. Received: ${companyIdStr}` }
+            });
+        }
+
+        if (!Array.isArray(items) || items.length === 0) {
+            return res.status(400).json({
+                success: false,
+                error: { message: "items array is required and must not be empty" }
+            });
+        }
+
+        const results = [];
+        const errors = [];
+
+        for (let i = 0; i < items.length; i++) {
+            const itemData = items[i];
+
+            try {
+                const itemName = (itemData.name || itemData.itemName || "").trim();
+                if (!itemName) {
+                    errors.push({ index: i, error: "Item name is required" });
+                    continue;
+                }
+
+                const payload = {
+                    ...itemData,
+                    ownerId,
+                    accountCompanyName: companyId,
+                    createdBy: req.user.id,
+                    name: itemName,
+                    itemName: itemName,
+                };
+
+                // Numeric coercions
+                ["gstRate", "buyPrice", "sellPrice", "openingStock", "minStock"].forEach((field) => {
+                    if (payload[field] != null && payload[field] !== "") {
+                        payload[field] = Number(payload[field]) || 0;
+                    }
+                });
+
+                // Date coercion
+                if (payload.openingDate) {
+                    payload.openingDate = new Date(payload.openingDate);
+                }
+
+                // Check for duplicates
+                const exists = await Item.findOne({
+                    ownerId,
+                    accountCompanyName: companyId,
+                    name: { $regex: `^${itemName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, $options: 'i' },
+                    isDeleted: false,
+                }).lean();
+
+                if (exists) {
+                    errors.push({ index: i, itemName, error: "Item with same name already exists" });
+                    continue;
+                }
+
+                const doc = await Item.create(payload);
+                results.push({ index: i, success: true, data: doc });
+
+            } catch (err) {
+                if (err.code === 11000) {
+                    errors.push({ index: i, itemName: itemData.name || itemData.itemName, error: "Item already exists" });
+                } else {
+                    errors.push({ index: i, itemName: itemData.name || itemData.itemName, error: err.message });
+                }
+            }
+        }
+
+        return res.status(results.length > 0 ? 201 : 400).json({
+            success: results.length > 0,
+            data: results,
+            errors: errors,
+            summary: {
+                total: items.length,
+                created: results.length,
+                failed: errors.length
+            }
+        });
+
+    } catch (err) {
+        next(err);
+    }
+}
+
+module.exports = { list, getOne, create, update, remove, globalSearch, getItemMovement, uploadImage, uploadMiddleware, batchCreate };

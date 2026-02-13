@@ -30,11 +30,11 @@ function CreateEnquiryModal({ isOpen, onClose, onSave, registeredVendors: vendor
 
     // Distribution type: 'public' or 'vendors'
     const [distributionType, setDistributionType] = useState("public");
-    
+
     // Target states for public enquiries (empty means all states)
     const [selectedStates, setSelectedStates] = useState([]);
     const [stateSearch, setStateSearch] = useState("");
-    
+
     // Vendor selection (for 'vendors' distribution)
     const [selectedVendors, setSelectedVendors] = useState([]);
     const [vendorSearch, setVendorSearch] = useState("");
@@ -65,14 +65,14 @@ function CreateEnquiryModal({ isOpen, onClose, onSave, registeredVendors: vendor
     // Items dropdown
     const [items, setItems] = useState([]);
     const [showItemDropdown, setShowItemDropdown] = useState(false);
-    
+
     // Add Item form modal state
     const [showAddItemModal, setShowAddItemModal] = useState(false);
 
     // Filter vendors based on search (using vendorsList from props)
     const filteredVendors = useMemo(() => {
         if (!vendorSearch.trim()) return vendorsList;
-        return vendorsList.filter(v => 
+        return vendorsList.filter(v =>
             (v.name || v.companyName || "").toLowerCase().includes(vendorSearch.toLowerCase())
         );
     }, [vendorsList, vendorSearch]);
@@ -219,7 +219,7 @@ function CreateEnquiryModal({ isOpen, onClose, onSave, registeredVendors: vendor
     // Filter states based on search
     const filteredStates = useMemo(() => {
         if (!stateSearch.trim()) return INDIAN_STATES;
-        return INDIAN_STATES.filter(state => 
+        return INDIAN_STATES.filter(state =>
             state.toLowerCase().includes(stateSearch.toLowerCase())
         );
     }, [stateSearch]);
@@ -309,11 +309,10 @@ function CreateEnquiryModal({ isOpen, onClose, onSave, registeredVendors: vendor
                             <button
                                 type="button"
                                 onClick={() => setDistributionType("public")}
-                                className={`p-4 border-2 rounded-lg text-left transition-all ${
-                                    distributionType === "public"
-                                        ? "border-blue-500 bg-blue-50"
-                                        : "border-gray-200 hover:border-gray-300"
-                                }`}
+                                className={`p-4 border-2 rounded-lg text-left transition-all ${distributionType === "public"
+                                    ? "border-blue-500 bg-blue-50"
+                                    : "border-gray-200 hover:border-gray-300"
+                                    }`}
                             >
                                 <div className="flex items-center mb-2">
                                     <svg className="w-5 h-5 mr-2 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -328,11 +327,10 @@ function CreateEnquiryModal({ isOpen, onClose, onSave, registeredVendors: vendor
                             <button
                                 type="button"
                                 onClick={() => setDistributionType("vendors")}
-                                className={`p-4 border-2 rounded-lg text-left transition-all ${
-                                    distributionType === "vendors"
-                                        ? "border-green-500 bg-green-50"
-                                        : "border-gray-200 hover:border-gray-300"
-                                }`}
+                                className={`p-4 border-2 rounded-lg text-left transition-all ${distributionType === "vendors"
+                                    ? "border-green-500 bg-green-50"
+                                    : "border-gray-200 hover:border-gray-300"
+                                    }`}
                             >
                                 <div className="flex items-center mb-2">
                                     <svg className="w-5 h-5 mr-2 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -376,11 +374,10 @@ function CreateEnquiryModal({ isOpen, onClose, onSave, registeredVendors: vendor
                                 {filteredStates.map(state => (
                                     <label
                                         key={state}
-                                        className={`flex items-center p-2 rounded border cursor-pointer transition-all ${
-                                            selectedStates.includes(state)
-                                                ? "border-blue-500 bg-blue-100"
-                                                : "border-gray-200 hover:bg-gray-100"
-                                        }`}
+                                        className={`flex items-center p-2 rounded border cursor-pointer transition-all ${selectedStates.includes(state)
+                                            ? "border-blue-500 bg-blue-100"
+                                            : "border-gray-200 hover:bg-gray-100"
+                                            }`}
                                     >
                                         <input
                                             type="checkbox"
@@ -430,11 +427,10 @@ function CreateEnquiryModal({ isOpen, onClose, onSave, registeredVendors: vendor
                                     {filteredVendors.map(vendor => (
                                         <label
                                             key={vendor.id || vendor._id}
-                                            className={`flex items-center p-3 rounded border cursor-pointer transition-all ${
-                                                selectedVendors.find(v => (v.id || v._id) === (vendor.id || vendor._id))
-                                                    ? "border-green-500 bg-green-50"
-                                                    : "border-gray-200 hover:bg-gray-100"
-                                            }`}
+                                            className={`flex items-center p-3 rounded border cursor-pointer transition-all ${selectedVendors.find(v => (v.id || v._id) === (vendor.id || vendor._id))
+                                                ? "border-green-500 bg-green-50"
+                                                : "border-gray-200 hover:bg-gray-100"
+                                                }`}
                                         >
                                             <input
                                                 type="checkbox"
@@ -711,7 +707,7 @@ function RespondModal({ isOpen, onClose, onSave, enquiry }) {
 
     const handleSave = () => {
         setError("");
-        
+
         // Validate price
         if (!price || price === "") {
             setError("Price is required. Please enter your quoted price per unit.");
@@ -722,7 +718,7 @@ function RespondModal({ isOpen, onClose, onSave, enquiry }) {
             setError("Please enter a valid price (must be 0 or greater).");
             return;
         }
-        
+
         // Validate quantity
         if (!quantity || quantity === "") {
             setError("Quantity is required. Please enter how much you can provide.");
@@ -733,7 +729,7 @@ function RespondModal({ isOpen, onClose, onSave, enquiry }) {
             setError("Please enter a valid quantity (must be greater than 0).");
             return;
         }
-        
+
         // Validate unit
         if (!unit || !unit.trim()) {
             setError("Unit is required. Please select a unit of measurement.");
@@ -1053,8 +1049,8 @@ function ViewResponsesModal({ isOpen, onClose, enquiry, onMarkViewed, onSelectRe
                         <div className="mb-4 flex flex-wrap gap-3 items-center justify-between p-3 bg-gray-50 rounded">
                             <div className="flex gap-3 items-center">
                                 <label className="text-sm text-gray-600">Sort by:</label>
-                                <select 
-                                    value={sortOrder} 
+                                <select
+                                    value={sortOrder}
                                     onChange={(e) => setSortOrder(e.target.value)}
                                     className="text-sm border rounded px-3 py-1.5 focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
                                 >
@@ -1066,8 +1062,8 @@ function ViewResponsesModal({ isOpen, onClose, enquiry, onMarkViewed, onSelectRe
                             </div>
                             <div className="flex gap-3 items-center">
                                 <label className="text-sm text-gray-600">Filter:</label>
-                                <select 
-                                    value={filterViewed} 
+                                <select
+                                    value={filterViewed}
                                     onChange={(e) => setFilterViewed(e.target.value)}
                                     className="text-sm border rounded px-3 py-1.5 focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
                                 >
@@ -1087,17 +1083,16 @@ function ViewResponsesModal({ isOpen, onClose, enquiry, onMarkViewed, onSelectRe
                     ) : (
                         <div className="space-y-3">
                             {filteredResponses.map((response, idx) => (
-                                <div 
-                                    key={response._id || idx} 
-                                    className={`border rounded-lg p-4 hover:shadow-sm ${
-                                        response.selectionStatus === 'accepted' 
-                                            ? 'border-2 border-green-500 bg-green-50' 
-                                            : response.selectionStatus === 'rejected'
+                                <div
+                                    key={response._id || idx}
+                                    className={`border rounded-lg p-4 hover:shadow-sm ${response.selectionStatus === 'accepted'
+                                        ? 'border-2 border-green-500 bg-green-50'
+                                        : response.selectionStatus === 'rejected'
                                             ? 'border-gray-300 bg-gray-100 opacity-60'
-                                            : !response.viewedAt 
-                                            ? 'border-l-4 border-l-purple-500 bg-purple-50/30' 
-                                            : ''
-                                    }`}
+                                            : !response.viewedAt
+                                                ? 'border-l-4 border-l-purple-500 bg-purple-50/30'
+                                                : ''
+                                        }`}
                                 >
                                     {/* Selection Status Banner */}
                                     {response.selectionStatus === 'accepted' && (
@@ -1134,7 +1129,7 @@ function ViewResponsesModal({ isOpen, onClose, enquiry, onMarkViewed, onSelectRe
                                                 {formatDate(response.respondedAt)}
                                             </div>
                                             {!response.viewedAt && (
-                                                <button 
+                                                <button
                                                     onClick={() => handleMarkViewed(response._id)}
                                                     className="text-xs text-purple-600 hover:text-purple-800 mt-1"
                                                 >
@@ -1185,7 +1180,7 @@ function ViewResponsesModal({ isOpen, onClose, enquiry, onMarkViewed, onSelectRe
                                                 <span>✉️ {response.responderEmail}</span>
                                             )}
                                         </div>
-                                        
+
                                         {/* Selection Actions */}
                                         {!hasSelectedResponse && enquiry?.status === 'open' && response.selectionStatus !== 'accepted' && (
                                             <>
@@ -1248,6 +1243,7 @@ export default function EnquiryPage() {
         publicEnquiries,
         vendorEnquiries,
         myResponses,
+        websiteEnquiries,
         registeredVendors,
         loading,
         error,
@@ -1256,9 +1252,11 @@ export default function EnquiryPage() {
         loadPublicEnquiries,
         loadVendorEnquiries,
         loadMyResponses,
+        loadWebsiteEnquiries,
         loadRegisteredVendors,
         create,
         remove,
+        removeWebsiteEnquiry,
         respond,
         close: closeEnquiry,
         markResponseViewed,
@@ -1295,14 +1293,14 @@ export default function EnquiryPage() {
 
     // Apply filters based on active tab
     useEffect(() => {
-        const filters = { 
-            enquiryType: filterType || undefined, 
-            status: filterStatus || undefined, 
+        const filters = {
+            enquiryType: filterType || undefined,
+            status: filterStatus || undefined,
             search: search || undefined,
             category: filterCategory || undefined,
             state: filterState || undefined
         };
-        
+
         switch (activeTab) {
             case "my":
                 loadMyEnquiries(filters);
@@ -1316,8 +1314,11 @@ export default function EnquiryPage() {
             case "responses":
                 loadMyResponses(filters);
                 break;
+            case "website":
+                loadWebsiteEnquiries(filters);
+                break;
         }
-    }, [activeTab, filterType, filterCategory, filterState, filterStatus, search, loadMyEnquiries, loadPublicEnquiries, loadVendorEnquiries, loadMyResponses]);
+    }, [activeTab, filterType, filterCategory, filterState, filterStatus, search, loadMyEnquiries, loadPublicEnquiries, loadVendorEnquiries, loadMyResponses, loadWebsiteEnquiries]);
 
     const handleCreate = () => {
         setCreateModalOpen(true);
@@ -1329,9 +1330,9 @@ export default function EnquiryPage() {
             setCreateModalOpen(false);
         } catch (err) {
             console.error("Failed to save enquiry", err);
-            const errorMessage = err?.response?.data?.error?.message || 
-                                err?.response?.data?.message || 
-                                "Failed to create enquiry. Please check all required fields.";
+            const errorMessage = err?.response?.data?.error?.message ||
+                err?.response?.data?.message ||
+                "Failed to create enquiry. Please check all required fields.";
             alert(errorMessage);
         }
     };
@@ -1343,6 +1344,17 @@ export default function EnquiryPage() {
             } catch (err) {
                 console.error("Failed to delete enquiry", err);
                 alert(err?.response?.data?.error?.message || "Failed to delete enquiry");
+            }
+        }
+    };
+
+    const handleDeleteWebsiteEnquiry = async (item) => {
+        if (window.confirm(`Permanently delete this website enquiry from "${item.creatorName || 'Unknown'}"?\n\nThis action cannot be undone.`)) {
+            try {
+                await removeWebsiteEnquiry(item.id || item._id);
+            } catch (err) {
+                console.error("Failed to delete website enquiry", err);
+                alert(err?.response?.data?.error?.message || "Failed to delete website enquiry");
             }
         }
     };
@@ -1370,9 +1382,9 @@ export default function EnquiryPage() {
             setSelectedEnquiry(null);
         } catch (err) {
             console.error("Failed to respond to enquiry", err);
-            const errorMessage = err?.response?.data?.error?.message || 
-                                err?.response?.data?.message || 
-                                "Failed to submit your response. Please try again.";
+            const errorMessage = err?.response?.data?.error?.message ||
+                err?.response?.data?.message ||
+                "Failed to submit your response. Please try again.";
             alert(errorMessage);
         }
     };
@@ -1427,6 +1439,8 @@ export default function EnquiryPage() {
                 return vendorEnquiries;
             case "responses":
                 return myResponses;
+            case "website":
+                return websiteEnquiries;
             default:
                 return [];
         }
@@ -1487,6 +1501,15 @@ export default function EnquiryPage() {
                     >
                         My Responses ({myResponses.length})
                     </button>
+                    <button
+                        onClick={() => setActiveTab("website")}
+                        className={`pb-3 px-1 text-sm font-medium border-b-2 transition-colors ${activeTab === "website"
+                            ? "border-green-600 text-green-600"
+                            : "border-transparent text-gray-500 hover:text-gray-700"
+                            }`}
+                    >
+                        Website Enquiries ({websiteEnquiries.length})
+                    </button>
                 </div>
             </div>
 
@@ -1508,7 +1531,7 @@ export default function EnquiryPage() {
                     <option value="buy">Buy</option>
                     <option value="sell">Sell</option>
                 </select>
-                {activeTab === "my" && (
+                {(activeTab === "my" || activeTab === "website") && (
                     <select
                         value={filterStatus}
                         onChange={(e) => setFilterStatus(e.target.value)}
@@ -1577,6 +1600,8 @@ export default function EnquiryPage() {
             <div className="bg-white rounded-lg shadow">
                 {activeTab === "responses" ? (
                     <MyResponsesTable data={myResponses} loading={loading} />
+                ) : activeTab === "website" ? (
+                    <WebsiteEnquiriesTable data={websiteEnquiries} loading={loading} onDelete={handleDeleteWebsiteEnquiry} />
                 ) : (
                     <EnquiryTable
                         data={getCurrentData()}
@@ -1613,6 +1638,126 @@ export default function EnquiryPage() {
                 onMarkViewed={handleMarkViewed}
                 onSelectResponse={handleSelectResponse}
             />
+        </div>
+    );
+}
+
+/**
+ * WebsiteEnquiriesTable - Table for enquiries received from the marketing website
+ */
+function WebsiteEnquiriesTable({ data, loading, onDelete }) {
+    const formatDate = (dateStr) => {
+        if (!dateStr) return "-";
+        return new Date(dateStr).toLocaleDateString('en-IN', {
+            day: '2-digit',
+            month: 'short',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+    };
+
+    /**
+     * Determine source: "B2B" (from B2B Directory) or "Personal" (from personal website)
+     * Marketing directory sets specifications = 'Source: B2B Directory'
+     * Personal website sets specifications = 'Source: website | Subject: ...'
+     */
+    const getSourceTag = (enq) => {
+        const specs = (enq.specifications || '').toLowerCase();
+        if (specs.includes('b2b directory')) {
+            return { label: 'B2B', color: 'bg-indigo-100 text-indigo-700', title: 'From B2B Directory' };
+        }
+        return { label: 'Personal', color: 'bg-amber-100 text-amber-700', title: 'From Personal Website' };
+    };
+
+    if (loading) {
+        return (
+            <div className="flex justify-center items-center py-12">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600"></div>
+            </div>
+        );
+    }
+
+    if (!data || data.length === 0) {
+        return (
+            <div className="text-center py-12 text-gray-500">
+                <svg className="mx-auto h-12 w-12 text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
+                </svg>
+                <p>No website enquiries yet.</p>
+                <p className="text-sm mt-1">Enquiries from your marketing website will appear here.</p>
+            </div>
+        );
+    }
+
+    return (
+        <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-green-50">
+                    <tr>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase">Customer Name</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase">Phone</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase">Message</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase">Source</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase">Status</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase">Received On</th>
+                        <th className="px-4 py-3 text-center text-xs font-medium text-gray-600 uppercase">Actions</th>
+                    </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                    {data.map((enq) => {
+                        const source = getSourceTag(enq);
+                        return (
+                            <tr key={enq._id || enq.id} className="hover:bg-gray-50">
+                                <td className="px-4 py-4">
+                                    <div className="font-medium text-gray-900">{enq.creatorName || '-'}</div>
+                                </td>
+                                <td className="px-4 py-4">
+                                    <a href={`tel:${enq.creatorMobile}`} className="text-sm text-blue-600 hover:underline">
+                                        {enq.creatorMobile || '-'}
+                                    </a>
+                                </td>
+                                <td className="px-4 py-4">
+                                    <div className="text-sm text-gray-600 max-w-xs truncate" title={enq.description}>
+                                        {enq.description || '-'}
+                                    </div>
+                                </td>
+                                <td className="px-4 py-4">
+                                    <span
+                                        className={`px-2 py-1 text-xs font-medium rounded ${source.color}`}
+                                        title={source.title}
+                                    >
+                                        {source.label}
+                                    </span>
+                                </td>
+                                <td className="px-4 py-4">
+                                    <span className={`px-2 py-1 text-xs font-medium rounded ${enq.status === 'open'
+                                        ? 'bg-green-100 text-green-700'
+                                        : 'bg-gray-100 text-gray-600'
+                                        }`}>
+                                        {enq.status?.toUpperCase() || 'OPEN'}
+                                    </span>
+                                </td>
+                                <td className="px-4 py-4 text-sm text-gray-500">
+                                    {formatDate(enq.createdAt)}
+                                </td>
+                                <td className="px-4 py-4 text-center">
+                                    <button
+                                        onClick={() => onDelete(enq)}
+                                        className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-red-600 bg-red-50 border border-red-200 rounded hover:bg-red-100 transition-colors"
+                                        title="Permanently delete this enquiry"
+                                    >
+                                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                        </svg>
+                                        Delete
+                                    </button>
+                                </td>
+                            </tr>
+                        );
+                    })}
+                </tbody>
+            </table>
         </div>
     );
 }
@@ -1664,10 +1809,9 @@ function MyResponsesTable({ data, loading }) {
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                     {data.map((response) => (
-                        <tr key={response._id || response.id} className={`hover:bg-gray-50 ${
-                            response.selectionStatus === 'accepted' ? 'bg-green-50' :
+                        <tr key={response._id || response.id} className={`hover:bg-gray-50 ${response.selectionStatus === 'accepted' ? 'bg-green-50' :
                             response.selectionStatus === 'rejected' ? 'bg-gray-50 opacity-70' : ''
-                        }`}>
+                            }`}>
                             <td className="px-4 py-4">
                                 <div className="font-medium text-gray-900">{response.enquiryDetails?.productName || 'N/A'}</div>
                                 <div className="text-sm text-gray-500">

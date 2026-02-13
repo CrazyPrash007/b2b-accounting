@@ -4,15 +4,23 @@ import apiClient from 'src/services/apiClient';
 const BASE_URL = '/api/staff';
 
 export const staffApi = {
-    // Get all staff
-    getAll: async (params = {}) => {
-        const response = await apiClient.get(BASE_URL, { params });
+    // Get all staff with optional abort signal for request cancellation
+    getAll: async (params = {}, signal = null) => {
+        const config = { params };
+        if (signal) {
+            config.signal = signal;
+        }
+        const response = await apiClient.get(BASE_URL, config);
         return response.data;
     },
 
     // Get active staff list for dropdowns
-    getActiveList: async (params = {}) => {
-        const response = await apiClient.get(`${BASE_URL}/active`, { params });
+    getActiveList: async (params = {}, signal = null) => {
+        const config = { params };
+        if (signal) {
+            config.signal = signal;
+        }
+        const response = await apiClient.get(`${BASE_URL}/active`, config);
         return response.data;
     },
 
@@ -43,6 +51,25 @@ export const staffApi = {
     // Delete staff
     delete: async (id) => {
         const response = await apiClient.delete(`${BASE_URL}/${id}`);
+        return response.data;
+    },
+
+    // Get salary history
+    getSalaryHistory: async (id) => {
+        const response = await apiClient.get(`${BASE_URL}/${id}/salary-history`);
+        return response.data;
+    },
+
+    // Add salary increase
+    addSalaryIncrease: async (id, data) => {
+        const response = await apiClient.post(`${BASE_URL}/${id}/salary-increase`, data);
+        return response.data;
+    },
+
+    // Get current salary
+    getCurrentSalary: async (id, asOfDate = null) => {
+        const params = asOfDate ? { asOfDate } : {};
+        const response = await apiClient.get(`${BASE_URL}/${id}/current-salary`, { params });
         return response.data;
     }
 };

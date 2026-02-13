@@ -21,6 +21,12 @@ router.get('/vendor', controller.listVendorEnquiries);
 // My responses (enquiries user has responded to)
 router.get('/my-responses', controller.listMyResponses);
 
+// Website enquiries (from marketing website)
+router.get('/website', controller.listWebsiteEnquiries);
+
+// Permanently delete a website enquiry (hard delete)
+router.delete('/website/:id', controller.removeWebsiteEnquiry);
+
 // Get registered vendors (vendors from user's list who are on the platform)
 router.get('/registered-vendors', controller.getRegisteredVendors);
 

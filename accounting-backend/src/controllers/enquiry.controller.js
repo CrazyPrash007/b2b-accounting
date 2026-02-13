@@ -979,16 +979,117 @@ async function selectResponse(req, res, next) {
     }
 }
 
+/**
+ * LIST WEBSITE ENQUIRIES - Enquiries submitted from the marketing website
+ * Only shows enquiries with distributionType='website' for the user's company
+ */
+async function listWebsiteEnquiries(req, res, next) {
+    try {
+        const ownerId = req.user.ownerId;
+
+        const companyId = toObjectId(req.query.accountCompanyName);
+        if (!companyId) {
+            return res.status(400).json({
+                message: "Valid accountCompanyName (companyId) is required",
+            });
+        }
+
+        const { page = 1, limit = 50, search, sort, status } = req.query;
+
+        const q = {
+            ownerId,
+            accountCompanyName: companyId,
+            distributionType: 'website',
+            isDeleted: false,
+        };
+
+        // Filter by status
+        if (status && ['open', 'closed'].includes(status)) {
+            q.status = status;
+        }
+
+        // Search by product name, customer name, phone, message
+        if (search?.trim()) {
+            const s = search.trim();
+            q.$or = [
+                { productName: { $regex: s, $options: "i" } },
+                { description: { $regex: s, $options: "i" } },
+                { creatorName: { $regex: s, $options: "i" } },
+                { creatorMobile: { $regex: s, $options: "i" } },
+            ];
+        }
+
+        const sortObj = {};
+        if (sort) {
+            const [k, dir] = sort.split(":");
+            sortObj[k || "createdAt"] = dir === "desc" ? -1 : 1;
+        } else {
+            sortObj.createdAt = -1;
+        }
+
+        const skip = (Number(page) - 1) * Number(limit);
+
+        const [items, total] = await Promise.all([
+            Enquiry.find(q).sort(sortObj).skip(skip).limit(Number(limit)).lean(),
+            Enquiry.countDocuments(q),
+        ]);
+
+        return res.json({
+            success: true,
+            data: items,
+            meta: { page: Number(page), limit: Number(limit), total },
+        });
+    } catch (err) {
+        next(err);
+    }
+}
+
+/**
+ * DELETE WEBSITE ENQUIRY (PERMANENT DELETE)
+ * Hard delete for website enquiries only (distributionType='website')
+ */
+async function removeWebsiteEnquiry(req, res, next) {
+    try {
+        const ownerId = req.user.ownerId;
+
+        const companyId = toObjectId(req.query.accountCompanyName);
+        if (!companyId) {
+            return res.status(400).json({
+                message: "Valid accountCompanyName (companyId) is required",
+            });
+        }
+
+        const doc = await Enquiry.findOneAndDelete({
+            _id: req.params.id,
+            ownerId,
+            accountCompanyName: companyId,
+            distributionType: 'website',
+        });
+
+        if (!doc) {
+            return res
+                .status(404)
+                .json({ success: false, error: { message: "Website enquiry not found" } });
+        }
+
+        return res.json({ success: true, data: { id: doc._id }, message: "Website enquiry permanently deleted" });
+    } catch (err) {
+        next(err);
+    }
+}
+
 module.exports = {
     listMyEnquiries,
     listPublicEnquiries,
     listVendorEnquiries,
     listMyResponses,
+    listWebsiteEnquiries,
     getOne,
     getEnquiryResponses,
     getRegisteredVendors,
     create,
     remove,
+    removeWebsiteEnquiry,
     respond,
     closeEnquiry,
     markResponseViewed,

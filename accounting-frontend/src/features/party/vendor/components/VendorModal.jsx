@@ -26,6 +26,7 @@ export default function VendorModal({ isOpen, onClose, onSave, onDelete, editDat
     // Multi-select state - list of Vendors to be added
     const [selectedVendors, setSelectedVendors] = useState([]);
     const [editingIndex, setEditingIndex] = useState(null); // Index of Vendor being edited in the batch
+    const [expandedVendorIndex, setExpandedVendorIndex] = useState(null); // For inline editing
 
     // Basic Details
     const [vendorName, setVendorName] = useState("");
@@ -263,6 +264,23 @@ export default function VendorModal({ isOpen, onClose, onSave, onDelete, editDat
         } else if (editingIndex !== null && index < editingIndex) {
             setEditingIndex(editingIndex - 1);
         }
+        if (expandedVendorIndex === index) {
+            setExpandedVendorIndex(null);
+        } else if (expandedVendorIndex !== null && index < expandedVendorIndex) {
+            setExpandedVendorIndex(expandedVendorIndex - 1);
+        }
+    };
+
+    // Toggle inline editing expand
+    const handleToggleVendorExpand = (index) => {
+        setExpandedVendorIndex(expandedVendorIndex === index ? null : index);
+    };
+
+    // Update a field inline for a vendor in the list
+    const handleInlineVendorChange = (index, field, value) => {
+        const updated = [...selectedVendors];
+        updated[index] = { ...updated[index], [field]: value };
+        setSelectedVendors(updated);
     };
 
     // Track when modal opens/closes or editData changes to reset form
@@ -273,6 +291,7 @@ export default function VendorModal({ isOpen, onClose, onSave, onDelete, editDat
             setShowSearchDropdown(false);
             setSelectedVendors([]);
             setEditingIndex(null);
+            setExpandedVendorIndex(null);
 
             if (editData) {
                 fillFormWithVendor(editData);
@@ -423,9 +442,11 @@ export default function VendorModal({ isOpen, onClose, onSave, onDelete, editDat
                                                             .join(' • ')}
                                                     </div>
                                                 </div>
+                                                {/* Popularity count - commented out
                                                 <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
                                                     {vendor.popularity || 1} {vendor.popularity === 1 ? 'user' : 'users'}
                                                 </span>
+                                                */}
                                             </div>
                                         </button>
                                     ))}
@@ -442,7 +463,7 @@ export default function VendorModal({ isOpen, onClose, onSave, onDelete, editDat
                     </div>
                 )}
 
-                {/* Selected Vendors List - Only show when not in edit mode and has selections */}
+                {/* Selected Vendors List - Accordion with inline editing */}
                 {!isEditMode && selectedVendors.length > 0 && (
                     <div className="px-6 py-3 bg-green-50 border-b border-green-200">
                         <div className="flex items-center gap-2 mb-2">
@@ -453,35 +474,114 @@ export default function VendorModal({ isOpen, onClose, onSave, onDelete, editDat
                                 {selectedVendors.length} Vendor{selectedVendors.length > 1 ? 's' : ''} ready to save
                             </span>
                         </div>
-                        <div className="flex flex-wrap gap-2">
+                        <div className="space-y-2 max-h-60 overflow-y-auto">
                             {selectedVendors.map((vendor, idx) => (
-                                <div
-                                    key={idx}
-                                    className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-sm ${
-                                        editingIndex === idx 
-                                            ? 'bg-blue-100 text-blue-800 ring-2 ring-blue-400' 
-                                            : 'bg-white text-gray-700 border border-green-300'
-                                    }`}
-                                >
-                                    <button
-                                        onClick={() => handleEditFromList(idx)}
-                                        className="hover:text-blue-600 font-medium"
-                                        title="Click to edit"
-                                    >
-                                        {vendor.vendorName}
-                                        {vendor.companyName && (
-                                            <span className="text-xs text-gray-500 ml-1">({vendor.companyName})</span>
-                                        )}
-                                    </button>
-                                    <button
-                                        onClick={() => handleRemoveFromList(idx)}
-                                        className="ml-1 text-gray-400 hover:text-red-500 transition-colors"
-                                        title="Remove from list"
-                                    >
-                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                        </svg>
-                                    </button>
+                                <div key={idx} className={`rounded-lg border ${expandedVendorIndex === idx ? 'border-blue-400 bg-white shadow-sm' : 'border-green-300 bg-white'}`}>
+                                    {/* Vendor header row */}
+                                    <div className="flex items-center justify-between px-3 py-2">
+                                        <button
+                                            onClick={() => handleToggleVendorExpand(idx)}
+                                            className="flex items-center gap-2 flex-1 text-left hover:text-blue-600 transition-colors"
+                                            title="Click to expand/collapse inline editing"
+                                        >
+                                            <svg className={`w-4 h-4 text-gray-400 transition-transform ${expandedVendorIndex === idx ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                            </svg>
+                                            <span className={`font-medium text-sm ${editingIndex === idx ? 'text-blue-700' : 'text-gray-800'}`}>
+                                                {vendor.vendorName}
+                                            </span>
+                                            <span className="text-xs text-gray-500">
+                                                {[vendor.companyName, vendor.mobileNumber, vendor.billingState]
+                                                    .filter(Boolean).join(' • ')}
+                                            </span>
+                                        </button>
+                                        <div className="flex items-center gap-1">
+                                            <button
+                                                onClick={() => handleEditFromList(idx)}
+                                                className="p-1 text-blue-500 hover:bg-blue-50 rounded transition-colors"
+                                                title="Edit in main form"
+                                            >
+                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                                </svg>
+                                            </button>
+                                            <button
+                                                onClick={() => handleRemoveFromList(idx)}
+                                                className="p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
+                                                title="Remove from list"
+                                            >
+                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                                </svg>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    {/* Expanded inline editing fields */}
+                                    {expandedVendorIndex === idx && (
+                                        <div className="px-3 pb-3 border-t border-gray-100 pt-2">
+                                            <div className="grid grid-cols-4 gap-2 text-xs">
+                                                <div>
+                                                    <label className="block text-gray-500 mb-0.5">Vendor Name</label>
+                                                    <input type="text" value={vendor.vendorName} onChange={(e) => handleInlineVendorChange(idx, 'vendorName', e.target.value)}
+                                                        className="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-blue-500 focus:border-blue-500" />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-gray-500 mb-0.5">Mobile</label>
+                                                    <input type="text" value={vendor.mobileNumber || ''} onChange={(e) => handleInlineVendorChange(idx, 'mobileNumber', e.target.value)}
+                                                        className="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-blue-500 focus:border-blue-500" />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-gray-500 mb-0.5">Email</label>
+                                                    <input type="text" value={vendor.emailAddress || ''} onChange={(e) => handleInlineVendorChange(idx, 'emailAddress', e.target.value)}
+                                                        className="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-blue-500 focus:border-blue-500" />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-gray-500 mb-0.5">Company</label>
+                                                    <input type="text" value={vendor.companyName || ''} onChange={(e) => handleInlineVendorChange(idx, 'companyName', e.target.value)}
+                                                        className="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-blue-500 focus:border-blue-500" />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-gray-500 mb-0.5">GST Type</label>
+                                                    <select value={vendor.gstType || 'Unregistered'} onChange={(e) => handleInlineVendorChange(idx, 'gstType', e.target.value)}
+                                                        className="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
+                                                        <option value="Unregistered">Unregistered</option>
+                                                        <option value="Regular">Regular</option>
+                                                        <option value="Composition">Composition</option>
+                                                    </select>
+                                                </div>
+                                                {vendor.gstType !== 'Unregistered' && (
+                                                    <div>
+                                                        <label className="block text-gray-500 mb-0.5">GST Number</label>
+                                                        <input type="text" value={vendor.gstNumber || ''} onChange={(e) => handleInlineVendorChange(idx, 'gstNumber', e.target.value)}
+                                                            className="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-blue-500 focus:border-blue-500" />
+                                                    </div>
+                                                )}
+                                                <div>
+                                                    <label className="block text-gray-500 mb-0.5">Billing Address</label>
+                                                    <input type="text" value={vendor.billingAddress || ''} onChange={(e) => handleInlineVendorChange(idx, 'billingAddress', e.target.value)}
+                                                        className="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-blue-500 focus:border-blue-500" />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-gray-500 mb-0.5">State</label>
+                                                    <input type="text" value={vendor.billingState || ''} onChange={(e) => handleInlineVendorChange(idx, 'billingState', e.target.value)}
+                                                        className="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-blue-500 focus:border-blue-500" />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-gray-500 mb-0.5">Balance Type</label>
+                                                    <select value={vendor.openingBalanceType || 'Credit'} onChange={(e) => handleInlineVendorChange(idx, 'openingBalanceType', e.target.value)}
+                                                        className="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
+                                                        <option value="Credit">Received (Credit)</option>
+                                                        <option value="Debit">Payment (Debit)</option>
+                                                    </select>
+                                                </div>
+                                                <div>
+                                                    <label className="block text-gray-500 mb-0.5">Balance Amount</label>
+                                                    <input type="number" value={vendor.openingBalanceAmount || ''} onChange={(e) => handleInlineVendorChange(idx, 'openingBalanceAmount', e.target.value)}
+                                                        className="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:ring-1 focus:ring-blue-500 focus:border-blue-500" />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             ))}
                         </div>

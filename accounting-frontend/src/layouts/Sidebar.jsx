@@ -18,6 +18,8 @@ import {
     FiMessageSquare,
     FiBell,
     FiUserCheck,
+    FiCalendar,
+    FiDollarSign,
 } from "react-icons/fi";
 
 /**
@@ -34,6 +36,7 @@ export default function Sidebar() {
         transactions: false,
         core: false,
         inventory: false,
+        staff: false,
     });
 
     const toggle = (key) => setOpen((s) => ({ ...s, [key]: !s[key] }));
@@ -105,7 +108,12 @@ export default function Sidebar() {
                     <Item title="My Ads" icon={<FiLayers />} to="/ads" />
                     <Item title="Enquiry" icon={<FiMessageSquare />} to="/enquiry" />
                     <Item title="Reminders" icon={<FiBell />} to="/reminders" />
-                    <Item title="Staff" icon={<FiUserCheck />} to="/staff" />
+                    
+                    <Parent title="Staff Management" icon={<FiUserCheck />} openKey="staff">
+                        <SubItem title="Staff List" to="/staff" />
+                        <SubItem title="Attendance" to="/attendance" />
+                        <SubItem title="Payroll" to="/payroll" />
+                    </Parent>
                 </div>
 
                 {/* MASTER group with submenus */}
