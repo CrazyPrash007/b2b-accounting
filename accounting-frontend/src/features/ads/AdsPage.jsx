@@ -4,6 +4,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { CompanyContext } from '../../App';
 import advertisementApi from './api/advertisement.api';
 import { State, City } from 'country-state-city';
+import SearchSelect from '../../components/SearchSelect';
 import './AdsPage.css';
 
 // India states for cascading selection
@@ -634,28 +635,20 @@ export default function AdsPage() {
                                     <p className="targeting-description">Leave empty to show to all users</p>
 
                                     <div className="form-group">
-                                        <label>Business Categories ({formData.targetCategories.length}/{targetingOptions.categories.length})</label>
-                                        <div className="multi-select-grid">
-                                            {targetingOptions.categories.map(cat => (
-                                                <label
-                                                    key={cat}
-                                                    className={`multi-select-item ${formData.targetCategories.includes(cat) ? 'selected' : ''}`}
-                                                >
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={formData.targetCategories.includes(cat)}
-                                                        onChange={() => handleCategoryToggle(cat)}
-                                                    />
-                                                    {cat}
-                                                </label>
-                                            ))}
-                                        </div>
+                                        <SearchSelect
+                                            label={`Business Categories`}
+                                            options={targetingOptions.categories}
+                                            selected={formData.targetCategories}
+                                            onChange={(val) => setFormData(prev => ({ ...prev, targetCategories: val }))}
+                                            placeholder="Search categories..."
+                                            maxHeight={200}
+                                        />
                                     </div>
 
                                     {/* Local Area Button */}
                                     <div className="form-group">
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
-                                            <label style={{ margin: 0 }}>Target Cities ({formData.targetCities.length} selected)</label>
+                                            <label style={{ margin: 0, fontSize: '13px', fontWeight: 600, color: '#374151' }}>Target Cities ({formData.targetCities.length} selected)</label>
                                             <button
                                                 type="button"
                                                 className="btn-local-area"
@@ -685,65 +678,43 @@ export default function AdsPage() {
 
                                     {/* States Selection */}
                                     <div className="form-group">
-                                        <label>Select States ({selectedStates.length} states)</label>
-                                        <div className="multi-select-grid states-grid">
-                                            {INDIA_STATES.map(state => (
-                                                <label
-                                                    key={state.isoCode}
-                                                    className={`multi-select-item ${selectedStates.includes(state.isoCode) ? 'selected' : ''}`}
-                                                >
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={selectedStates.includes(state.isoCode)}
-                                                        onChange={() => handleStateToggle(state.isoCode)}
-                                                    />
-                                                    {state.name}
-                                                </label>
-                                            ))}
-                                        </div>
+                                        <SearchSelect
+                                            label="Select States"
+                                            options={INDIA_STATES.map(s => s.name)}
+                                            selected={selectedStates.map(code => INDIA_STATES.find(s => s.isoCode === code)?.name || code)}
+                                            onChange={(names) => {
+                                                const codes = names.map(n => INDIA_STATES.find(s => s.name === n)?.isoCode).filter(Boolean);
+                                                // Remove cities of deselected states
+                                                const removedCodes = selectedStates.filter(c => !codes.includes(c));
+                                                let citiesToRemove = [];
+                                                removedCodes.forEach(sc => {
+                                                    citiesToRemove = [...citiesToRemove, ...City.getCitiesOfState('IN', sc).map(c => c.name)];
+                                                });
+                                                if (citiesToRemove.length > 0) {
+                                                    setFormData(prev => ({
+                                                        ...prev,
+                                                        targetCities: prev.targetCities.filter(c => !citiesToRemove.includes(c))
+                                                    }));
+                                                }
+                                                setSelectedStates(codes);
+                                                setAvailableCities(loadCitiesForStates(codes));
+                                            }}
+                                            placeholder="Search states..."
+                                            maxHeight={200}
+                                        />
                                     </div>
 
-                                    {/* Cities Selection - grouped by state */}
+                                    {/* Cities Selection */}
                                     {availableCities.length > 0 && (
                                         <div className="form-group">
-                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                                                <label style={{ margin: 0 }}>Select Cities</label>
-                                                <div style={{ display: 'flex', gap: '8px' }}>
-                                                    <button type="button" className="btn-link" onClick={selectAllCities}>Select All</button>
-                                                    <button type="button" className="btn-link" onClick={clearAllCities}>Clear All</button>
-                                                </div>
-                                            </div>
-                                            {selectedStates.map(stateCode => {
-                                                const stateName = INDIA_STATES.find(s => s.isoCode === stateCode)?.name || stateCode;
-                                                const citiesOfState = availableCities.filter(c => c.stateCode === stateCode);
-                                                if (citiesOfState.length === 0) return null;
-                                                return (
-                                                    <div key={stateCode} style={{ marginBottom: '12px' }}>
-                                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                                                            <strong style={{ fontSize: '13px', color: '#374151' }}>{stateName} ({citiesOfState.length} cities)</strong>
-                                                            <div style={{ display: 'flex', gap: '8px' }}>
-                                                                <button type="button" className="btn-link" onClick={() => selectAllCitiesForState(stateCode)}>All</button>
-                                                                <button type="button" className="btn-link" onClick={() => clearAllCitiesForState(stateCode)}>Clear</button>
-                                                            </div>
-                                                        </div>
-                                                        <div className="multi-select-grid cities-grid" style={{ maxHeight: '150px', overflowY: 'auto' }}>
-                                                            {citiesOfState.map(city => (
-                                                                <label
-                                                                    key={`${stateCode}-${city.name}`}
-                                                                    className={`multi-select-item ${formData.targetCities.includes(city.name) ? 'selected' : ''}`}
-                                                                >
-                                                                    <input
-                                                                        type="checkbox"
-                                                                        checked={formData.targetCities.includes(city.name)}
-                                                                        onChange={() => handleCityToggle(city.name)}
-                                                                    />
-                                                                    {city.name}
-                                                                </label>
-                                                            ))}
-                                                        </div>
-                                                    </div>
-                                                );
-                                            })}
+                                            <SearchSelect
+                                                label="Select Cities"
+                                                options={availableCities.map(c => c.name)}
+                                                selected={formData.targetCities}
+                                                onChange={(val) => setFormData(prev => ({ ...prev, targetCities: val }))}
+                                                placeholder="Search cities..."
+                                                maxHeight={200}
+                                            />
                                         </div>
                                     )}
                                 </div>

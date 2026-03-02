@@ -2,7 +2,7 @@
 
 A comprehensive cloud-based accounting system with multi-company support, inventory management, and integrated real-time chat. Built with React + Vite frontend and Node.js/Express + MongoDB backend.
 
-## Features
+## Featuressss
 
 ### Core Accounting
 - **Multi-Company Management** — Handle multiple businesses from one account

@@ -113,6 +113,14 @@ const enquiryApi = {
             params: { accountCompanyName, ...params }
         });
         return res?.data?.data || [];
+    },
+
+    // Permanently delete a website enquiry (hard delete)
+    async removeWebsiteEnquiry(id, accountCompanyName) {
+        const res = await apiClient.delete(`${BASE}/website/${id}`, {
+            params: { accountCompanyName }
+        });
+        return res?.data?.data;
     }
 };
 

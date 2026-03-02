@@ -32,6 +32,10 @@ export default function ItemModal({ isOpen, onClose, onSave, onDelete, editData 
     const globalSearchRef = useRef(null);
     const searchDropdownRef = useRef(null);
 
+    // MasterItem linkage
+    const [masterItemId, setMasterItemId] = useState(null);
+    const [isFromMaster, setIsFromMaster] = useState(false);
+
     // Form fields
     const [itemName, setItemName] = useState("");
     const [description, setDescription] = useState("");
@@ -187,17 +191,27 @@ export default function ItemModal({ isOpen, onClose, onSave, onDelete, editData 
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
-    // Handle selecting an item from global search
+    // Handle selecting an item from global search (MasterItem catalog)
     const handleSelectGlobalItem = async (selectedItem) => {
         const companyId = getCurrentCompany();
 
-        // Fill the form with selected item's details
+        // Fill the form with selected MasterItem's details
         setItemName(selectedItem.itemName || "");
         setDescription(selectedItem.description || "");
         setItemType(selectedItem.itemType || "Goods");
-        setUnit(selectedItem.unit || "");
         setBrandName(selectedItem.brandName || "");
-        setGstRate(selectedItem.gstRate != null ? String(selectedItem.gstRate) : "");
+        if (selectedItem.category) setCategory(selectedItem.category);
+
+        // Set MasterItem linkage
+        setMasterItemId(selectedItem.masterItemId || null);
+        setIsFromMaster(true);
+
+        // Set image if available
+        if (selectedItem.itemImage) {
+            setItemImage(selectedItem.itemImage);
+            setItemImageMimeType(selectedItem.itemImageMimeType || "");
+            setImagePreview(selectedItem.itemImage);
+        }
 
         // Auto-create missing entries in respective tables
         const createIfMissing = async (endpoint, field, value, payloadKey) => {
@@ -278,6 +292,9 @@ export default function ItemModal({ isOpen, onClose, onSave, onDelete, editData 
         showOnWebsite,
         itemImage,
         itemImageMimeType,
+        // MasterItem linkage
+        masterItemId: masterItemId || undefined,
+        isFromMaster: isFromMaster || false,
     });
 
     // Helper: reset form to empty
@@ -303,6 +320,8 @@ export default function ItemModal({ isOpen, onClose, onSave, onDelete, editData 
         setImagePreview("");
         setErrorName("");
         setEditingIndex(null);
+        setMasterItemId(null);
+        setIsFromMaster(false);
     };
 
     // Helper: fill form from an item object
@@ -325,6 +344,9 @@ export default function ItemModal({ isOpen, onClose, onSave, onDelete, editData 
         setItemImage(item.itemImage || "");
         setItemImageMimeType(item.itemImageMimeType || "");
         setImagePreview(item.itemImage || "");
+        // Restore MasterItem linkage if present
+        setMasterItemId(item.masterItemId || null);
+        setIsFromMaster(item.isFromMaster || false);
     };
 
     // Add current form to batch list
@@ -788,7 +810,7 @@ export default function ItemModal({ isOpen, onClose, onSave, onDelete, editData 
                             )}
                         </div>
 
-                        {/* Search Results Dropdown */}
+                        {/* Search Results Dropdown — MasterItem catalog */}
                         {showSearchDropdown && globalSearchResults.length > 0 && (
                             <div
                                 ref={searchDropdownRef}
@@ -804,7 +826,7 @@ export default function ItemModal({ isOpen, onClose, onSave, onDelete, editData 
                                             <div>
                                                 <div className="font-medium text-gray-900">{item.itemName}</div>
                                                 <div className="text-xs text-gray-500 mt-0.5">
-                                                    {[item.itemType, item.unit, item.brandName, item.gstRate != null ? `GST ${item.gstRate}%` : null]
+                                                    {[item.itemType, item.brandName, item.category]
                                                         .filter(Boolean)
                                                         .join(' • ')}
                                                 </div>
@@ -813,7 +835,7 @@ export default function ItemModal({ isOpen, onClose, onSave, onDelete, editData 
                                                 )}
                                             </div>
                                             <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
-                                                {item.popularity || 1} {item.popularity === 1 ? 'user' : 'users'}
+                                                {item.userCount || 0} {item.userCount === 1 ? 'user' : 'users'}
                                             </span>
                                         </div>
                                     </button>
@@ -824,7 +846,7 @@ export default function ItemModal({ isOpen, onClose, onSave, onDelete, editData 
                         {/* No results message */}
                         {showSearchDropdown && globalSearchResults.length === 0 && globalSearchQuery.trim().length >= 2 && !isSearching && (
                             <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg p-4 text-center text-gray-500 text-sm">
-                                No items found matching "{globalSearchQuery}"
+                                No items found in catalog matching "{globalSearchQuery}" — you can create a new item manually
                             </div>
                         )}
                     </div>

@@ -1044,6 +1044,40 @@ async function listWebsiteEnquiries(req, res, next) {
     }
 }
 
+/**
+ * DELETE WEBSITE ENQUIRY (PERMANENT DELETE)
+ * Hard delete for website enquiries only (distributionType='website')
+ */
+async function removeWebsiteEnquiry(req, res, next) {
+    try {
+        const ownerId = req.user.ownerId;
+
+        const companyId = toObjectId(req.query.accountCompanyName);
+        if (!companyId) {
+            return res.status(400).json({
+                message: "Valid accountCompanyName (companyId) is required",
+            });
+        }
+
+        const doc = await Enquiry.findOneAndDelete({
+            _id: req.params.id,
+            ownerId,
+            accountCompanyName: companyId,
+            distributionType: 'website',
+        });
+
+        if (!doc) {
+            return res
+                .status(404)
+                .json({ success: false, error: { message: "Website enquiry not found" } });
+        }
+
+        return res.json({ success: true, data: { id: doc._id }, message: "Website enquiry permanently deleted" });
+    } catch (err) {
+        next(err);
+    }
+}
+
 module.exports = {
     listMyEnquiries,
     listPublicEnquiries,
@@ -1055,6 +1089,7 @@ module.exports = {
     getRegisteredVendors,
     create,
     remove,
+    removeWebsiteEnquiry,
     respond,
     closeEnquiry,
     markResponseViewed,

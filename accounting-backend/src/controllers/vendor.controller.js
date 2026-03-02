@@ -3,9 +3,11 @@ const Vendor = require('../models/Vendor');
 const Customer = require('../models/Customer');
 const Purchase = require('../models/Purchase');
 const Payment = require('../models/Payment');
+const UnregisteredContact = require('../models/UnregisteredContact');
 const mongoose = require("mongoose");
 const { lookupChatUserByPhone } = require("../utils/chatUserLookup");
 const { handleChatInvitation } = require("../utils/chatInvitation");
+const { searchRegisteredUsers, checkMobileRegistered, normalizePhone } = require("../utils/registeredUserSearch");
 
 /* ---------------------------- Helpers ---------------------------- */
 
@@ -23,7 +25,7 @@ function normalize(v) {
     return String(v).trim().replace(/\s+/g, " ").toLowerCase();
 }
 
-/* ============================= GLOBAL SEARCH (All Users) ============================= */
+/* ============================= GLOBAL SEARCH (Registered Users Only) ============================= */
 async function globalSearch(req, res, next) {
     try {
         const { q, limit = 20 } = req.query;
@@ -34,177 +36,11 @@ async function globalSearch(req, res, next) {
 
         const searchTerm = q.trim();
 
-        // Search across all vendors from all users (for suggestion/autocomplete)
-        const vendors = await Vendor.aggregate([
-            {
-                $match: {
-                    isDeleted: false,
-                    $or: [
-                        { vendorName: { $regex: searchTerm, $options: "i" } },
-                        { name: { $regex: searchTerm, $options: "i" } },
-                        { companyName: { $regex: searchTerm, $options: "i" } },
-                        { mobileNumber: { $regex: searchTerm, $options: "i" } },
-                        { emailAddress: { $regex: searchTerm, $options: "i" } },
-                        { billingAddress: { $regex: searchTerm, $options: "i" } },
-                        { billingVillage: { $regex: searchTerm, $options: "i" } },
-                        { billingTehsil: { $regex: searchTerm, $options: "i" } },
-                        { billingDistrict: { $regex: searchTerm, $options: "i" } },
-                        { billingState: { $regex: searchTerm, $options: "i" } },
-                        { billingPinCode: { $regex: searchTerm, $options: "i" } }
-                    ]
-                }
-            },
-            {
-                // Group by vendor name + company to get unique vendors
-                $group: {
-                    _id: { 
-                        name: { $toLower: "$vendorName" },
-                        company: { $toLower: { $ifNull: ["$companyName", ""] } }
-                    },
-                    vendorName: { $first: "$vendorName" },
-                    mobileNumber: { $first: "$mobileNumber" },
-                    emailAddress: { $first: "$emailAddress" },
-                    websiteLink: { $first: "$websiteLink" },
-                    companyName: { $first: "$companyName" },
-                    gstType: { $first: "$gstType" },
-                    gstNumber: { $first: "$gstNumber" },
-                    billingAddress: { $first: "$billingAddress" },
-                    billingPinCode: { $first: "$billingPinCode" },
-                    billingVillage: { $first: "$billingVillage" },
-                    billingTehsil: { $first: "$billingTehsil" },
-                    billingDistrict: { $first: "$billingDistrict" },
-                    billingState: { $first: "$billingState" },
-                    billingCountry: { $first: "$billingCountry" },
-                    shippingAddress: { $first: "$shippingAddress" },
-                    shippingPinCode: { $first: "$shippingPinCode" },
-                    shippingVillage: { $first: "$shippingVillage" },
-                    shippingTehsil: { $first: "$shippingTehsil" },
-                    shippingDistrict: { $first: "$shippingDistrict" },
-                    shippingState: { $first: "$shippingState" },
-                    shippingCountry: { $first: "$shippingCountry" },
-                    sameAsBilling: { $first: "$sameAsBilling" },
-                    count: { $sum: 1 }
-                }
-            },
-            { $sort: { count: -1 } },
-            {
-                $project: {
-                    _id: 0,
-                    vendorName: 1,
-                    mobileNumber: 1,
-                    emailAddress: 1,
-                    websiteLink: 1,
-                    companyName: 1,
-                    gstType: 1,
-                    gstNumber: 1,
-                    billingAddress: 1,
-                    billingPinCode: 1,
-                    billingVillage: 1,
-                    billingTehsil: 1,
-                    billingDistrict: 1,
-                    billingState: 1,
-                    billingCountry: 1,
-                    shippingAddress: 1,
-                    shippingPinCode: 1,
-                    shippingVillage: 1,
-                    shippingTehsil: 1,
-                    shippingDistrict: 1,
-                    shippingState: 1,
-                    shippingCountry: 1,
-                    sameAsBilling: 1,
-                    popularity: "$count"
-                }
-            }
-        ]);
+        // Search registered users (User + Company from chat-starter DB)
+        // Same pool as customer search — registered users can be added as either customer or vendor
+        const registeredUsers = await searchRegisteredUsers(searchTerm, Number(limit));
 
-        // Search customers collection and map customerName -> vendorName
-        const customersAsVendors = await Customer.aggregate([
-            {
-                $match: {
-                    isDeleted: false,
-                    $or: [
-                        { customerName: { $regex: searchTerm, $options: "i" } },
-                        { name: { $regex: searchTerm, $options: "i" } },
-                        { companyName: { $regex: searchTerm, $options: "i" } },
-                        { mobileNumber: { $regex: searchTerm, $options: "i" } },
-                        { emailAddress: { $regex: searchTerm, $options: "i" } },
-                        { billingAddress: { $regex: searchTerm, $options: "i" } },
-                        { billingVillage: { $regex: searchTerm, $options: "i" } },
-                        { billingTehsil: { $regex: searchTerm, $options: "i" } },
-                        { billingDistrict: { $regex: searchTerm, $options: "i" } },
-                        { billingState: { $regex: searchTerm, $options: "i" } },
-                        { billingPinCode: { $regex: searchTerm, $options: "i" } }
-                    ]
-                }
-            },
-            {
-                $group: {
-                    _id: { 
-                        name: { $toLower: "$customerName" },
-                        company: { $toLower: { $ifNull: ["$companyName", ""] } }
-                    },
-                    customerName: { $first: "$customerName" },
-                    mobileNumber: { $first: "$mobileNumber" },
-                    emailAddress: { $first: "$emailAddress" },
-                    websiteLink: { $first: "$websiteLink" },
-                    companyName: { $first: "$companyName" },
-                    gstType: { $first: "$gstType" },
-                    gstNumber: { $first: "$gstNumber" },
-                    billingAddress: { $first: "$billingAddress" },
-                    billingPinCode: { $first: "$billingPinCode" },
-                    billingVillage: { $first: "$billingVillage" },
-                    billingTehsil: { $first: "$billingTehsil" },
-                    billingDistrict: { $first: "$billingDistrict" },
-                    billingState: { $first: "$billingState" },
-                    billingCountry: { $first: "$billingCountry" },
-                    shippingAddress: { $first: "$shippingAddress" },
-                    shippingPinCode: { $first: "$shippingPinCode" },
-                    shippingVillage: { $first: "$shippingVillage" },
-                    shippingTehsil: { $first: "$shippingTehsil" },
-                    shippingDistrict: { $first: "$shippingDistrict" },
-                    shippingState: { $first: "$shippingState" },
-                    shippingCountry: { $first: "$shippingCountry" },
-                    sameAsBilling: { $first: "$sameAsBilling" },
-                    count: { $sum: 1 }
-                }
-            },
-            { $sort: { count: -1 } },
-            {
-                $project: {
-                    _id: 0,
-                    vendorName: "$customerName", // Map customerName to vendorName
-                    mobileNumber: 1,
-                    emailAddress: 1,
-                    websiteLink: 1,
-                    companyName: 1,
-                    gstType: 1,
-                    gstNumber: 1,
-                    billingAddress: 1,
-                    billingPinCode: 1,
-                    billingVillage: 1,
-                    billingTehsil: 1,
-                    billingDistrict: 1,
-                    billingState: 1,
-                    billingCountry: 1,
-                    shippingAddress: 1,
-                    shippingPinCode: 1,
-                    shippingVillage: 1,
-                    shippingTehsil: 1,
-                    shippingDistrict: 1,
-                    shippingState: 1,
-                    shippingCountry: 1,
-                    sameAsBilling: 1,
-                    popularity: "$count"
-                }
-            }
-        ]);
-
-        // Merge both results and limit
-        const allParties = [...vendors, ...customersAsVendors]
-            .sort((a, b) => (b.popularity || 0) - (a.popularity || 0))
-            .slice(0, Number(limit));
-
-        return res.json({ success: true, data: allParties });
+        return res.json({ success: true, data: registeredUsers });
 
     } catch (err) {
         next(err);
@@ -270,6 +106,29 @@ async function batchCreate(req, res, next) {
                 payload.gstNumber = gstNumber;
                 payload.openingBalanceAmount = Number(payload.openingBalanceAmount || 0);
 
+                // Mobile registered user check (skip if registeredUserId provided)
+                if (payload.mobileNumber && !payload.registeredUserId) {
+                    try {
+                        const registeredMatches = await checkMobileRegistered(payload.mobileNumber);
+                        if (registeredMatches.length > 0) {
+                            errors.push({
+                                index: i,
+                                vendorName: payload.vendorName,
+                                error: "Mobile number belongs to a registered user",
+                                code: 'REGISTERED_USER_EXISTS',
+                                registeredUsers: registeredMatches,
+                            });
+                            continue;
+                        }
+                    } catch (err) {
+                        console.warn('[Vendor BatchCreate] Registered user check failed:', err.message);
+                    }
+                }
+
+                if (payload.registeredUserId) {
+                    payload.isFromRegistered = true;
+                }
+
                 // Check for duplicates
                 const exists = await Vendor.findOne({
                     ownerId,
@@ -307,6 +166,33 @@ async function batchCreate(req, res, next) {
 
                 const doc = await Vendor.create(payload);
                 results.push({ index: i, success: true, data: doc });
+
+                // Track unregistered contact
+                if (payload.mobileNumber && !payload.isFromRegistered) {
+                    try {
+                        const normalized = normalizePhone(payload.mobileNumber);
+                        if (normalized && normalized.length === 10) {
+                            await UnregisteredContact.findOneAndUpdate(
+                                { mobileNorm: normalized, isDeleted: false },
+                                {
+                                    $setOnInsert: {
+                                        name: payload.vendorName || '',
+                                        mobileRaw: payload.mobileNumber,
+                                        email: payload.emailAddress || '',
+                                        companyName: payload.companyName || '',
+                                        source: 'vendor',
+                                        firstReportedBy: ownerId,
+                                        firstReportedAt: new Date(),
+                                    },
+                                    $inc: { reportCount: 1 },
+                                },
+                                { upsert: true, new: true }
+                            );
+                        }
+                    } catch (err) {
+                        console.warn('[Vendor BatchCreate] UnregisteredContact upsert failed:', err.message);
+                    }
+                }
 
             } catch (err) {
                 if (err.code === 11000) {
@@ -510,6 +396,27 @@ async function create(req, res, next) {
         payload.gstType = gstType;
         payload.gstNumber = gstNumber;
 
+        // ---- Mobile number registered user check ----
+        if (payload.mobileNumber && !payload.registeredUserId) {
+            try {
+                const registeredMatches = await checkMobileRegistered(payload.mobileNumber);
+                if (registeredMatches.length > 0) {
+                    return res.status(409).json({
+                        success: false,
+                        code: 'REGISTERED_USER_EXISTS',
+                        error: { message: "This mobile number belongs to a registered user. Please select from the list." },
+                        registeredUsers: registeredMatches,
+                    });
+                }
+            } catch (err) {
+                console.warn('[Vendor Create] Registered user check failed:', err.message);
+            }
+        }
+
+        if (payload.registeredUserId) {
+            payload.isFromRegistered = true;
+        }
+
         if (!payload.vendorName) {
             return res.status(400).json({
                 success: false,
@@ -571,6 +478,33 @@ async function create(req, res, next) {
         }
 
         const doc = await Vendor.create(payload);
+
+        // Track unregistered contacts (for admin outreach)
+        if (payload.mobileNumber && !payload.isFromRegistered) {
+            try {
+                const normalized = normalizePhone(payload.mobileNumber);
+                if (normalized && normalized.length === 10) {
+                    await UnregisteredContact.findOneAndUpdate(
+                        { mobileNorm: normalized, isDeleted: false },
+                        {
+                            $setOnInsert: {
+                                name: payload.vendorName || '',
+                                mobileRaw: payload.mobileNumber,
+                                email: payload.emailAddress || '',
+                                companyName: payload.companyName || '',
+                                source: 'vendor',
+                                firstReportedBy: ownerId,
+                                firstReportedAt: new Date(),
+                            },
+                            $inc: { reportCount: 1 },
+                        },
+                        { upsert: true, new: true }
+                    );
+                }
+            } catch (err) {
+                console.warn('[Vendor Create] UnregisteredContact upsert failed:', err.message);
+            }
+        }
 
         res.status(201).json({ success: true, data: doc });
 
@@ -788,15 +722,15 @@ async function refreshChatLink(req, res, next) {
         }
 
         if (!doc.mobileNumber) {
-            return res.status(400).json({ 
-                success: false, 
-                error: { message: "Vendor has no phone number to link" } 
+            return res.status(400).json({
+                success: false,
+                error: { message: "Vendor has no phone number to link" }
             });
         }
 
         // Try to find the user in chat system
         const chatUser = await lookupChatUserByPhone(doc.mobileNumber);
-        
+
         if (chatUser) {
             // Update the vendor with the new chat user ID
             doc.chatUserId = chatUser.userId;
@@ -804,9 +738,9 @@ async function refreshChatLink(req, res, next) {
             await doc.save();
 
             console.log(`[Vendor RefreshChatLink] Linked ${doc.vendorName} to chat user: ${chatUser.userId}`);
-            
-            return res.json({ 
-                success: true, 
+
+            return res.json({
+                success: true,
                 data: doc,
                 chatLinked: true,
                 chatUser: {
@@ -823,8 +757,8 @@ async function refreshChatLink(req, res, next) {
                 await doc.save();
             }
 
-            return res.json({ 
-                success: true, 
+            return res.json({
+                success: true,
                 data: doc,
                 chatLinked: false,
                 message: "User is not registered on the chat platform yet"
