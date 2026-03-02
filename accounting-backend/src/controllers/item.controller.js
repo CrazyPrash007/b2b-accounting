@@ -1,5 +1,6 @@
 // src/controllers/item.controller.js
 const Item = require("../models/Item");
+const MasterItem = require("../models/MasterItem");
 const Sale = require("../models/Sale");
 const Purchase = require("../models/Purchase");
 const mongoose = require("mongoose");
@@ -86,7 +87,12 @@ async function calculateStock(itemId, itemName, openingStock, ownerId, companyId
     return stock;
 }
 
-/* ============================= GLOBAL SEARCH (All Users) ============================= */
+function normalizeItemName(v) {
+    if (!v) return "";
+    return String(v).trim().replace(/\s+/g, ' ').toLowerCase();
+}
+
+/* ============================= GLOBAL SEARCH (MasterItem Catalog) ============================= */
 async function globalSearch(req, res, next) {
     try {
         const { q, limit = 20 } = req.query;
@@ -96,51 +102,81 @@ async function globalSearch(req, res, next) {
         }
 
         const searchTerm = q.trim();
+        const regex = new RegExp(searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+        const limitNum = Number(limit);
 
-        // Search across all items from all users (for suggestion/autocomplete)
+        // Try MasterItem catalog first
+        const masterItems = await MasterItem.find({
+            isDeleted: false,
+            $or: [
+                { name: regex },
+                { description: regex },
+                { brandName: regex },
+            ]
+        })
+            .sort({ userCount: -1 })
+            .limit(limitNum)
+            .select('_id name description brandName itemType category itemImage itemImageMimeType userCount')
+            .lean();
+
+        if (masterItems.length > 0) {
+            const data = masterItems.map(mi => ({
+                masterItemId: mi._id,
+                itemName: mi.name,
+                description: mi.description || '',
+                brandName: mi.brandName || '',
+                itemType: mi.itemType || 'Goods',
+                category: mi.category || '',
+                itemImage: mi.itemImage || '',
+                itemImageMimeType: mi.itemImageMimeType || '',
+                userCount: mi.userCount || 0,
+            }));
+            return res.json({ success: true, data });
+        }
+
+        // Fallback: aggregate from Item collection (when MasterItem catalog is empty/no matches)
         const items = await Item.aggregate([
             {
                 $match: {
                     isDeleted: false,
                     $or: [
-                        { name: { $regex: searchTerm, $options: "i" } },
-                        { itemName: { $regex: searchTerm, $options: "i" } },
-                        { description: { $regex: searchTerm, $options: "i" } }
+                        { name: regex },
+                        { itemName: regex },
+                        { description: regex },
+                        { brandName: regex },
                     ]
                 }
             },
             {
-                // Group by item name to get unique items with their details
                 $group: {
-                    _id: { $toLower: "$name" },
-                    itemName: { $first: "$name" },
-                    description: { $first: "$description" },
-                    itemType: { $first: { $ifNull: ["$itemType", "$type"] } },
-                    unit: { $first: "$unit" },
-                    brandName: { $first: "$brandName" },
-                    gstRate: { $first: "$gstRate" },
-                    category: { $first: "$category" },
-                    count: { $sum: 1 }
+                    _id: { $toLower: '$name' },
+                    name: { $first: '$name' },
+                    description: { $first: '$description' },
+                    brandName: { $first: '$brandName' },
+                    itemType: { $first: '$itemType' },
+                    category: { $first: '$category' },
+                    itemImage: { $first: '$itemImage' },
+                    itemImageMimeType: { $first: '$itemImageMimeType' },
+                    userCount: { $sum: 1 },
                 }
             },
-            { $sort: { count: -1 } }, // Most common items first
-            { $limit: Number(limit) },
-            {
-                $project: {
-                    _id: 0,
-                    itemName: 1,
-                    description: 1,
-                    itemType: 1,
-                    unit: 1,
-                    brandName: 1,
-                    gstRate: 1,
-                    category: 1,
-                    popularity: "$count"
-                }
-            }
+            { $sort: { userCount: -1 } },
+            { $limit: limitNum },
         ]);
 
-        return res.json({ success: true, data: items });
+        const data = items.map(it => ({
+            masterItemId: null,
+            itemName: it.name || '',
+            description: it.description || '',
+            brandName: it.brandName || '',
+            itemType: it.itemType || 'Goods',
+            category: it.category || '',
+            itemImage: it.itemImage || '',
+            itemImageMimeType: it.itemImageMimeType || '',
+            userCount: it.userCount || 0,
+        }));
+
+        return res.json({ success: true, data });
 
     } catch (err) {
         next(err);
@@ -308,7 +344,67 @@ async function create(req, res, next) {
             payload.openingDate = new Date(payload.openingDate);
         }
 
+        // ---- MasterItem linkage ----
+        if (payload.masterItemId) {
+            // User selected from global search — copy locked fields from MasterItem
+            const masterItem = await MasterItem.findById(payload.masterItemId).lean();
+            if (masterItem && !masterItem.isDeleted) {
+                payload.name = masterItem.name;
+                payload.itemName = masterItem.name;
+                payload.description = masterItem.description || payload.description || '';
+                payload.brandName = masterItem.brandName || payload.brandName || '';
+                payload.itemImage = masterItem.itemImage || payload.itemImage || '';
+                payload.itemImageMimeType = masterItem.itemImageMimeType || payload.itemImageMimeType || '';
+                payload.isFromMaster = true;
+            }
+        } else {
+            // New item — check if a MasterItem with same normalized name exists
+            const nameNorm = normalizeItemName(payload.name);
+            let masterItem = await MasterItem.findOne({ nameNorm, isDeleted: false }).lean();
+            if (masterItem) {
+                // Auto-link to existing MasterItem
+                payload.masterItemId = masterItem._id;
+                payload.isFromMaster = false; // created independently, just auto-linked
+            } else {
+                // Create a new MasterItem
+                try {
+                    const newMaster = await MasterItem.create({
+                        name: payload.name,
+                        description: payload.description || '',
+                        brandName: payload.brandName || '',
+                        itemType: payload.itemType || 'Goods',
+                        category: payload.category || '',
+                        itemImage: payload.itemImage || '',
+                        itemImageMimeType: payload.itemImageMimeType || '',
+                        status: 'active',
+                        userCount: 0,
+                    });
+                    payload.masterItemId = newMaster._id;
+                } catch (masterErr) {
+                    // Race condition: another request created it — try to find it
+                    if (masterErr.code === 11000) {
+                        masterItem = await MasterItem.findOne({ nameNorm, isDeleted: false }).lean();
+                        if (masterItem) payload.masterItemId = masterItem._id;
+                    } else {
+                        console.warn('[Item Create] MasterItem creation failed:', masterErr.message);
+                    }
+                }
+            }
+        }
+
         const doc = await Item.create(payload);
+
+        // Increment MasterItem userCount
+        if (payload.masterItemId) {
+            await MasterItem.findByIdAndUpdate(payload.masterItemId, { $inc: { userCount: 1 } }).catch(err =>
+                console.warn('[Item Create] MasterItem userCount increment failed:', err.message)
+            );
+            // Set createdFromItemId if this is the first item
+            await MasterItem.findOneAndUpdate(
+                { _id: payload.masterItemId, createdFromItemId: null },
+                { $set: { createdFromItemId: doc._id } }
+            ).catch(() => { });
+        }
 
         return res.status(201).json({ success: true, data: doc });
 
@@ -420,6 +516,13 @@ async function remove(req, res, next) {
                 success: false,
                 error: { message: "Not found" }
             });
+        }
+
+        // Decrement MasterItem userCount on soft-delete
+        if (doc.masterItemId) {
+            await MasterItem.findByIdAndUpdate(doc.masterItemId, {
+                $inc: { userCount: -1 }
+            }).catch(err => console.warn('[Item Delete] MasterItem userCount decrement failed:', err.message));
         }
 
         res.json({ success: true, data: doc });
@@ -652,6 +755,44 @@ async function batchCreate(req, res, next) {
                     payload.openingDate = new Date(payload.openingDate);
                 }
 
+                // ---- MasterItem linkage ----
+                if (payload.masterItemId) {
+                    const masterItem = await MasterItem.findById(payload.masterItemId).lean();
+                    if (masterItem && !masterItem.isDeleted) {
+                        payload.name = masterItem.name;
+                        payload.itemName = masterItem.name;
+                        payload.description = masterItem.description || payload.description || '';
+                        payload.brandName = masterItem.brandName || payload.brandName || '';
+                        payload.itemImage = masterItem.itemImage || payload.itemImage || '';
+                        payload.itemImageMimeType = masterItem.itemImageMimeType || payload.itemImageMimeType || '';
+                        payload.isFromMaster = true;
+                    }
+                } else {
+                    const nameNorm = normalizeItemName(payload.name);
+                    let masterItem = await MasterItem.findOne({ nameNorm, isDeleted: false }).lean();
+                    if (masterItem) {
+                        payload.masterItemId = masterItem._id;
+                    } else {
+                        try {
+                            const newMaster = await MasterItem.create({
+                                name: payload.name,
+                                description: payload.description || '',
+                                brandName: payload.brandName || '',
+                                itemType: payload.itemType || 'Goods',
+                                category: payload.category || '',
+                                status: 'active',
+                                userCount: 0,
+                            });
+                            payload.masterItemId = newMaster._id;
+                        } catch (masterErr) {
+                            if (masterErr.code === 11000) {
+                                masterItem = await MasterItem.findOne({ nameNorm, isDeleted: false }).lean();
+                                if (masterItem) payload.masterItemId = masterItem._id;
+                            }
+                        }
+                    }
+                }
+
                 // Check for duplicates
                 const exists = await Item.findOne({
                     ownerId,
@@ -666,6 +807,16 @@ async function batchCreate(req, res, next) {
                 }
 
                 const doc = await Item.create(payload);
+
+                // Increment MasterItem userCount
+                if (payload.masterItemId) {
+                    await MasterItem.findByIdAndUpdate(payload.masterItemId, { $inc: { userCount: 1 } }).catch(() => { });
+                    await MasterItem.findOneAndUpdate(
+                        { _id: payload.masterItemId, createdFromItemId: null },
+                        { $set: { createdFromItemId: doc._id } }
+                    ).catch(() => { });
+                }
+
                 results.push({ index: i, success: true, data: doc });
 
             } catch (err) {

@@ -67,6 +67,7 @@ export default function CustomerPage() {
     const [editingCustomer, setEditingCustomer] = useState(null);
     const [searchTerm, setSearchTerm] = useState("");
     const [filterType, setFilterType] = useState("all"); // all, withDue, withoutDue
+    const [registeredUserConflict, setRegisteredUserConflict] = useState(null);
 
     const totalPending = meta.totalPending || 0;
 
@@ -74,7 +75,7 @@ export default function CustomerPage() {
     const filteredCustomers = customers.filter(customer => {
         // Search filter - includes name, mobile, company, billing location
         const searchLower = searchTerm.toLowerCase();
-        const matchesSearch = !searchTerm || 
+        const matchesSearch = !searchTerm ||
             (customer.customerName?.toLowerCase().includes(searchLower)) ||
             (customer.companyName?.toLowerCase().includes(searchLower)) ||
             (customer.mobileNumber?.includes(searchTerm)) ||
@@ -88,8 +89,8 @@ export default function CustomerPage() {
 
         // Type filter
         const pending = customer.pendingAmount || 0;
-        const matchesType = 
-            filterType === "all" || 
+        const matchesType =
+            filterType === "all" ||
             (filterType === "withDue" && pending !== 0) ||
             (filterType === "withoutDue" && pending === 0);
 
@@ -120,6 +121,7 @@ export default function CustomerPage() {
     const handleCloseModal = () => {
         setIsModalOpen(false);
         setEditingCustomer(null);
+        setRegisteredUserConflict(null);
     };
 
     const handleSaveCustomer = async (customerData, isEdit) => {
@@ -184,16 +186,20 @@ export default function CustomerPage() {
                             shippingCountry: c.shippingCountry || "India",
                             openingBalanceType: c.openingBalanceType || "Credit",
                             openingBalanceAmount: c.openingBalanceAmount || 0,
+                            // Registered user linkage
+                            registeredUserId: c.registeredUserId || undefined,
+                            registeredCompanyId: c.registeredCompanyId || undefined,
+                            isFromRegistered: c.isFromRegistered || false,
                         })),
                         accountCompanyName: companyId
                     })
                 });
 
                 const result = await res.json();
-                
+
                 if (result.success) {
                     alert(`Successfully created ${result.summary.created} customer(s)${result.summary.failed > 0 ? `, ${result.summary.failed} failed` : ''}`);
-                    
+
                     // Add successful customers as invitees in fullstack chat
                     if (result.data && Array.isArray(result.data)) {
                         for (const item of result.data) {
@@ -233,6 +239,10 @@ export default function CustomerPage() {
                     shippingCountry: customerData.shippingCountry || "India",
                     openingBalanceType: customerData.openingBalanceType || "Credit",
                     openingBalanceAmount: customerData.openingBalanceAmount || 0,
+                    // Registered user linkage
+                    registeredUserId: customerData.registeredUserId || undefined,
+                    registeredCompanyId: customerData.registeredCompanyId || undefined,
+                    isFromRegistered: customerData.isFromRegistered || false,
                 });
 
                 // Add customer as invitee in fullstack chat (only for new customers)
@@ -242,10 +252,28 @@ export default function CustomerPage() {
             }
             setIsModalOpen(false);
             setEditingCustomer(null);
+            setRegisteredUserConflict(null);
             reload(); // Reload the list to show new customers
         } catch (err) {
             console.error("Failed to save customer:", err);
-            alert(err?.message || "Failed to save customer");
+            // Handle 409 REGISTERED_USER_EXISTS — show registered users in modal
+            const errData = err?.response?.data;
+            if (errData?.code === 'REGISTERED_USER_EXISTS' && errData?.registeredUsers) {
+                // Normalize field names: backend uses userId/userName/userPhone, frontend expects registeredUserId/name/phone
+                const normalized = errData.registeredUsers.map(u => ({
+                    name: u.userName || u.name || '',
+                    phone: u.userPhone || u.phone || '',
+                    email: u.userEmail || u.email || '',
+                    registeredUserId: u.userId || u.registeredUserId || u._id,
+                    companies: (u.companies || []).map(c => ({
+                        ...c,
+                        registeredCompanyId: c.companyId || c.registeredCompanyId || c._id,
+                    })),
+                }));
+                setRegisteredUserConflict(normalized);
+                return; // Keep modal open
+            }
+            alert(err?.response?.data?.error?.message || err?.message || "Failed to save customer");
         }
     };
 
@@ -639,6 +667,8 @@ export default function CustomerPage() {
                 onSave={handleSaveCustomer}
                 onDelete={handleDeleteCustomer}
                 editData={editingCustomer}
+                registeredUserConflict={registeredUserConflict}
+                onClearConflict={() => setRegisteredUserConflict(null)}
             />
         </div>
     );

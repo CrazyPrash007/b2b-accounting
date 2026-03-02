@@ -6,6 +6,7 @@ import itemApi from "src/features/items/items/api/item.api";
 import apiClient from "src/services/apiClient";
 import { CompanyContext } from "src/App";
 import { useAuth } from "src/contexts/AuthContext";
+import SearchSelect from "src/components/SearchSelect";
 import ItemModal from "src/features/items/items/components/ItemModal";
 
 // Indian States list
@@ -348,47 +349,17 @@ function CreateEnquiryModal({ isOpen, onClose, onSave, registeredVendors: vendor
                     {/* State Selection (only for 'public' distribution) */}
                     {distributionType === 'public' && (
                         <div className="mb-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
-                            <div className="flex justify-between items-center mb-3">
-                                <h4 className="text-sm font-semibold text-gray-800">
-                                    Target States ({selectedStates.length === 0 ? "All States" : `${selectedStates.length} selected`})
-                                </h4>
-                                <button
-                                    type="button"
-                                    onClick={handleSelectAllStates}
-                                    className="text-xs text-blue-600 hover:text-blue-800 font-medium"
-                                >
-                                    {selectedStates.length === INDIAN_STATES.length ? "Deselect All" : "Select All States"}
-                                </button>
-                            </div>
                             <p className="text-xs text-gray-500 mb-3">
                                 Leave empty to show enquiry to vendors in all states, or select specific states.
                             </p>
-                            <input
-                                type="text"
+                            <SearchSelect
+                                label={`Target States${selectedStates.length === 0 ? " (All States)" : ""}`}
+                                options={INDIAN_STATES}
+                                selected={selectedStates}
+                                onChange={setSelectedStates}
                                 placeholder="Search states..."
-                                value={stateSearch}
-                                onChange={(e) => setStateSearch(e.target.value)}
-                                className="w-full border border-gray-300 rounded px-3 py-2 text-sm mb-3"
+                                maxHeight={220}
                             />
-                            <div className="max-h-48 overflow-y-auto space-y-2">
-                                {filteredStates.map(state => (
-                                    <label
-                                        key={state}
-                                        className={`flex items-center p-2 rounded border cursor-pointer transition-all ${selectedStates.includes(state)
-                                            ? "border-blue-500 bg-blue-100"
-                                            : "border-gray-200 hover:bg-gray-100"
-                                            }`}
-                                    >
-                                        <input
-                                            type="checkbox"
-                                            checked={selectedStates.includes(state)}
-                                            onChange={() => handleStateToggle(state)}
-                                            className="mr-3"
-                                        />
-                                        <span className="text-sm text-gray-900">{state}</span>
-                                    </label>
-                                ))}
-                            </div>
                         </div>
                     )}
 

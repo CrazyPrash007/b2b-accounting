@@ -123,6 +123,9 @@ export default function ItemsPage() {
             showOnWebsite: data.showOnWebsite !== false,
             itemImage: data.itemImage || "",
             itemImageMimeType: data.itemImageMimeType || "",
+            // MasterItem linkage
+            masterItemId: data.masterItemId || undefined,
+            isFromMaster: data.isFromMaster || false,
         });
 
         try {
@@ -164,7 +167,7 @@ export default function ItemsPage() {
                 if (result.success) {
                     // Show detailed alert with success and failures
                     let message = `Successfully created ${result.summary.created} item(s)`;
-                    
+
                     if (result.summary.failed > 0 && result.errors?.length > 0) {
                         message += `\n\n⚠️ ${result.summary.failed} item(s) failed:`;
                         result.errors.forEach((err, idx) => {
@@ -172,7 +175,7 @@ export default function ItemsPage() {
                             message += `\n• ${itemName}: ${err.error}`;
                         });
                     }
-                    
+
                     alert(message);
                 } else {
                     const errorMsg = result.error?.message || result.message || 'Batch creation failed';
