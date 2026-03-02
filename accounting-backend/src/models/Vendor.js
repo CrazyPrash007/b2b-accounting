@@ -51,6 +51,11 @@ const VendorSchema = new mongoose.Schema({
     openingBalanceType: { type: String, enum: ['Credit', 'Debit'], default: 'Credit' },
     openingBalanceAmount: { type: Number, default: 0 },
 
+    // Registered user linkage (for global search entries)
+    registeredUserId: { type: mongoose.Schema.Types.ObjectId, default: null },    // chat-starter User._id
+    registeredCompanyId: { type: mongoose.Schema.Types.ObjectId, default: null }, // chat-starter Company._id
+    isFromRegistered: { type: Boolean, default: false },                          // true = came from global search
+
     // Chat integration
     chatUserId: { type: String, default: null }, // User ID from chat system (b2b-fullstack)
     chatConversationId: { type: String, default: null }, // Cached conversation ID

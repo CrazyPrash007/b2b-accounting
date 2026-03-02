@@ -66,6 +66,7 @@ export default function VendorPage() {
     const [editingVendor, setEditingVendor] = useState(null);
     const [searchTerm, setSearchTerm] = useState("");
     const [filterType, setFilterType] = useState("all"); // all, withDue, withoutDue
+    const [registeredUserConflict, setRegisteredUserConflict] = useState(null);
 
     const totalPayable = meta.totalPayable || 0;
 
@@ -73,7 +74,7 @@ export default function VendorPage() {
     const filteredVendors = vendors.filter(vendor => {
         // Search filter - includes name, mobile, company, billing location
         const searchLower = searchTerm.toLowerCase();
-        const matchesSearch = !searchTerm || 
+        const matchesSearch = !searchTerm ||
             (vendor.vendorName?.toLowerCase().includes(searchLower)) ||
             (vendor.companyName?.toLowerCase().includes(searchLower)) ||
             (vendor.mobileNumber?.includes(searchTerm)) ||
@@ -87,8 +88,8 @@ export default function VendorPage() {
 
         // Type filter
         const payable = vendor.payableAmount || 0;
-        const matchesType = 
-            filterType === "all" || 
+        const matchesType =
+            filterType === "all" ||
             (filterType === "withDue" && payable !== 0) ||
             (filterType === "withoutDue" && payable === 0);
 
@@ -117,6 +118,7 @@ export default function VendorPage() {
     const handleCloseModal = () => {
         setIsModalOpen(false);
         setEditingVendor(null);
+        setRegisteredUserConflict(null);
     };
 
     const handleSaveVendor = async (vendorData, isEdit) => {
@@ -144,7 +146,7 @@ export default function VendorPage() {
                 }
 
                 // Add all successful vendors as invitees
-                const successfulVendors = vendorData.filter((_, idx) => 
+                const successfulVendors = vendorData.filter((_, idx) =>
                     !errors.some(e => e.vendorName === vendorData[idx].vendorName)
                 );
                 successfulVendors.forEach(vendor => {
@@ -188,6 +190,10 @@ export default function VendorPage() {
                 shippingCountry: vendorData.shippingCountry || "India",
                 openingBalanceType: vendorData.openingBalanceType || "Credit",
                 openingBalanceAmount: vendorData.openingBalanceAmount || 0,
+                // Registered user linkage
+                registeredUserId: vendorData.registeredUserId || undefined,
+                registeredCompanyId: vendorData.registeredCompanyId || undefined,
+                isFromRegistered: vendorData.isFromRegistered || false,
             };
 
             if (isEdit) {
@@ -203,9 +209,29 @@ export default function VendorPage() {
 
             setIsModalOpen(false);
             setEditingVendor(null);
+            setRegisteredUserConflict(null);
         } catch (err) {
             console.error("Failed to save vendor:", err);
-            alert(err?.message || "Failed to save vendor");
+            // Handle 409 REGISTERED_USER_EXISTS — show registered users in modal
+            const errData = err?.response?.data;
+            if (errData?.code === 'REGISTERED_USER_EXISTS' && errData?.registeredUsers) {
+                // Normalize backend field names to frontend field names
+                const normalized = (errData.registeredUsers || []).map(u => ({
+                    registeredUserId: u.registeredUserId || u.userId || u._id,
+                    name: u.name || u.userName || "",
+                    phone: u.phone || u.userPhone || "",
+                    email: u.email || u.userEmail || "",
+                    companies: Array.isArray(u.companies)
+                        ? u.companies.map(c => ({
+                            ...c,
+                            registeredCompanyId: c.registeredCompanyId || c.companyId || c._id,
+                        }))
+                        : [],
+                }));
+                setRegisteredUserConflict(normalized);
+                return; // Keep modal open
+            }
+            alert(err?.response?.data?.error?.message || err?.message || "Failed to save vendor");
         }
     };
 
@@ -603,6 +629,8 @@ export default function VendorPage() {
                 onSave={handleSaveVendor}
                 onDelete={handleDeleteVendor}
                 editData={editingVendor}
+                registeredUserConflict={registeredUserConflict}
+                onClearConflict={() => setRegisteredUserConflict(null)}
             />
         </div>
     );

@@ -25,6 +25,10 @@ const ItemSchema = new mongoose.Schema({
     minStock: { type: Number, default: 0 },
     openingDate: { type: Date, default: null },
 
+    // MasterItem linkage (for global search / admin catalog)
+    masterItemId: { type: mongoose.Schema.Types.ObjectId, ref: 'MasterItem', default: null },
+    isFromMaster: { type: Boolean, default: false }, // true = selected from global search catalog
+
     // Website visibility & image for personal shop website
     showOnWebsite: { type: Boolean, default: true, index: true }, // Toggle to show/hide on shop website
     itemImage: { type: String, default: '' }, // Base64 encoded image data (data:image/...;base64,...)
