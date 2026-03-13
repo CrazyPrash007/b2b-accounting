@@ -61,6 +61,7 @@ export default function StaffPage() {
     const [selectedStaffForHistory, setSelectedStaffForHistory] = useState(null);
     const [currentPage, setCurrentPage] = useState(1);
     const [pageLimit, setPageLimit] = useState(50);
+    const [pageError, setPageError] = useState('');
 
     const accountCompanyName = selectedCompany;
     const tableContainerRef = useRef(null);
@@ -129,6 +130,7 @@ export default function StaffPage() {
             } else {
                 await createStaff(submitData);
             }
+            setPageError('');
             handleCloseModal();
             loadStaff();
         } catch (error) {
@@ -141,8 +143,8 @@ export default function StaffPage() {
                 : error.response?.data?.message 
                 || error?.message 
                 || 'Failed to save staff';
-            
-            alert(errorMsg);
+
+            throw new Error(errorMsg);
         }
     };
 
@@ -155,10 +157,11 @@ export default function StaffPage() {
         if (staffToDelete) {
             try {
                 await deleteStaff(staffToDelete._id);
+                setPageError('');
                 loadStaff();
             } catch (error) {
                 console.error('Error deleting staff:', error);
-                alert(error?.message || 'Failed to delete staff');
+                setPageError(error?.response?.data?.message || error?.message || 'Failed to delete staff');
             }
         }
         setDeleteConfirmOpen(false);
@@ -349,6 +352,12 @@ export default function StaffPage() {
                         totalCount={staff.length}
                         onExport={handleExportToExcel}
                     />
+
+                    {pageError && (
+                        <div className="mx-4 mt-2 rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">
+                            {pageError}
+                        </div>
+                    )}
 
                     {/* Table Container - Scrollable with horizontal scroll */}
                     <div

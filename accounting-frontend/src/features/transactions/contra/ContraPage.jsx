@@ -81,21 +81,24 @@ function ContraModal({ isOpen, onClose, onSave, editData }) {
         if (error) setError("");
     };
 
-    const handleSave = () => {
+    const handleSave = async () => {
+        const validationErrors = [];
+
         if (!formData.fromAccount.trim()) {
-            setError("From Account is required");
-            return;
+            validationErrors.push("From Account: Please select the account to transfer from.");
         }
         if (!formData.toAccount.trim()) {
-            setError("To Account is required");
-            return;
+            validationErrors.push("To Account: Please select the account to transfer to.");
         }
-        if (formData.fromAccount === formData.toAccount) {
-            setError("From and To accounts cannot be the same");
-            return;
+        if (formData.fromAccount && formData.toAccount && formData.fromAccount === formData.toAccount) {
+            validationErrors.push("From and To accounts cannot be the same. Please select different accounts.");
         }
         if (!formData.amount || parseFloat(formData.amount) <= 0) {
-            setError("Valid amount is required");
+            validationErrors.push("Amount: Please enter a valid transfer amount greater than \u20B90.");
+        }
+
+        if (validationErrors.length > 0) {
+            setError(validationErrors.join("\n"));
             return;
         }
 
@@ -108,7 +111,12 @@ function ContraModal({ isOpen, onClose, onSave, editData }) {
             contraData.id = editData.id || editData._id;
         }
 
-        onSave(contraData, isEditMode);
+        try {
+            await Promise.resolve(onSave(contraData, isEditMode));
+        } catch (saveErr) {
+            const msg = saveErr?.message || "Failed to save contra entry. Please try again.";
+            setError(msg);
+        }
     };
 
     if (!isOpen) return null;
@@ -131,8 +139,15 @@ function ContraModal({ isOpen, onClose, onSave, editData }) {
                 {/* Body */}
                 <div className="px-5 py-4 space-y-4">
                     {error && (
-                        <div className="p-3 bg-red-50 border border-red-200 rounded text-red-700 text-sm">
-                            {error}
+                        <div className="p-3 bg-red-50 border border-red-200 rounded text-red-700 text-sm" role="alert">
+                            <p className="font-medium">Unable to save contra entry.</p>
+                            {error.includes("\n") ? (
+                                <ul className="list-disc pl-4 mt-1 space-y-0.5">
+                                    {error.split("\n").map((msg, i) => <li key={i}>{msg}</li>)}
+                                </ul>
+                            ) : (
+                                <p>{error}</p>
+                            )}
                         </div>
                     )}
 
@@ -234,6 +249,7 @@ export default function ContraPage() {
     const [loading, setLoading] = useState(false);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingEntry, setEditingEntry] = useState(null);
+    const [pageError, setPageError] = useState("");
 
     const tableContainerRef = useRef(null);
     const [visibleRows, setVisibleRows] = useState(20);
@@ -296,9 +312,11 @@ export default function ContraPage() {
             await fetchContraEntries();
             setIsModalOpen(false);
             setEditingEntry(null);
+            setPageError("");
         } catch (err) {
             console.error("Failed to save contra entry:", err);
-            alert(err?.message || "Failed to save contra entry");
+            const msg = err?.response?.data?.error?.message || err?.message || "Failed to save contra entry. Please check all required fields and try again.";
+            throw new Error(msg);
         }
     };
 
@@ -307,9 +325,10 @@ export default function ContraPage() {
         try {
             await authFetch(`${API_BASE}/api/contra/${id}`, { method: 'DELETE' });
             await fetchContraEntries();
+            setPageError("");
         } catch (err) {
             console.error("Failed to delete entry:", err);
-            alert(err?.message || "Failed to delete contra entry");
+            setPageError(err?.response?.data?.error?.message || err?.message || "Failed to delete contra entry");
         }
     };
 
@@ -381,6 +400,11 @@ export default function ContraPage() {
 
             {/* Toolbar */}
             <div className="flex items-center justify-end gap-2 px-4 py-2 border-b border-gray-100">
+                {pageError && (
+                    <div className="flex-1 rounded-md border border-red-300 bg-red-50 px-3 py-1.5 text-sm text-red-700 mr-2" role="alert">
+                        {pageError}
+                    </div>
+                )}
                 <button 
                     onClick={handleExportToExcel}
                     className="flex items-center gap-2 px-3 py-1.5 text-gray-600 hover:bg-gray-100 rounded text-sm"

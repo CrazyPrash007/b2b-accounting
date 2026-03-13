@@ -231,7 +231,7 @@ export default function VendorPage() {
                 setRegisteredUserConflict(normalized);
                 return; // Keep modal open
             }
-            alert(err?.response?.data?.error?.message || err?.message || "Failed to save vendor");
+            throw new Error(err?.response?.data?.error?.message || err?.response?.data?.message || err?.message || "Failed to save vendor. Please check required fields and try again.");
         }
     };
 
@@ -244,7 +244,7 @@ export default function VendorPage() {
             setEditingVendor(null);
         } catch (err) {
             console.error("Failed to delete vendor:", err);
-            alert(err?.message || "Failed to delete vendor");
+            throw new Error(err?.response?.data?.error?.message || err?.response?.data?.message || err?.message || "Failed to delete vendor");
         }
     };
 

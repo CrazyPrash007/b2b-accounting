@@ -217,7 +217,7 @@ export default function UnitPage() {
             setEditingUnit(null);
         } catch (err) {
             console.error("Failed to save unit:", err);
-            alert(err?.message || "Failed to save unit");
+            throw new Error(err?.response?.data?.error?.message || err?.response?.data?.message || err?.message || "Failed to save unit. Please check required fields and try again.");
         }
     };
 
@@ -230,7 +230,7 @@ export default function UnitPage() {
             setEditingUnit(null);
         } catch (err) {
             console.error("Failed to delete unit:", err);
-            alert(err?.message || "Failed to delete unit");
+            throw new Error(err?.response?.data?.error?.message || err?.response?.data?.message || err?.message || "Failed to delete unit");
         }
     };
 

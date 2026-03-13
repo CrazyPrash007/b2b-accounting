@@ -273,7 +273,7 @@ export default function CustomerPage() {
                 setRegisteredUserConflict(normalized);
                 return; // Keep modal open
             }
-            alert(err?.response?.data?.error?.message || err?.message || "Failed to save customer");
+            throw new Error(err?.response?.data?.error?.message || err?.response?.data?.message || err?.message || "Failed to save customer. Please check required fields and try again.");
         }
     };
 
@@ -285,7 +285,7 @@ export default function CustomerPage() {
             setEditingCustomer(null);
         } catch (err) {
             console.error("Failed to delete customer:", err);
-            alert(err?.message || "Failed to delete customer");
+            throw new Error(err?.response?.data?.error?.message || err?.response?.data?.message || err?.message || "Failed to delete customer");
         }
     };
 

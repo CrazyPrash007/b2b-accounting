@@ -1246,6 +1246,7 @@ export default function EnquiryPage() {
     const [filterState, setFilterState] = useState("");
     const [filterStatus, setFilterStatus] = useState("");
     const [search, setSearch] = useState("");
+    const [pageError, setPageError] = useState("");
 
     // Unique categories from all enquiries (computed with useMemo to avoid cascading renders)
     const categories = useMemo(() => {
@@ -1299,12 +1300,13 @@ export default function EnquiryPage() {
         try {
             await create(payload);
             setCreateModalOpen(false);
+            setPageError("");
         } catch (err) {
             console.error("Failed to save enquiry", err);
             const errorMessage = err?.response?.data?.error?.message ||
                 err?.response?.data?.message ||
                 "Failed to create enquiry. Please check all required fields.";
-            alert(errorMessage);
+            setPageError(errorMessage);
         }
     };
 
@@ -1312,9 +1314,10 @@ export default function EnquiryPage() {
         if (window.confirm(`Delete enquiry for "${item.productName}"?`)) {
             try {
                 await remove(item.id);
+                setPageError("");
             } catch (err) {
                 console.error("Failed to delete enquiry", err);
-                alert(err?.response?.data?.error?.message || "Failed to delete enquiry");
+                setPageError(err?.response?.data?.error?.message || err?.response?.data?.message || "Failed to delete enquiry");
             }
         }
     };
@@ -1323,9 +1326,10 @@ export default function EnquiryPage() {
         if (window.confirm(`Permanently delete this website enquiry from "${item.creatorName || 'Unknown'}"?\n\nThis action cannot be undone.`)) {
             try {
                 await removeWebsiteEnquiry(item.id || item._id);
+                setPageError("");
             } catch (err) {
                 console.error("Failed to delete website enquiry", err);
-                alert(err?.response?.data?.error?.message || "Failed to delete website enquiry");
+                setPageError(err?.response?.data?.error?.message || err?.response?.data?.message || "Failed to delete website enquiry");
             }
         }
     };
@@ -1334,9 +1338,10 @@ export default function EnquiryPage() {
         if (window.confirm(`Close enquiry for "${item.productName}"? This cannot be undone.`)) {
             try {
                 await closeEnquiry(item.id);
+                setPageError("");
             } catch (err) {
                 console.error("Failed to close enquiry", err);
-                alert(err?.response?.data?.error?.message || "Failed to close enquiry");
+                setPageError(err?.response?.data?.error?.message || err?.response?.data?.message || "Failed to close enquiry");
             }
         }
     };
@@ -1351,12 +1356,13 @@ export default function EnquiryPage() {
             await respond(id, payload);
             setRespondModalOpen(false);
             setSelectedEnquiry(null);
+            setPageError("");
         } catch (err) {
             console.error("Failed to respond to enquiry", err);
             const errorMessage = err?.response?.data?.error?.message ||
                 err?.response?.data?.message ||
                 "Failed to submit your response. Please try again.";
-            alert(errorMessage);
+            setPageError(errorMessage);
         }
     };
 
@@ -1395,7 +1401,7 @@ export default function EnquiryPage() {
             reload();
         } catch (err) {
             console.error("Failed to select response", err);
-            alert(err?.response?.data?.error?.message || "Failed to select response");
+            setPageError(err?.response?.data?.error?.message || err?.response?.data?.message || "Failed to select response");
         }
     };
 
@@ -1432,6 +1438,12 @@ export default function EnquiryPage() {
                     New Enquiry
                 </button>
             </div>
+
+            {pageError && (
+                <div className="mb-4 rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">
+                    {pageError}
+                </div>
+            )}
 
             {/* Tabs */}
             <div className="border-b border-gray-200 mb-4">

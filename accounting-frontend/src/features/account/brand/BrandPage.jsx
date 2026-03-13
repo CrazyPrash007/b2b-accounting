@@ -186,7 +186,7 @@ export default function BrandPage() {
             setEditingBrand(null);
         } catch (err) {
             console.error("Failed to save brand:", err);
-            alert(err?.message || "Failed to save brand");
+            throw new Error(err?.response?.data?.error?.message || err?.response?.data?.message || err?.message || "Failed to save brand. Please check required fields and try again.");
         }
     };
 
@@ -198,7 +198,7 @@ export default function BrandPage() {
             setEditingBrand(null);
         } catch (err) {
             console.error("Failed to delete brand:", err);
-            alert(err?.message || "Failed to delete brand");
+            throw new Error(err?.response?.data?.error?.message || err?.response?.data?.message || err?.message || "Failed to delete brand");
         }
     };
 

@@ -99,17 +99,21 @@ function IncomeModal({ isOpen, onClose, onSave, onDelete, editData }) {
         }
     };
 
-    const handleSave = () => {
+    const handleSave = async () => {
+        const validationErrors = [];
+
         if (!formData.billName.trim()) {
-            setError("Bill name is required. Please enter a name for this income.");
-            return;
+            validationErrors.push("Bill Name: Please enter a name for this income.");
         }
         if (!formData.incomeAmount || parseFloat(formData.incomeAmount) <= 0) {
-            setError("Please enter a valid income amount (must be greater than 0).");
-            return;
+            validationErrors.push("Income Amount: Please enter a valid amount greater than \u20B90.");
         }
         if (!formData.category) {
-            setError("Category is required. Please select a category for income tracking.");
+            validationErrors.push("Category: Please select a category for income tracking.");
+        }
+
+        if (validationErrors.length > 0) {
+            setError(validationErrors.join("\n"));
             return;
         }
 
@@ -121,7 +125,12 @@ function IncomeModal({ isOpen, onClose, onSave, onDelete, editData }) {
             notes: formData.notes.trim(),
         };
 
-        onSave(incomeData, isEditMode);
+        try {
+            await Promise.resolve(onSave(incomeData, isEditMode));
+        } catch (saveErr) {
+            const msg = saveErr?.message || "Failed to save income. Please try again.";
+            setError(msg);
+        }
     };
 
     const handleBackdropClick = (e) => {
@@ -290,7 +299,16 @@ function IncomeModal({ isOpen, onClose, onSave, onDelete, editData }) {
                     </div>
 
                     {error && (
-                        <p className="text-sm text-red-500">{error}</p>
+                        <div className="rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">
+                            <p className="font-medium">Unable to save income.</p>
+                            {error.includes("\n") ? (
+                                <ul className="list-disc pl-4 mt-1 space-y-0.5">
+                                    {error.split("\n").map((msg, i) => <li key={i}>{msg}</li>)}
+                                </ul>
+                            ) : (
+                                <p>{error}</p>
+                            )}
+                        </div>
                     )}
                 </div>
 
@@ -299,7 +317,13 @@ function IncomeModal({ isOpen, onClose, onSave, onDelete, editData }) {
                     {isEditMode ? (
                         <button
                             type="button"
-                            onClick={() => onDelete && onDelete(editData.id)}
+                            onClick={async () => {
+                                try {
+                                    if (onDelete) await onDelete(editData.id);
+                                } catch (err) {
+                                    setError(err?.message || "Failed to delete income");
+                                }
+                            }}
                             className="px-4 py-2 text-sm text-red-600 hover:text-red-800 border border-red-300 rounded hover:bg-red-50 transition-colors"
                         >
                             Delete
@@ -389,7 +413,14 @@ export default function IncomePage() {
 
         } catch (err) {
             console.error("Failed to save income", err);
-            alert(err?.message || "Failed to save income");
+            const fields = err?.response?.data?.error?.fields;
+            let msg;
+            if (fields && Array.isArray(fields) && fields.length > 0) {
+                msg = fields.map(f => `${f.field}: ${f.message}`).join("\n");
+            } else {
+                msg = err?.response?.data?.error?.message || err?.response?.data?.message || err?.message || "Failed to save income. Please check all required fields and try again.";
+            }
+            throw new Error(msg);
         }
     };
 
@@ -403,7 +434,8 @@ export default function IncomePage() {
             await reload();
         } catch (err) {
             console.error("Failed to delete income:", err);
-            alert(err?.message || "Failed to delete");
+            const msg = err?.response?.data?.error?.message || err?.message || "Failed to delete income";
+            throw new Error(msg);
         }
     };
 
