@@ -288,12 +288,12 @@ export default function CustomerModal({ isOpen, onClose, onSave, onDelete, editD
         const trimmedName = customerName.trim();
 
         if (!trimmedName) {
-            setErrorName("Customer Name is required");
+            setErrorName("Customer Name is required. Please enter a customer name.");
             return;
         }
 
         if (gstType !== "Unregistered" && !gstNumber.trim()) {
-            alert("GST number is required for Regular or Composition GST type");
+            setErrorName("GST Number is required when GST Type is Regular or Composition.");
             return;
         }
 
@@ -307,7 +307,7 @@ export default function CustomerModal({ isOpen, onClose, onSave, onDelete, editD
         );
 
         if (existsInList) {
-            alert("This customer is already in the list");
+            setErrorName(`Customer \"${formData.customerName}\" already exists in the current list.`);
             return;
         }
 
@@ -385,19 +385,19 @@ export default function CustomerModal({ isOpen, onClose, onSave, onDelete, editD
     const lockedInput = baseInput + " bg-gray-100 text-gray-600 cursor-not-allowed";
     const isLocked = isFromRegistered && !isEditMode; // Lock fields only for new entries from global search
 
-    const handleSave = () => {
+    const handleSave = async () => {
         if (isEditMode) {
             // Single edit mode
             setErrorName("");
             const trimmedName = customerName.trim();
 
             if (!trimmedName) {
-                setErrorName("Customer Name is required");
+                setErrorName("Customer Name is required. Please enter a customer name.");
                 return;
             }
 
             if (gstType !== "Unregistered" && !gstNumber.trim()) {
-                alert("GST number is required for Regular or Composition GST type");
+                setErrorName("GST Number is required when GST Type is Regular or Composition.");
                 return;
             }
 
@@ -407,7 +407,11 @@ export default function CustomerModal({ isOpen, onClose, onSave, onDelete, editD
                 name: customerName.trim(),
             };
 
-            onSave(payload, true);
+            try {
+                await Promise.resolve(onSave(payload, true));
+            } catch (saveErr) {
+                setErrorName(saveErr?.message || "Failed to save customer. Please check all required fields and try again.");
+            }
         } else {
             // Batch mode - check if there are customers in the list or form has data
             const formData = getFormData();
@@ -416,7 +420,7 @@ export default function CustomerModal({ isOpen, onClose, onSave, onDelete, editD
             // If form has data, add it to the list first
             if (formData.customerName.trim()) {
                 if (gstType !== "Unregistered" && !gstNumber.trim()) {
-                    alert("GST number is required for Regular or Composition GST type");
+                    setErrorName("GST Number is required when GST Type is Regular or Composition.");
                     return;
                 }
 
@@ -431,12 +435,16 @@ export default function CustomerModal({ isOpen, onClose, onSave, onDelete, editD
             }
 
             if (customersToSave.length === 0) {
-                setErrorName("Please add at least one customer");
+                setErrorName("Please add at least one customer before saving.");
                 return;
             }
 
             // Pass the array of customers to save
-            onSave(customersToSave, false);
+            try {
+                await Promise.resolve(onSave(customersToSave, false));
+            } catch (saveErr) {
+                setErrorName(saveErr?.message || "Failed to save customers. Please check all required fields and try again.");
+            }
         }
     };
 
@@ -1058,7 +1066,14 @@ export default function CustomerModal({ isOpen, onClose, onSave, onDelete, editD
                     {isEditMode ? (
                         <button
                             type="button"
-                            onClick={() => onDelete && onDelete(editData.id || editData._id)}
+                            onClick={async () => {
+                                try {
+                                    setErrorName("");
+                                    if (onDelete) await Promise.resolve(onDelete(editData.id || editData._id));
+                                } catch (deleteErr) {
+                                    setErrorName(deleteErr?.message || "Failed to delete customer.");
+                                }
+                            }}
                             className="px-4 py-2.5 text-sm font-medium text-red-600 hover:text-white border border-red-300 rounded-lg hover:bg-red-500 transition-colors"
                         >
                             Delete Customer

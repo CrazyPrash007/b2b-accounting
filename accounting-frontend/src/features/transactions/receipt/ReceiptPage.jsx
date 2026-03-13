@@ -303,21 +303,23 @@ function ReceiptModal({ isOpen, onClose, onSave, onDelete, editData, prefilledPa
         }
     };
 
-    const handleSave = () => {
+    const handleSave = async () => {
         const errors = {};
 
         if (!formData.party || !formData.party.trim()) {
-            errors.party = "Party is required";
+            errors.party = "Party: Please select a customer or vendor.";
         }
         if (!formData.amount || Number(formData.amount) <= 0) {
-            errors.amount = "Valid amount is required";
+            errors.amount = "Amount: Please enter a valid amount greater than \u20B90.";
         }
         if (!formData.paymentMethod) {
-            errors.paymentMethod = "Payment method is required";
+            errors.paymentMethod = "Payment Method: Please select a payment method (Cash, UPI, etc.).";
         }
 
         if (Object.keys(errors).length > 0) {
             setFieldErrors(errors);
+            const errorMessages = Object.values(errors);
+            setError(errorMessages.join("\n"));
             return;
         }
 
@@ -329,8 +331,13 @@ function ReceiptModal({ isOpen, onClose, onSave, onDelete, editData, prefilledPa
             referenceNumber: (formData.referenceNumber || "").trim(),
         };
 
-        // Call parent save handler
-        onSave(receiptData, isEditMode);
+        try {
+            setError("");
+            await Promise.resolve(onSave(receiptData, isEditMode));
+        } catch (saveErr) {
+            const saveMessage = saveErr?.message || "Unable to save payment in entry. Please try again.";
+            setError(saveMessage);
+        }
 
         // Refresh invoices after payment to reflect updated due amounts
         if (formData.party && formData.invoiceId) {
@@ -389,6 +396,19 @@ function ReceiptModal({ isOpen, onClose, onSave, onDelete, editData, prefilledPa
 
                 {/* Modal Body - Scrollable */}
                 <div className="px-5 py-4 overflow-y-auto flex-1" data-form-container>
+                    {error && (
+                        <div className="mb-3 rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">
+                            <p className="font-medium">Unable to submit this form.</p>
+                            {error.includes("\n") ? (
+                                <ul className="list-disc pl-4 mt-1 space-y-0.5">
+                                    {error.split("\n").map((msg, i) => <li key={i}>{msg}</li>)}
+                                </ul>
+                            ) : (
+                                <p>{error}</p>
+                            )}
+                        </div>
+                    )}
+
                     {/* Payment Details Section */}
                     <div className="mb-4">
                         <h4 className="text-sm font-semibold text-gray-800 mb-2 pb-1 border-b border-gray-200">Payment Details</h4>
@@ -536,12 +556,13 @@ function ReceiptModal({ isOpen, onClose, onSave, onDelete, editData, prefilledPa
                                     value={formData.paymentMethod}
                                     onChange={(e) => handleChange("paymentMethod", e.target.value)}
                                     onKeyDown={handleKeyDown}
-                                    className={`${baseInput} bg-white`}
+                                    className={`${baseInput} bg-white ${fieldErrors.paymentMethod ? "border-red-500" : ""}`}
                                 >
                                     {paymentMethods.map((method) => (
                                         <option key={method} value={method}>{method}</option>
                                     ))}
                                 </select>
+                                {fieldErrors.paymentMethod && <p className="mt-1 text-xs text-red-500">{fieldErrors.paymentMethod}</p>}
                             </div>
                         </div>
                     </div>
@@ -863,12 +884,10 @@ export default function ReceiptPage() {
         try {
             // basic client-side validation
             if (!receiptData.party || !receiptData.party.toString().trim()) {
-                alert("Party is required.");
-                return;
+                throw new Error("Party is required. Please select a party before submitting.");
             }
             if (!receiptData.amount || Number(receiptData.amount) <= 0) {
-                alert("Amount is required and should be > 0.");
-                return;
+                throw new Error("Amount is required and must be greater than 0.");
             }
 
             const payload = normalizeReceiptPayload(receiptData);
@@ -888,8 +907,14 @@ export default function ReceiptPage() {
             setEditingReceipt(null);
         } catch (err) {
             console.error("Failed to save receipt:", err);
-            const msg = err?.response?.data?.error?.message || err?.message || "Failed to save receipt";
-            alert(msg);
+            const fields = err?.response?.data?.error?.fields;
+            let msg;
+            if (fields && Array.isArray(fields) && fields.length > 0) {
+                msg = fields.map(f => `${f.field}: ${f.message}`).join("\n");
+            } else {
+                msg = err?.response?.data?.error?.message || err?.response?.data?.message || err?.message || "Failed to save receipt. Please check all required fields and try again.";
+            }
+            throw new Error(msg);
         }
     };
 
@@ -907,7 +932,7 @@ export default function ReceiptPage() {
         } catch (err) {
             console.error("Failed to delete receipt:", err);
             const msg = err?.response?.data?.error?.message || err?.message || "Failed to delete receipt";
-            alert(msg);
+            setError(msg);
         }
     };
 

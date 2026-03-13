@@ -302,7 +302,7 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
                     closeModal();
                 } catch (err) {
                     console.error('❌ Failed to save customer:', err);
-                    alert('Failed to save customer. Please try again.');
+                    setError('Failed to save customer. Please try again.');
                 }
             }
         });
@@ -331,7 +331,7 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
                     closeModal();
                 } catch (err) {
                     console.error('❌ Failed to save item:', err);
-                    alert('Failed to save item. Please try again.');
+                    setError('Failed to save item. Please try again.');
                 }
             }
         });
@@ -656,49 +656,70 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
 
     const totals = calculateTotals();
 
-    const handleSave = () => {
-        // Validate customer exists in the customer list
+    const handleSave = async () => {
+        const validationErrors = [];
+
+        // Customer validation
         if (!formData.customer.trim()) {
-            setError("Customer is required. Please select or create a customer.");
-            return;
-        }
-        
-        // Check if customer exists in our customer list (must be selected, not just typed)
-        const customerExists = customersList.some(c => 
-            (c.displayName || c.name || "").toLowerCase().trim() === formData.customer.toLowerCase().trim()
-        );
-        
-        if (!customerExists) {
-            setError("Invalid customer. Please select from the customer list or click '+ Add New Customer' to create one.");
-            return;
+            validationErrors.push("Customer: Please select or create a customer.");
+        } else {
+            const customerExists = customersList.some(c => 
+                (c.displayName || c.name || "").toLowerCase().trim() === formData.customer.toLowerCase().trim()
+            );
+            if (!customerExists) {
+                validationErrors.push(`Customer: "${formData.customer}" is not in your customer list. Select from the dropdown or click '+ Add New Customer'.`);
+            }
         }
 
-        // Validate items
-        const validItems = formData.items.filter(it => it.goodsService?.trim() || it.name?.trim());
-        if (validItems.length === 0) {
-            setError("At least one item is required. Please add items to the invoice.");
-            return;
+        // Invoice date
+        if (!formData.invoiceDate) {
+            validationErrors.push("Invoice Date: Please select an invoice date.");
         }
 
-        // Validate advance application if selected
+        // Items validation — per-row checks
+        const filledItems = formData.items.filter(it => it.goodsService?.trim() || it.name?.trim());
+        if (filledItems.length === 0) {
+            validationErrors.push("Items: At least one item must be added to the invoice.");
+        } else {
+            formData.items.forEach((item, index) => {
+                const itemName = item.goodsService?.trim() || item.name?.trim();
+                if (!itemName) return; // skip empty rows
+                const rowLabel = `Item row ${index + 1} (${itemName})`;
+                if (!item.qty || parseFloat(item.qty) <= 0) {
+                    validationErrors.push(`${rowLabel}: Quantity is required and must be greater than 0.`);
+                }
+                const rate = item.sellPrice || item.rate;
+                if (!rate || parseFloat(rate) <= 0) {
+                    validationErrors.push(`${rowLabel}: Rate is required and must be greater than 0.`);
+                }
+                if (withGst && (item.gstPercent === "" || item.gstPercent === undefined || item.gstPercent === null)) {
+                    validationErrors.push(`${rowLabel}: GST % is required for GST invoices.`);
+                }
+            });
+        }
+
+        // Advance payment validation
         if (applyAdvance) {
             if (!selectedAdvance) {
-                setError("Please select an advance payment to apply from the available list.");
-                return;
+                validationErrors.push("Advance Payment: Please select an advance payment from the available list.");
             }
             if (!advanceAmount || Number(advanceAmount) <= 0) {
-                setError("Please enter a valid advance amount (must be greater than 0).");
-                return;
+                validationErrors.push("Advance Payment: Amount must be greater than \u20B90.");
             }
-            const maxAdvance = Number(selectedAdvance._remainingAmount || 0);
-            if (Number(advanceAmount) > maxAdvance) {
-                setError(`Advance amount cannot exceed available balance of ₹${maxAdvance.toFixed(2)}`);
-                return;
+            if (selectedAdvance) {
+                const maxAdvance = Number(selectedAdvance._remainingAmount || 0);
+                if (Number(advanceAmount) > maxAdvance) {
+                    validationErrors.push(`Advance Payment: Amount \u20B9${Number(advanceAmount).toFixed(2)} exceeds available balance of \u20B9${maxAdvance.toFixed(2)}.`);
+                }
+                if (Number(advanceAmount) > totals.total) {
+                    validationErrors.push(`Advance Payment: Amount \u20B9${Number(advanceAmount).toFixed(2)} exceeds invoice total of \u20B9${totals.total.toFixed(2)}.`);
+                }
             }
-            if (Number(advanceAmount) > totals.total) {
-                setError("Advance amount cannot exceed the invoice total amount.");
-                return;
-            }
+        }
+
+        if (validationErrors.length > 0) {
+            setError(validationErrors.join("\n"));
+            return;
         }
 
         const salesData = {
@@ -727,7 +748,12 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
             localStorage.setItem(key, String(currentCounter + 1));
         }
 
-        onSave(salesData, isEditMode);
+        try {
+            await Promise.resolve(onSave(salesData, isEditMode));
+        } catch (saveErr) {
+            const saveMessage = saveErr?.message || "Unable to save invoice. Please review required fields and try again.";
+            setError(saveMessage);
+        }
     };
 
     const handleBackdropClick = (e) => {
@@ -868,12 +894,12 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
                             <thead className="bg-gray-50 border-b border-gray-300 sticky top-0">
                                 <tr>
                                     <th className="pl-2 pr-1 py-1.5 text-left font-medium text-gray-700" style={{ width: '36px' }}>SR.</th>
-                                    <th className="px-1 py-1.5 text-left font-medium text-gray-700">Goods/Service</th>
-                                    <th className="px-1 py-1.5 text-left font-medium text-gray-700" style={{ width: '70px' }}>Qty</th>
-                                    <th className="px-1 py-1.5 text-left font-medium text-gray-700" style={{ width: '90px' }}>Rate (₹)</th>
+                                    <th className="px-1 py-1.5 text-left font-medium text-gray-700">Goods/Service <span className="text-red-500">*</span></th>
+                                    <th className="px-1 py-1.5 text-left font-medium text-gray-700" style={{ width: '70px' }}>Qty <span className="text-red-500">*</span></th>
+                                    <th className="px-1 py-1.5 text-left font-medium text-gray-700" style={{ width: '90px' }}>Rate (₹) <span className="text-red-500">*</span></th>
                                     {withGst && (
                                         <>
-                                            <th className="px-1 py-1.5 text-left font-medium text-gray-700" style={{ width: '90px' }}>GST (%)</th>
+                                            <th className="px-1 py-1.5 text-left font-medium text-gray-700" style={{ width: '90px' }}>GST (%) <span className="text-red-500">*</span></th>
                                             <th className="px-1 py-1.5 text-left font-medium text-gray-700" style={{ width: '90px' }}>GST Type</th>
                                         </>
                                     )}
@@ -1267,7 +1293,16 @@ function SalesInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, withGs
                     </div>
 
                     {error && (
-                        <p className="text-sm text-red-500 shrink-0">{error}</p>
+                        <div className="rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700 shrink-0" role="alert">
+                            <p className="font-medium">Unable to submit this invoice.</p>
+                            {error.includes("\n") ? (
+                                <ul className="list-disc pl-4 mt-1 space-y-0.5">
+                                    {error.split("\n").map((msg, i) => <li key={i}>{msg}</li>)}
+                                </ul>
+                            ) : (
+                                <p>{error}</p>
+                            )}
+                        </div>
                     )}
                 </div>
 
@@ -1566,12 +1601,10 @@ export default function SalesPage() {
         try {
             // basic client-side validation
             if (!invoiceData.customer || !invoiceData.customer.toString().trim()) {
-                alert("Customer is required.");
-                return;
+                throw new Error("Customer is required. Please select or create a customer before saving.");
             }
             if (!Array.isArray(invoiceData.items) || invoiceData.items.length === 0) {
-                alert("At least one item is required.");
-                return;
+                throw new Error("At least one item is required. Please add an item before saving.");
             }
 
             const payload = normalizeInvoicePayload(invoiceData);
@@ -1593,12 +1626,21 @@ export default function SalesPage() {
             setEditingInvoice(null);
         } catch (err) {
             console.error("Failed to save invoice:", err);
-            const serverMsg =
-                err?.response?.data?.error?.message ||
-                err?.response?.data?.message ||
-                err?.message ||
-                "Failed to save invoice";
-            alert(`Save failed: ${serverMsg}`);
+            const fields = err?.response?.data?.error?.fields;
+            let serverMsg;
+            if (fields && Array.isArray(fields) && fields.length > 0) {
+                serverMsg = fields.map(f => `${f.field}: ${f.message}`).join("\n");
+            } else {
+                serverMsg =
+                    err?.response?.data?.error?.message ||
+                    err?.response?.data?.message ||
+                    err?.message ||
+                    "Failed to save invoice. Please check all required fields and try again.";
+            }
+            setError(serverMsg);
+            throw new Error(serverMsg);
+        } finally {
+            setSaving(false);
         }
     };
 
@@ -1617,7 +1659,7 @@ export default function SalesPage() {
         } catch (err) {
             console.error("Failed to delete invoice:", err);
             const msg = err?.response?.data?.error?.message || err?.message || "Failed to delete invoice";
-            alert(msg);
+            setError(msg);
         }
     };
 

@@ -82,7 +82,7 @@ export default function CategoryModal({ isOpen, onClose, onSave, onDelete, editD
         setSubcategories(updated);
     };
 
-    const handleSave = () => {
+    const handleSave = async () => {
         if (!categoryName.trim()) {
             setError("Category name is required. Please enter a valid category name.");
             return;
@@ -95,7 +95,11 @@ export default function CategoryModal({ isOpen, onClose, onSave, onDelete, editD
             subcategories: filteredSubcategories,
         };
 
-        onSave(categoryData, isEditMode);
+        try {
+            await Promise.resolve(onSave(categoryData, isEditMode));
+        } catch (saveErr) {
+            setError(saveErr?.message || "Failed to save category. Please check required fields and try again.");
+        }
     };
 
     if (!isOpen) return null;
@@ -180,7 +184,14 @@ export default function CategoryModal({ isOpen, onClose, onSave, onDelete, editD
                 {isEditMode ? (
                     <button
                         type="button"
-                        onClick={() => onDelete && onDelete(editData.id)}
+                        onClick={async () => {
+                            try {
+                                setError("");
+                                if (onDelete) await Promise.resolve(onDelete(editData.id));
+                            } catch (deleteErr) {
+                                setError(deleteErr?.message || "Failed to delete category.");
+                            }
+                        }}
                         className="px-3 py-1.5 text-sm text-red-600 hover:text-red-800 border border-red-300 rounded hover:bg-red-50 transition-colors"
                     >
                         Delete

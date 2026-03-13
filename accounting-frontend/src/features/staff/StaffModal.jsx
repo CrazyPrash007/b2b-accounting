@@ -27,6 +27,7 @@ const initialFormData = {
 export default function StaffModal({ isOpen, onClose, onSubmit, onDelete, editData, loading }) {
     const [formData, setFormData] = useState(initialFormData);
     const [errors, setErrors] = useState({});
+    const [submitError, setSubmitError] = useState("");
 
     useEffect(() => {
         if (editData) {
@@ -56,6 +57,7 @@ export default function StaffModal({ isOpen, onClose, onSubmit, onDelete, editDa
             setFormData(initialFormData);
         }
         setErrors({});
+        setSubmitError("");
     }, [editData, isOpen]);
 
     const handleChange = (e) => {
@@ -64,6 +66,7 @@ export default function StaffModal({ isOpen, onClose, onSubmit, onDelete, editDa
             ...prev,
             [name]: type === 'checkbox' ? checked : value
         }));
+        if (submitError) setSubmitError("");
         if (errors[name]) {
             setErrors(prev => ({ ...prev, [name]: null }));
         }
@@ -92,14 +95,19 @@ export default function StaffModal({ isOpen, onClose, onSubmit, onDelete, editDa
         return Object.keys(newErrors).length === 0;
     };
 
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault();
         if (validate()) {
             const submitData = {
                 ...formData,
                 salaryAmount: formData.salaryAmount ? parseFloat(formData.salaryAmount) : 0,
             };
-            onSubmit(submitData);
+            try {
+                setSubmitError("");
+                await Promise.resolve(onSubmit(submitData));
+            } catch (err) {
+                setSubmitError(err?.message || "Failed to save staff member. Please check required fields and try again.");
+            }
         }
     };
 
@@ -124,6 +132,12 @@ export default function StaffModal({ isOpen, onClose, onSubmit, onDelete, editDa
                 </div>
 
                 <form onSubmit={handleSubmit} className="p-5 space-y-4 overflow-y-auto flex-1">
+                    {submitError && (
+                        <div className="rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">
+                            {submitError}
+                        </div>
+                    )}
+
                     {/* Personal Information */}
                     <div className="mb-4">
                         <h4 className="text-sm font-semibold text-gray-800 mb-2 pb-1 border-b border-gray-200">Personal Information</h4>
@@ -413,7 +427,14 @@ export default function StaffModal({ isOpen, onClose, onSubmit, onDelete, editDa
                         {editData ? (
                             <button
                                 type="button"
-                                onClick={() => onDelete && onDelete(editData)}
+                                onClick={async () => {
+                                    try {
+                                        setSubmitError("");
+                                        if (onDelete) await Promise.resolve(onDelete(editData));
+                                    } catch (err) {
+                                        setSubmitError(err?.message || "Failed to delete staff member.");
+                                    }
+                                }}
                                 className="px-4 py-2.5 text-sm font-medium text-red-600 hover:text-white border border-red-300 rounded-lg hover:bg-red-500 transition-colors"
                             >
                                 Delete Staff

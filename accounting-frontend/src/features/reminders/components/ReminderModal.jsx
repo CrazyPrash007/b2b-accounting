@@ -103,12 +103,12 @@ export default function ReminderModal({ isOpen, onClose, onSave, editData }) {
         setError("");
 
         if (!title.trim()) {
-            setError("Reminder title is required");
+            setError("Reminder Title: Please enter a title.");
             return;
         }
 
         if (!dueDate) {
-            setError("Due date is required");
+            setError("Due Date: Please select a due date.");
             return;
         }
 
@@ -134,7 +134,12 @@ export default function ReminderModal({ isOpen, onClose, onSave, editData }) {
             await onSave(payload, !!editData);
             onClose();
         } catch (err) {
-            setError(err?.message || "Failed to save reminder");
+            const fields = err?.response?.data?.error?.fields;
+            if (fields && Array.isArray(fields) && fields.length > 0) {
+                setError(fields.map(f => `${f.field}: ${f.message}`).join("\n"));
+            } else {
+                setError(err?.response?.data?.error?.message || err?.response?.data?.message || err?.message || "Failed to save reminder. Please check all required fields and try again.");
+            }
         } finally {
             setSaving(false);
         }
@@ -163,15 +168,21 @@ export default function ReminderModal({ isOpen, onClose, onSave, editData }) {
                 {/* Form */}
                 <form onSubmit={handleSubmit} className="p-6 space-y-4">
                     {error && (
-                        <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">
-                            {error}
+                        <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm" role="alert">
+                            {error.includes("\n") ? (
+                                <ul className="list-disc pl-4 space-y-0.5">
+                                    {error.split("\n").map((msg, i) => <li key={i}>{msg}</li>)}
+                                </ul>
+                            ) : (
+                                error
+                            )}
                         </div>
                     )}
 
                     {/* Title */}
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Reminder Title
+                            Reminder Title <span className="text-red-500">*</span>
                         </label>
                         <input
                             type="text"
@@ -232,7 +243,7 @@ export default function ReminderModal({ isOpen, onClose, onSave, editData }) {
                     <div className="grid grid-cols-2 gap-4">
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">
-                                Due Date
+                                Due Date <span className="text-red-500">*</span>
                             </label>
                             <input
                                 type="date"

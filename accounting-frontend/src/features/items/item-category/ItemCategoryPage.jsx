@@ -294,7 +294,7 @@ export default function ItemCategoryPage() {
             setEditingCategory(null);
         } catch (err) {
             console.error("Failed to save category:", err);
-            alert(err?.message || "Failed to save category");
+            throw new Error(err?.response?.data?.error?.message || err?.response?.data?.message || err?.message || "Failed to save category. Please check required fields and try again.");
         }
     };
 
@@ -307,7 +307,7 @@ export default function ItemCategoryPage() {
             setEditingCategory(null);
         } catch (err) {
             console.error("Failed to delete category:", err);
-            alert(err?.message || "Failed to delete category");
+            throw new Error(err?.response?.data?.error?.message || err?.response?.data?.message || err?.message || "Failed to delete category");
         }
     };
 

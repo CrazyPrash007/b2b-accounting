@@ -45,7 +45,7 @@ export default function UnitModal({ isOpen, onClose, onSave, onDelete, editData 
         }
     };
 
-    const handleSave = () => {
+    const handleSave = async () => {
         if (!fullName.trim()) {
             setError("Unit full name is required (e.g., Kilogram, Piece, Liter)");
             return;
@@ -58,7 +58,11 @@ export default function UnitModal({ isOpen, onClose, onSave, onDelete, editData 
             name: aliasName.trim() || fullName.trim(), // for backend compatibility
         };
 
-        onSave(unitData, isEditMode);
+        try {
+            await Promise.resolve(onSave(unitData, isEditMode));
+        } catch (saveErr) {
+            setError(saveErr?.message || "Failed to save unit. Please check required fields and try again.");
+        }
     };
 
     if (!isOpen) return null;
@@ -119,7 +123,14 @@ export default function UnitModal({ isOpen, onClose, onSave, onDelete, editData 
                 {isEditMode ? (
                     <button
                         type="button"
-                        onClick={() => onDelete && onDelete(editData.id)}
+                        onClick={async () => {
+                            try {
+                                setError("");
+                                if (onDelete) await Promise.resolve(onDelete(editData.id));
+                            } catch (deleteErr) {
+                                setError(deleteErr?.message || "Failed to delete unit.");
+                            }
+                        }}
                         className="px-3 py-1.5 text-sm text-red-600 hover:text-red-800 border border-red-300 rounded hover:bg-red-50 transition-colors"
                     >
                         Delete

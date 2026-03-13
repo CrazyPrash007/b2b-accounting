@@ -30,7 +30,7 @@ export default function GstModal({ isOpen, onClose, onSave, onDelete, editData }
         });
     }, [editData, isOpen]);
 
-    const handleSave = () => {
+    const handleSave = async () => {
         if (!gstRate.toString().trim()) {
             setError("GST rate is required (e.g., 0, 5, 12, 18, 28)");
             return;
@@ -52,7 +52,11 @@ export default function GstModal({ isOpen, onClose, onSave, onDelete, editData }
             rate: rate,
         };
 
-        onSave(gstData, isEditMode);
+        try {
+            await Promise.resolve(onSave(gstData, isEditMode));
+        } catch (saveErr) {
+            setError(saveErr?.message || "Failed to save GST rate. Please check required fields and try again.");
+        }
     };
 
     const handleKeyDown = (e) => {
@@ -107,7 +111,14 @@ export default function GstModal({ isOpen, onClose, onSave, onDelete, editData }
                 {isEditMode ? (
                     <button
                         type="button"
-                        onClick={() => onDelete && onDelete(editData.id)}
+                        onClick={async () => {
+                            try {
+                                setError("");
+                                if (onDelete) await Promise.resolve(onDelete(editData.id));
+                            } catch (deleteErr) {
+                                setError(deleteErr?.message || "Failed to delete GST rate.");
+                            }
+                        }}
                         className="px-3 py-1.5 text-sm text-red-600 hover:text-red-800 border border-red-300 rounded hover:bg-red-50 transition-colors"
                     >
                         Delete

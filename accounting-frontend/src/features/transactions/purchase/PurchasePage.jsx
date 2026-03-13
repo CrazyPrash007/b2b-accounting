@@ -235,7 +235,7 @@ function PurchaseInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, wit
                     closeModal();
                 } catch (err) {
                     console.error('❌ Failed to save vendor:', err);
-                    alert('Failed to save vendor. Please try again.');
+                    setError('Failed to save vendor. Please try again.');
                 }
             }
         });
@@ -264,7 +264,7 @@ function PurchaseInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, wit
                     closeModal();
                 } catch (err) {
                     console.error('❌ Failed to save item:', err);
-                    alert('Failed to save item. Please try again.');
+                    setError('Failed to save item. Please try again.');
                 }
             }
         });
@@ -605,16 +605,43 @@ function PurchaseInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, wit
     const totals = calculateTotals();
 
     // Save handler
-    const handleSave = () => {
+    const handleSave = async () => {
+        const validationErrors = [];
+
+        // Supplier validation
         if (!formData.supplier.trim()) {
-            setError("Supplier is required. Please select or enter a supplier name.");
-            return;
+            validationErrors.push("Supplier: Please select or enter a supplier name.");
         }
 
-        // Validate items
-        const validItems = (formData.items || []).filter(it => it.goodsService?.trim() || it.name?.trim());
-        if (validItems.length === 0) {
-            setError("At least one item is required. Please add items to the purchase.");
+        // Invoice date
+        if (!formData.invoiceDate) {
+            validationErrors.push("Invoice Date: Please select an invoice date.");
+        }
+
+        // Items validation — per-row checks
+        const filledItems = (formData.items || []).filter(it => it.goodsService?.trim() || it.name?.trim());
+        if (filledItems.length === 0) {
+            validationErrors.push("Items: At least one item must be added to the purchase.");
+        } else {
+            (formData.items || []).forEach((item, index) => {
+                const itemName = item.goodsService?.trim() || item.name?.trim();
+                if (!itemName) return; // skip empty rows
+                const rowLabel = `Item row ${index + 1} (${itemName})`;
+                if (!item.qty || parseFloat(item.qty) <= 0) {
+                    validationErrors.push(`${rowLabel}: Quantity is required and must be greater than 0.`);
+                }
+                const rate = item.buyPrice || item.rate;
+                if (!rate || parseFloat(rate) <= 0) {
+                    validationErrors.push(`${rowLabel}: Rate is required and must be greater than 0.`);
+                }
+                if (withGst && (item.gstPercent === "" || item.gstPercent === undefined || item.gstPercent === null)) {
+                    validationErrors.push(`${rowLabel}: GST % is required for GST invoices.`);
+                }
+            });
+        }
+
+        if (validationErrors.length > 0) {
+            setError(validationErrors.join("\n"));
             return;
         }
 
@@ -669,7 +696,12 @@ function PurchaseInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, wit
             : [];
 
 
-        onSave(purchaseData, isEditMode);
+        try {
+            await Promise.resolve(onSave(purchaseData, isEditMode));
+        } catch (saveErr) {
+            const saveMessage = saveErr?.message || "Unable to save invoice. Please review required fields and try again.";
+            setError(saveMessage);
+        }
     };
 
     const handleBackdropClick = (e) => {
@@ -838,12 +870,12 @@ function PurchaseInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, wit
                             <thead className="bg-gray-50 border-b border-gray-300 sticky top-0">
                                 <tr>
                                     <th className="pl-2 pr-1 py-1.5 text-left font-medium text-gray-700" style={{ width: '36px' }}>SR.</th>
-                                    <th className="px-1 py-1.5 text-left font-medium text-gray-700">Goods/Service</th>
-                                    <th className="px-1 py-1.5 text-left font-medium text-gray-700" style={{ width: '70px' }}>Qty</th>
-                                    <th className="px-1 py-1.5 text-left font-medium text-gray-700" style={{ width: '90px' }}>Rate (₹)</th>
+                                    <th className="px-1 py-1.5 text-left font-medium text-gray-700">Goods/Service <span className="text-red-500">*</span></th>
+                                    <th className="px-1 py-1.5 text-left font-medium text-gray-700" style={{ width: '70px' }}>Qty <span className="text-red-500">*</span></th>
+                                    <th className="px-1 py-1.5 text-left font-medium text-gray-700" style={{ width: '90px' }}>Rate (₹) <span className="text-red-500">*</span></th>
                                     {withGst && (
                                         <>
-                                            <th className="px-1 py-1.5 text-left font-medium text-gray-700" style={{ width: '90px' }}>GST (%)</th>
+                                            <th className="px-1 py-1.5 text-left font-medium text-gray-700" style={{ width: '90px' }}>GST (%) <span className="text-red-500">*</span></th>
                                             <th className="px-1 py-1.5 text-left font-medium text-gray-700" style={{ width: '90px' }}>GST Type</th>
                                         </>
                                     )}
@@ -1151,7 +1183,16 @@ function PurchaseInvoiceModal({ isOpen, onClose, onSave, onDelete, editData, wit
                     </div>
 
                     {error && (
-                        <p className="text-sm text-red-500 shrink-0">{error}</p>
+                        <div className="rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700 shrink-0" role="alert">
+                            <p className="font-medium">Unable to submit this invoice.</p>
+                            {error.includes("\n") ? (
+                                <ul className="list-disc pl-4 mt-1 space-y-0.5">
+                                    {error.split("\n").map((msg, i) => <li key={i}>{msg}</li>)}
+                                </ul>
+                            ) : (
+                                <p>{error}</p>
+                            )}
+                        </div>
                     )}
                 </div>
 
@@ -1453,12 +1494,10 @@ export default function PurchasePage() {
         try {
             // basic client-side validation
             if (!invoiceData.supplier || !invoiceData.supplier.toString().trim()) {
-                alert("Supplier is required.");
-                return;
+                throw new Error("Supplier is required. Please select or create a supplier before saving.");
             }
             if (!Array.isArray(invoiceData.items) || invoiceData.items.length === 0) {
-                alert("At least one item is required.");
-                return;
+                throw new Error("At least one item is required. Please add an item before saving.");
             }
 
             const payload = normalizeInvoicePayload(invoiceData);
@@ -1480,13 +1519,19 @@ export default function PurchasePage() {
             setEditingInvoice(null);
         } catch (err) {
             console.error("Failed to save invoice:", err);
-            const serverMsg =
-                err?.response?.data?.error?.message ||
-                err?.response?.data?.message ||
-                err?.message ||
-                "Failed to save invoice";
+            const fields = err?.response?.data?.error?.fields;
+            let serverMsg;
+            if (fields && Array.isArray(fields) && fields.length > 0) {
+                serverMsg = fields.map(f => `${f.field}: ${f.message}`).join("\n");
+            } else {
+                serverMsg =
+                    err?.response?.data?.error?.message ||
+                    err?.response?.data?.message ||
+                    err?.message ||
+                    "Failed to save invoice. Please check all required fields and try again.";
+            }
             setError(serverMsg);
-            alert(`Save failed: ${serverMsg}`);
+            throw new Error(serverMsg);
         } finally {
             setSaving(false);
         }
@@ -1510,7 +1555,6 @@ export default function PurchasePage() {
             console.error("Failed to delete invoice:", err);
             const msg = err?.response?.data?.error?.message || err?.message || "Failed to delete invoice";
             setError(msg);
-            alert(msg);
         } finally {
             setSaving(false);
         }

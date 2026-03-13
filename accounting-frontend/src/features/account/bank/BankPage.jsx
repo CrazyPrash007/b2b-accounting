@@ -26,18 +26,22 @@ function TransferToCashModal({ isOpen, onClose, onSave, fromAccount }) {
         }
     }, [isOpen, fromAccount]);
 
-    const handleSave = () => {
+    const handleSave = async () => {
         if (!amount || parseFloat(amount) <= 0) {
-            setError("Please enter a valid amount");
+            setError("Amount is required and must be greater than 0.");
             return;
         }
-        onSave({
-            fromAccount: fromAccount?.accountDisplayName || fromAccount?.bankName,
-            toAccount: "Cash-in-Hand",
-            amount: parseFloat(amount),
-            date,
-            description
-        });
+        try {
+            await Promise.resolve(onSave({
+                fromAccount: fromAccount?.accountDisplayName || fromAccount?.bankName,
+                toAccount: "Cash-in-Hand",
+                amount: parseFloat(amount),
+                date,
+                description
+            }));
+        } catch (saveErr) {
+            setError(saveErr?.message || "Failed to transfer amount to cash. Please verify input and try again.");
+        }
     };
 
     if (!isOpen) return null;
@@ -199,7 +203,7 @@ function BankModal({ isOpen, onClose, onSave, onDelete, editData }) {
         if (error) setError("");
     };
 
-    const handleSave = () => {
+    const handleSave = async () => {
         if (!formData.accountDisplayName.trim()) {
             setError("Account Display Name is required");
             return;
@@ -225,7 +229,11 @@ function BankModal({ isOpen, onClose, onSave, onDelete, editData }) {
             bankData.id = editData.id || editData._id;   // <— FIX
         }
 
-        onSave(bankData, isEditMode);
+        try {
+            await Promise.resolve(onSave(bankData, isEditMode));
+        } catch (saveErr) {
+            setError(saveErr?.message || "Failed to save bank account. Please check required fields and try again.");
+        }
     };
 
 
@@ -490,7 +498,14 @@ function BankModal({ isOpen, onClose, onSave, onDelete, editData }) {
                     {isEditMode ? (
                         <button
                             type="button"
-                            onClick={() => onDelete && onDelete(editData.id || editData._id)}
+                            onClick={async () => {
+                                try {
+                                    setError("");
+                                    if (onDelete) await Promise.resolve(onDelete(editData.id || editData._id));
+                                } catch (deleteErr) {
+                                    setError(deleteErr?.message || "Failed to delete bank account.");
+                                }
+                            }}
                             className="px-3 py-1.5 text-sm text-red-600 hover:text-red-800 border border-red-300 rounded hover:bg-red-50 transition-colors"
                         >
                             Delete
@@ -611,7 +626,7 @@ export default function BankPage() {
             setEditingAccount(null);
         } catch (err) {
             console.error("Failed to save account:", err);
-            alert(err?.message || "Failed to save bank account");
+            throw new Error(err?.response?.data?.error?.message || err?.response?.data?.message || err?.message || "Failed to save bank account. Please check required fields and try again.");
         }
     };
 
@@ -625,7 +640,7 @@ export default function BankPage() {
             setEditingAccount(null);
         } catch (err) {
             console.error("Failed to delete account:", err);
-            alert(err?.message || "Failed to delete bank account");
+            throw new Error(err?.response?.data?.error?.message || err?.response?.data?.message || err?.message || "Failed to delete bank account");
         }
     };
 
@@ -653,7 +668,7 @@ export default function BankPage() {
             alert(`Successfully transferred ₹${transferData.amount} to Cash`);
         } catch (err) {
             console.error("Failed to transfer:", err);
-            alert(err?.message || "Failed to create transfer entry");
+            throw new Error(err?.response?.data?.error?.message || err?.response?.data?.message || err?.message || "Failed to create transfer entry.");
         }
     };
 

@@ -298,12 +298,12 @@ export default function VendorModal({ isOpen, onClose, onSave, onDelete, editDat
         const trimmedName = vendorName.trim();
 
         if (!trimmedName) {
-            setErrorName("Vendor Name is required");
+            setErrorName("Vendor Name is required. Please enter a vendor name.");
             return;
         }
 
         if (gstType !== "Unregistered" && !gstNumber.trim()) {
-            alert("GST number is required for Regular or Composition GST type");
+            setErrorName("GST Number is required when GST Type is Regular or Composition.");
             return;
         }
 
@@ -317,7 +317,7 @@ export default function VendorModal({ isOpen, onClose, onSave, onDelete, editDat
         );
 
         if (existsInList) {
-            alert("This Vendor is already in the list");
+            setErrorName(`Vendor \"${formData.vendorName}\" already exists in the current list.`);
             return;
         }
 
@@ -393,19 +393,19 @@ export default function VendorModal({ isOpen, onClose, onSave, onDelete, editDat
     const lockedInput = baseInput + " bg-gray-100 text-gray-600 cursor-not-allowed";
     const isLocked = isFromRegistered && !isEditMode;
 
-    const handleSave = () => {
+    const handleSave = async () => {
         if (isEditMode) {
             // Single edit mode
             setErrorName("");
             const trimmedName = vendorName.trim();
 
             if (!trimmedName) {
-                setErrorName("Vendor Name is required");
+                setErrorName("Vendor Name is required. Please enter a vendor name.");
                 return;
             }
 
             if (gstType !== "Unregistered" && !gstNumber.trim()) {
-                alert("GST number is required for Regular or Composition GST type");
+                setErrorName("GST Number is required when GST Type is Regular or Composition.");
                 return;
             }
 
@@ -415,7 +415,11 @@ export default function VendorModal({ isOpen, onClose, onSave, onDelete, editDat
                 name: vendorName.trim(),
             };
 
-            onSave(payload, true);
+            try {
+                await Promise.resolve(onSave(payload, true));
+            } catch (saveErr) {
+                setErrorName(saveErr?.message || "Failed to save vendor. Please check all required fields and try again.");
+            }
         } else {
             // Batch mode - check if there are Vendors in the list or form has data
             const formData = getFormData();
@@ -424,7 +428,7 @@ export default function VendorModal({ isOpen, onClose, onSave, onDelete, editDat
             // If form has data, add it to the list first
             if (formData.vendorName.trim()) {
                 if (gstType !== "Unregistered" && !gstNumber.trim()) {
-                    alert("GST number is required for Regular or Composition GST type");
+                    setErrorName("GST Number is required when GST Type is Regular or Composition.");
                     return;
                 }
 
@@ -439,12 +443,16 @@ export default function VendorModal({ isOpen, onClose, onSave, onDelete, editDat
             }
 
             if (vendorsToSave.length === 0) {
-                setErrorName("Please add at least one Vendor");
+                setErrorName("Please add at least one vendor before saving.");
                 return;
             }
 
             // Pass the array of Vendors to save
-            onSave(vendorsToSave, false);
+            try {
+                await Promise.resolve(onSave(vendorsToSave, false));
+            } catch (saveErr) {
+                setErrorName(saveErr?.message || "Failed to save vendors. Please check all required fields and try again.");
+            }
         }
     };
 
@@ -1064,7 +1072,14 @@ export default function VendorModal({ isOpen, onClose, onSave, onDelete, editDat
                     {isEditMode ? (
                         <button
                             type="button"
-                            onClick={() => onDelete && onDelete(editData.id || editData._id)}
+                            onClick={async () => {
+                                try {
+                                    setErrorName("");
+                                    if (onDelete) await Promise.resolve(onDelete(editData.id || editData._id));
+                                } catch (deleteErr) {
+                                    setErrorName(deleteErr?.message || "Failed to delete vendor.");
+                                }
+                            }}
                             className="px-4 py-2.5 text-sm font-medium text-red-600 hover:text-white border border-red-300 rounded-lg hover:bg-red-500 transition-colors"
                         >
                             Delete Vendor

@@ -26,6 +26,7 @@ export default function ItemsPage() {
     const [filterCategory, setFilterCategory] = useState("all");
     const [filterStock, setFilterStock] = useState("all"); // all, inStock, lowStock, outOfStock
     const [filterGst, setFilterGst] = useState("all"); // all, withGst, withoutGst
+    const [pageError, setPageError] = useState("");
 
     const totalStock = meta.totalStock || 0;
     const negativeStockCount = meta.negativeStockCount || 0;
@@ -132,8 +133,7 @@ export default function ItemsPage() {
             if (isEdit) {
                 const normalized = normalizeItem(itemData);
                 if (!normalized.name) {
-                    alert("Item Name is required.");
-                    return;
+                    throw new Error("Item Name is required. Please enter a valid item name.");
                 }
                 const id = itemData.id ?? itemData._id;
                 await update(id, normalized);
@@ -145,8 +145,7 @@ export default function ItemsPage() {
                 // Validate all items have names
                 const invalid = normalizedItems.findIndex(n => !n.name);
                 if (invalid !== -1) {
-                    alert(`Item #${invalid + 1} is missing a name.`);
-                    return;
+                    throw new Error(`Item row ${invalid + 1}: Item Name is required.`);
                 }
 
                 const payload = {
@@ -186,8 +185,7 @@ export default function ItemsPage() {
                 // Single creation
                 const normalized = normalizeItem(itemData);
                 if (!normalized.name) {
-                    alert("Item Name is required.");
-                    return;
+                    throw new Error("Item Name is required. Please enter a valid item name.");
                 }
                 await create(normalized);
             }
@@ -217,7 +215,7 @@ export default function ItemsPage() {
                 }
             }
 
-            alert(`Save failed: ${serverMsg}`);
+            throw new Error(`Save failed: ${serverMsg}`);
         }
     };
 
@@ -231,7 +229,7 @@ export default function ItemsPage() {
             reload();
         } catch (err) {
             console.error("Failed to delete item:", err);
-            alert(err?.message || "Failed to delete item — check console for details");
+            throw new Error(err?.response?.data?.error?.message || err?.response?.data?.message || err?.message || "Failed to delete item.");
         }
     };
 
@@ -279,9 +277,10 @@ export default function ItemsPage() {
             const newValue = item.showOnWebsite === false ? true : false;
             await update(item.id || item._id, { showOnWebsite: newValue });
             reload();
+            setPageError("");
         } catch (err) {
             console.error("Failed to toggle website visibility:", err);
-            alert("Failed to update website visibility");
+            setPageError(err?.response?.data?.error?.message || err?.response?.data?.message || err?.message || "Failed to update website visibility.");
         }
     };
 
@@ -334,6 +333,12 @@ export default function ItemsPage() {
                             </button>
                         </div>
                     </div>
+
+                    {pageError && (
+                        <div className="mx-4 mt-2 rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">
+                            {pageError}
+                        </div>
+                    )}
 
                     {/* GST Classification Badges */}
                     <div className="flex items-center gap-2 px-4 py-2 border-b border-gray-100 bg-gray-50">

@@ -366,7 +366,7 @@ export default function ItemModal({ isOpen, onClose, onSave, onDelete, editData 
                 item.itemName.toLowerCase() === formData.itemName.toLowerCase()
         );
         if (existsInList) {
-            alert("This item is already in the list");
+            setErrorName(`Item \"${formData.itemName}\" already exists in the current list.`);
             return;
         }
 
@@ -523,7 +523,7 @@ export default function ItemModal({ isOpen, onClose, onSave, onDelete, editData 
                     closeModal();
                 } catch (err) {
                     console.error('❌ Failed to save unit:', err);
-                    alert('Failed to save unit. Please try again.');
+                    setErrorName(err?.message || 'Failed to save unit. Please try again.');
                 }
             }
         });
@@ -550,7 +550,7 @@ export default function ItemModal({ isOpen, onClose, onSave, onDelete, editData 
                     closeModal();
                 } catch (err) {
                     console.error('❌ Failed to save category:', err);
-                    alert('Failed to save category. Please try again.');
+                    setErrorName(err?.message || 'Failed to save category. Please try again.');
                 }
             }
         });
@@ -577,7 +577,7 @@ export default function ItemModal({ isOpen, onClose, onSave, onDelete, editData 
                     closeModal();
                 } catch (err) {
                     console.error('❌ Failed to save brand:', err);
-                    alert('Failed to save brand. Please try again.');
+                    setErrorName(err?.message || 'Failed to save brand. Please try again.');
                 }
             }
         });
@@ -604,7 +604,7 @@ export default function ItemModal({ isOpen, onClose, onSave, onDelete, editData 
                     closeModal();
                 } catch (err) {
                     console.error('❌ Failed to save GST:', err);
-                    alert('Failed to save GST. Please try again.');
+                    setErrorName(err?.message || 'Failed to save GST. Please try again.');
                 }
             }
         });
@@ -617,13 +617,13 @@ export default function ItemModal({ isOpen, onClose, onSave, onDelete, editData 
 
         // Validate file type
         if (!file.type.startsWith('image/')) {
-            alert('Please select a valid image file (JPEG, PNG, GIF, etc.)');
+            setErrorName('Item Image: Please select a valid image file (JPEG, PNG, GIF, etc.).');
             return;
         }
 
         // Validate file size (5MB max)
         if (file.size > 5 * 1024 * 1024) {
-            alert('Image file size must be less than 5MB');
+            setErrorName('Item Image: File size must be less than 5MB.');
             return;
         }
 
@@ -656,11 +656,11 @@ export default function ItemModal({ isOpen, onClose, onSave, onDelete, editData 
                 }
             } else {
                 console.error('❌ Failed to upload image');
-                alert('Failed to upload image. Please try again.');
+                setErrorName('Item Image: Upload failed. Please try again.');
             }
         } catch (err) {
             console.error('❌ Image upload error:', err);
-            alert('Failed to upload image. Please try again.');
+            setErrorName(err?.message || 'Item Image: Upload failed. Please try again.');
         } finally {
             setIsUploadingImage(false);
         }
@@ -681,7 +681,7 @@ export default function ItemModal({ isOpen, onClose, onSave, onDelete, editData 
     const labelClass = "block text-sm font-medium text-gray-600 mb-1.5";
     const sectionTitle = "text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2";
 
-    const handleSave = () => {
+    const handleSave = async () => {
         if (isEditMode) {
             // Single edit mode
             setErrorName("");
@@ -714,7 +714,11 @@ export default function ItemModal({ isOpen, onClose, onSave, onDelete, editData 
                 itemImageMimeType: itemImageMimeType,
             };
 
-            onSave(payload, true);
+            try {
+                await Promise.resolve(onSave(payload, true));
+            } catch (saveErr) {
+                setErrorName(saveErr?.message || "Failed to save item. Please check required fields and try again.");
+            }
         } else {
             // Batch mode
             const formData = getFormData();
@@ -731,7 +735,7 @@ export default function ItemModal({ isOpen, onClose, onSave, onDelete, editData 
             }
 
             if (itemsToSave.length === 0) {
-                setErrorName("Please add at least one item");
+                setErrorName("Please add at least one item before saving.");
                 return;
             }
 
@@ -744,10 +748,18 @@ export default function ItemModal({ isOpen, onClose, onSave, onDelete, editData 
                     name: single.itemName,
                     type: single.itemType,
                 };
-                onSave(payload, false);
+                try {
+                    await Promise.resolve(onSave(payload, false));
+                } catch (saveErr) {
+                    setErrorName(saveErr?.message || "Failed to save item. Please check required fields and try again.");
+                }
             } else {
                 // Multiple items - pass array
-                onSave(itemsToSave, false);
+                try {
+                    await Promise.resolve(onSave(itemsToSave, false));
+                } catch (saveErr) {
+                    setErrorName(saveErr?.message || "Failed to save items. Please check required fields and try again.");
+                }
             }
         }
     };
@@ -834,9 +846,10 @@ export default function ItemModal({ isOpen, onClose, onSave, onDelete, editData 
                                                     <div className="text-xs text-gray-400 truncate max-w-md mt-0.5">{item.description}</div>
                                                 )}
                                             </div>
-                                            <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
+                                            {/* User count commented out - not needed currently */}
+                                            {/* <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
                                                 {item.userCount || 0} {item.userCount === 1 ? 'user' : 'users'}
-                                            </span>
+                                            </span> */}
                                         </div>
                                     </button>
                                 ))}
@@ -1370,7 +1383,14 @@ export default function ItemModal({ isOpen, onClose, onSave, onDelete, editData 
                 {isEditMode ? (
                     <button
                         type="button"
-                        onClick={() => onDelete && onDelete(editData.id)}
+                        onClick={async () => {
+                            try {
+                                setErrorName("");
+                                if (onDelete) await Promise.resolve(onDelete(editData.id));
+                            } catch (deleteErr) {
+                                setErrorName(deleteErr?.message || "Failed to delete item.");
+                            }
+                        }}
                         className="px-4 py-2.5 text-sm font-medium text-red-600 hover:text-white border border-red-300 rounded-lg hover:bg-red-500 transition-colors"
                     >
                         Delete Item

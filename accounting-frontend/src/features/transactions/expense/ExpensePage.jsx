@@ -99,17 +99,21 @@ function ExpenseModal({ isOpen, onClose, onSave, onDelete, editData }) {
         }
     };
 
-    const handleSave = () => {
+    const handleSave = async () => {
+        const validationErrors = [];
+
         if (!formData.billName.trim()) {
-            setError("Bill name is required. Please enter a name for this expense.");
-            return;
+            validationErrors.push("Bill Name: Please enter a name for this expense.");
         }
         if (!formData.expenseAmount || parseFloat(formData.expenseAmount) <= 0) {
-            setError("Please enter a valid expense amount (must be greater than 0).");
-            return;
+            validationErrors.push("Expense Amount: Please enter a valid amount greater than \u20B90.");
         }
         if (!formData.category) {
-            setError("Category is required. Please select a category for expense tracking.");
+            validationErrors.push("Category: Please select a category for expense tracking.");
+        }
+
+        if (validationErrors.length > 0) {
+            setError(validationErrors.join("\n"));
             return;
         }
 
@@ -121,7 +125,12 @@ function ExpenseModal({ isOpen, onClose, onSave, onDelete, editData }) {
             notes: formData.notes.trim(),
         };
 
-        onSave(expenseData, isEditMode);
+        try {
+            await Promise.resolve(onSave(expenseData, isEditMode));
+        } catch (saveErr) {
+            const msg = saveErr?.message || "Failed to save expense. Please try again.";
+            setError(msg);
+        }
     };
 
     const handleBackdropClick = (e) => {
@@ -295,7 +304,16 @@ function ExpenseModal({ isOpen, onClose, onSave, onDelete, editData }) {
                     </div>
 
                     {error && (
-                        <p className="text-sm text-red-500">{error}</p>
+                        <div className="rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">
+                            <p className="font-medium">Unable to save expense.</p>
+                            {error.includes("\n") ? (
+                                <ul className="list-disc pl-4 mt-1 space-y-0.5">
+                                    {error.split("\n").map((msg, i) => <li key={i}>{msg}</li>)}
+                                </ul>
+                            ) : (
+                                <p>{error}</p>
+                            )}
+                        </div>
                     )}
                 </div>
 
@@ -304,7 +322,13 @@ function ExpenseModal({ isOpen, onClose, onSave, onDelete, editData }) {
                     {isEditMode ? (
                         <button
                             type="button"
-                            onClick={() => onDelete && onDelete(editData.id)}
+                            onClick={async () => {
+                                try {
+                                    if (onDelete) await onDelete(editData.id);
+                                } catch (err) {
+                                    setError(err?.message || "Failed to delete expense");
+                                }
+                            }}
                             className="px-4 py-2 text-sm text-red-600 hover:text-red-800 border border-red-300 rounded hover:bg-red-50 transition-colors"
                         >
                             Delete
@@ -405,7 +429,14 @@ export default function ExpensePage() {
 
         } catch (err) {
             console.error("Failed to save expense", err);
-            alert(err?.message || "Failed to save expense");
+            const fields = err?.response?.data?.error?.fields;
+            let msg;
+            if (fields && Array.isArray(fields) && fields.length > 0) {
+                msg = fields.map(f => `${f.field}: ${f.message}`).join("\n");
+            } else {
+                msg = err?.response?.data?.error?.message || err?.response?.data?.message || err?.message || "Failed to save expense. Please check all required fields and try again.";
+            }
+            throw new Error(msg);
         }
     };
 
@@ -419,7 +450,8 @@ export default function ExpensePage() {
             await reload();
         } catch (err) {
             console.error("Failed to delete expense:", err);
-            alert(err?.message || "Failed to delete");
+            const msg = err?.response?.data?.error?.message || err?.message || "Failed to delete expense";
+            throw new Error(msg);
         }
     };
 

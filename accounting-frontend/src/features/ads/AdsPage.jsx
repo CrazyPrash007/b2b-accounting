@@ -41,6 +41,8 @@ export default function AdsPage() {
     const [showModal, setShowModal] = useState(false);
     const [editingAd, setEditingAd] = useState(null);
     const [saving, setSaving] = useState(false);
+    const [formError, setFormError] = useState('');
+    const [pageError, setPageError] = useState('');
 
     // Form state
     const [formData, setFormData] = useState({
@@ -101,6 +103,7 @@ export default function AdsPage() {
     // Open create modal
     const openCreateModal = () => {
         setEditingAd(null);
+        setFormError('');
         setFormData({
             title: '',
             description: '',
@@ -123,6 +126,7 @@ export default function AdsPage() {
     // Open edit modal
     const openEditModal = (ad) => {
         setEditingAd(ad);
+        setFormError('');
         const targetCities = ad.targetCities || [];
         setFormData({
             title: ad.title || '',
@@ -268,7 +272,7 @@ export default function AdsPage() {
     const selectLocalArea = () => {
         const city = getCurrentCompanyCity();
         if (!city) {
-            alert('Current company does not have a city set');
+            setFormError('Local Area cannot be auto-selected because the current company does not have a city configured.');
             return;
         }
         // Find which state contains this city
@@ -300,17 +304,18 @@ export default function AdsPage() {
     // Submit form
     const handleSubmit = async (e) => {
         e.preventDefault();
+        setFormError('');
 
         if (!formData.title.trim()) {
-            alert('Title is required');
+            setFormError('Title is required. Please enter an ad title.');
             return;
         }
         if (!formData.imageUrl.trim()) {
-            alert('Image URL is required');
+            setFormError('Image URL is required. Please provide a valid image URL.');
             return;
         }
         if (!selectedCompany) {
-            alert('Please select a company first from the dropdown');
+            setFormError('Company selection is required before creating or updating an ad.');
             return;
         }
 
@@ -334,7 +339,7 @@ export default function AdsPage() {
             setShowModal(false);
             loadData();
         } catch (err) {
-            alert(err.response?.data?.message || 'Failed to save ad');
+            setFormError(err?.response?.data?.error?.message || err?.response?.data?.message || err?.message || 'Failed to save ad. Please check required fields and try again.');
         } finally {
             setSaving(false);
         }
@@ -345,9 +350,10 @@ export default function AdsPage() {
         if (!window.confirm(`Stop ad "${ad.title}"? It will no longer be displayed.`)) return;
         try {
             await advertisementApi.stop(ad._id, selectedCompany);
+            setPageError('');
             loadData();
         } catch (err) {
-            alert(err.response?.data?.message || 'Failed to stop ad');
+            setPageError(err?.response?.data?.error?.message || err?.response?.data?.message || err?.message || `Failed to stop ad \"${ad.title}\".`);
         }
     };
 
@@ -356,9 +362,10 @@ export default function AdsPage() {
         if (!window.confirm(`Resubmit ad "${ad.title}" for review?`)) return;
         try {
             await advertisementApi.reactivate(ad._id, selectedCompany);
+            setPageError('');
             loadData();
         } catch (err) {
-            alert(err.response?.data?.message || 'Failed to reactivate ad');
+            setPageError(err?.response?.data?.error?.message || err?.response?.data?.message || err?.message || `Failed to resubmit ad \"${ad.title}\".`);
         }
     };
 
@@ -367,9 +374,10 @@ export default function AdsPage() {
         if (!window.confirm(`Delete ad "${ad.title}"? This cannot be undone.`)) return;
         try {
             await advertisementApi.remove(ad._id, selectedCompany);
+            setPageError('');
             loadData();
         } catch (err) {
-            alert(err.response?.data?.message || 'Failed to delete ad');
+            setPageError(err?.response?.data?.error?.message || err?.response?.data?.message || err?.message || `Failed to delete ad \"${ad.title}\".`);
         }
     };
 
@@ -436,6 +444,12 @@ export default function AdsPage() {
                     <option value="stopped">Stopped</option>
                 </select>
             </div>
+
+            {pageError && (
+                <div className="mx-4 mb-3 rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">
+                    {pageError}
+                </div>
+            )}
 
             {/* Ads List */}
             <div className="ads-list">
@@ -508,6 +522,11 @@ export default function AdsPage() {
                         </div>
                         <form onSubmit={handleSubmit}>
                             <div className="modal-body">
+                                {formError && (
+                                    <div className="mb-3 rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">
+                                        {formError}
+                                    </div>
+                                )}
                                 <div className="form-group">
                                     <label>Title *</label>
                                     <input

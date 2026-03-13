@@ -37,7 +37,7 @@ export default function BrandModal({ isOpen, onClose, onSave, onDelete, editData
         }
     };
 
-    const handleSave = () => {
+    const handleSave = async () => {
         if (!brandName.trim()) {
             setError("Brand name is required. Please enter a valid brand name.");
             return;
@@ -48,7 +48,11 @@ export default function BrandModal({ isOpen, onClose, onSave, onDelete, editData
             brandName: brandName.trim(),
         };
 
-        onSave(brandData, isEditMode);
+        try {
+            await Promise.resolve(onSave(brandData, isEditMode));
+        } catch (saveErr) {
+            setError(saveErr?.message || "Failed to save brand. Please check required fields and try again.");
+        }
     };
 
     if (!isOpen) return null;
@@ -94,7 +98,14 @@ export default function BrandModal({ isOpen, onClose, onSave, onDelete, editData
                 {isEditMode ? (
                     <button
                         type="button"
-                        onClick={() => onDelete && onDelete(editData.id)}
+                        onClick={async () => {
+                            try {
+                                setError("");
+                                if (onDelete) await Promise.resolve(onDelete(editData.id));
+                            } catch (deleteErr) {
+                                setError(deleteErr?.message || "Failed to delete brand.");
+                            }
+                        }}
                         className="px-3 py-1.5 text-sm text-red-600 hover:text-red-800 border border-red-300 rounded hover:bg-red-50 transition-colors"
                     >
                         Delete

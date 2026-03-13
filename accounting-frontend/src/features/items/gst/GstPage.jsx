@@ -189,7 +189,7 @@ export default function GstPage() {
             setEditingGst(null);
         } catch (err) {
             console.error("Failed to save GST:", err);
-            alert(err?.message || "Failed to save GST rate");
+            throw new Error(err?.response?.data?.error?.message || err?.response?.data?.message || err?.message || "Failed to save GST rate. Please check required fields and try again.");
         }
     };
 
@@ -203,7 +203,7 @@ export default function GstPage() {
             setEditingGst(null);
         } catch (err) {
             console.error("Failed to delete GST:", err);
-            alert(err?.message || "Failed to delete GST rate");
+            throw new Error(err?.response?.data?.error?.message || err?.response?.data?.message || err?.message || "Failed to delete GST rate");
         }
     };
 
