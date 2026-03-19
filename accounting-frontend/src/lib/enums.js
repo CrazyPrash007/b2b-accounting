@@ -29,7 +29,7 @@ export const INDUSTRY_TYPES = [
     'Food & Beverage',
     'Healthcare',
     'Hospitality',
-    'IT & Software',
+    'Computer and IT Softwares',
     'Manufacturing',
     'Media & Entertainment',
     'Pharmaceuticals',
